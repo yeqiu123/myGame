@@ -1969,6 +1969,14 @@ public final class GameCore {
                 || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id);
     }
 
+    private static boolean isCapstoneCard(String id) {
+        return "warden_aegisline".equals(id) || "duelist_bladesong".equals(id)
+                || "alchemist_sunsteel".equals(id) || "ranger_predator".equals(id)
+                || "arcanist_eventhorizon".equals(id) || "merchant_kingmaker".equals(id)
+                || "blood_apotheosis".equals(id) || "weaver_clockwork".equals(id)
+                || "summoner_procession".equals(id) || "hexer_crownfall".equals(id);
+    }
+
     private static void rollBoons(State s) {
         s.boonChoices.clear();
         HashSet<String> offered = new HashSet<>();
@@ -3430,9 +3438,29 @@ public final class GameCore {
         if ("steel_spear".equals(d.id) && s.block >= 10) {
             damage += c.upgraded ? 8 : 5;
         }
+        if ("warden_aegisline".equals(d.id) && s.block >= 24) {
+            damage += Math.min(c.upgraded ? 24 : 18, s.block / 2);
+            block += 4 + s.steelEngine;
+        }
         if ("wild_thorn".equals(d.id) && target != null && target.bind > 0) {
             damage += c.upgraded ? 8 : 5;
             block += c.upgraded ? 4 : 3;
+        }
+        if ("duelist_bladesong".equals(d.id) && s.cardsPlayedThisTurn >= 4) {
+            draw += 1;
+            damage += 4 * Math.max(0, s.cardsPlayedThisTurn - 3);
+        }
+        if ("ranger_predator".equals(d.id) && target != null) {
+            damage += Math.min(c.upgraded ? 28 : 20, target.bind * (c.upgraded ? 3 : 2));
+            if (target.vulnerable > 0) {
+                draw += 1;
+            }
+        }
+        if ("merchant_kingmaker".equals(d.id)) {
+            block += Math.min(c.upgraded ? 20 : 14, s.gold / 18);
+        }
+        if ("blood_apotheosis".equals(d.id)) {
+            damage += Math.max(0, s.maxHp - s.hp) / (c.upgraded ? 4 : 5);
         }
         if (PROF_BLOODBOUND.equals(s.profession) && d.hpLoss > 0) {
             damage += 3 + s.act + Math.max(0, s.maxHp - s.hp) / 12;
@@ -3496,6 +3524,9 @@ public final class GameCore {
             block += 5 + s.act;
             draw += 1;
         }
+        if ("alchemist_sunsteel".equals(d.id)) {
+            block += Math.min(c.upgraded ? 18 : 12, s.burnPower * 3 + s.bindPower * 3);
+        }
         if (hasTalent(s, "t_alchemist_grandbrew") && d.createPotion) {
             block += 4 + s.act;
             s.burnPower++;
@@ -3530,6 +3561,9 @@ public final class GameCore {
                 bindTotal += e.bind;
             }
             draw += Math.min(c.upgraded ? 3 : 2, bindTotal / 4);
+        }
+        if ("weaver_clockwork".equals(d.id)) {
+            block += Math.min(c.upgraded ? 18 : 12, upgradedCardCount(s) * 2);
         }
 
         if (damage > 0) {
@@ -3663,6 +3697,39 @@ public final class GameCore {
                     }
                 }
             }
+        }
+        if ("alchemist_sunsteel".equals(d.id) && target != null) {
+            int surge = c.upgraded ? 3 : 2;
+            target.burn += surge + s.burnPower;
+            target.bind += surge + s.bindPower;
+            if (s.potions.size() < potionLimit(s) && s.run.nextInt(100) < (c.upgraded ? 70 : 45)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "日钢炼台追加药剂：" + p.name);
+            }
+        }
+        if ("arcanist_eventhorizon".equals(d.id)) {
+            s.voidEngine += c.upgraded ? 2 : 1;
+            for (int i = 0; i < (c.upgraded ? 2 : 1); i++) {
+                Card echo = new Card("arcanist_glyph");
+                echo.temp = true;
+                addToHand(s, echo);
+            }
+        }
+        if ("summoner_procession".equals(d.id)) {
+            int count = c.upgraded ? 3 : 2;
+            for (int i = 0; i < count; i++) {
+                Card spirit = new Card("summoner_sprite");
+                spirit.temp = true;
+                addToHand(s, spirit);
+            }
+        }
+        if ("hexer_crownfall".equals(d.id)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+            }
+            addStatusCard(s, c.upgraded ? "wound" : "daze");
         }
         if (d.retainBlock) {
             s.block += s.turn;
@@ -4639,6 +4706,9 @@ public final class GameCore {
             if (!allowRare && d.rarity == 2) {
                 continue;
             }
+            if (s.act < 2 && isCapstoneCard(d.id)) {
+                continue;
+            }
             int weight = d.rarity == 0 ? 7 : d.rarity == 1 ? 4 : 2;
             for (int i = 0; i < weight; i++) {
                 pool.add(d);
@@ -4657,6 +4727,9 @@ public final class GameCore {
                 continue;
             }
             if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            if (s.act < 2 && isCapstoneCard(d.id)) {
                 continue;
             }
             int weight = d.rarity == 0 ? 6 : d.rarity == 1 ? 4 : 2;
@@ -4694,6 +4767,9 @@ public final class GameCore {
                 }
             }
             if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            if (s.act < 2 && isCapstoneCard(d.id)) {
                 continue;
             }
             int weight = d.rarity == 0 ? 7 : d.rarity == 1 ? 4 : 2;
@@ -4994,6 +5070,17 @@ public final class GameCore {
         return false;
     }
 
+    private static int upgradedCardCount(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && d.type != 3 && c.upgraded) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static boolean hasRelic(State s, String id) {
         return s.relics.contains(id);
     }
@@ -5112,6 +5199,8 @@ public final class GameCore {
         c.profession = PROF_WARDEN; c.draw = c.drawUp = 1; c.gainSteelEngine = 1;
         c = addCard("warden_command", "盾阵号令", "通用", 2, 1, 1, 0, 0, 9, 13, "获得格挡，抽1张，职业技充能+3。", "更多格挡，职业技充能+4。");
         c.profession = PROF_WARDEN; c.skillChargeGain = 3; c.draw = c.drawUp = 1;
+        c = addCard("warden_aegisline", "圣盾战线", "通用", 2, 2, 0, 10, 14, 16, 22, "造成伤害并获得格挡；若已有高格挡，追加爆发。守势+1。", "更高伤害与格挡，守势+2。");
+        c.profession = PROF_WARDEN; c.blockToDamage = true; c.gainSteelEngine = 1;
 
         c = addCard("duelist_flurry", "连步刺", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，本回合打牌越多越强。", "更高伤害与连击成长。");
         c.profession = PROF_DUELIST; c.comboDamage = 2;
@@ -5121,6 +5210,8 @@ public final class GameCore {
         c.profession = PROF_DUELIST; c.comboDamage = 4;
         c = addCard("duelist_flashstep", "闪步终拍", "通用", 2, 0, 0, 2, 4, 0, 0, "造成低伤害，抽1张，职业技充能+2。", "更高伤害，职业技充能+3。");
         c.profession = PROF_DUELIST; c.draw = c.drawUp = 1; c.comboDamage = 2; c.skillChargeGain = 2;
+        c = addCard("duelist_bladesong", "万刃终谱", "通用", 2, 1, 0, 7, 10, 0, 0, "造成伤害，本回合打牌越多越强；连打足够时抽牌。", "更高伤害和连击成长。");
+        c.profession = PROF_DUELIST; c.comboDamage = 5; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
 
         c = addCard("alchemist_mix", "试剂调和", "通用", 0, 1, 2, 0, 0, 4, 6, "获得格挡并调制随机药剂，消耗。", "更多格挡并调制随机药剂，消耗。");
         c.profession = PROF_ALCHEMIST; c.createPotion = true; c.exhaust = true;
@@ -5130,6 +5221,8 @@ public final class GameCore {
         c.profession = PROF_ALCHEMIST; c.draw = 2; c.drawUp = 3; c.gainBurnPower = 1; c.gainBindPower = 1; c.exhaust = true;
         c = addCard("alchemist_reactor", "连锁反应釜", "通用", 2, 1, 2, 0, 0, 5, 8, "获得格挡并调制药剂，职业技充能+2。", "更多格挡，职业技充能+3。");
         c.profession = PROF_ALCHEMIST; c.createPotion = true; c.exhaust = true; c.skillChargeGain = 2;
+        c = addCard("alchemist_sunsteel", "日钢终釜", "通用", 2, 2, 2, 0, 0, 9, 13, "获得格挡，施加燃灼与束缚并调制药剂；势能会提高格挡。", "更多格挡、异常和制药稳定性。");
+        c.profession = PROF_ALCHEMIST; c.burn = 3; c.burnUp = 5; c.bind = 3; c.bindUp = 5; c.createPotion = true; c.targetEnemy = true; c.skillChargeGain = 2;
 
         c = addCard("ranger_trap", "踏影陷阱", "通用", 0, 1, 1, 0, 0, 6, 9, "获得格挡，施加束缚。", "更多格挡与束缚。");
         c.profession = PROF_RANGER; c.bind = 2; c.bindUp = 3; c.targetEnemy = true;
@@ -5139,6 +5232,8 @@ public final class GameCore {
         c.profession = PROF_RANGER; c.bindToDraw = true; c.gainBindPower = 1;
         c = addCard("ranger_killzone", "猎场封锁", "通用", 2, 1, 1, 0, 0, 8, 11, "获得格挡，对目标施加束缚和易伤，职业技充能+2。", "更多格挡、束缚和充能。");
         c.profession = PROF_RANGER; c.bind = 3; c.bindUp = 5; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("ranger_predator", "猎王收束", "通用", 2, 2, 0, 12, 17, 0, 0, "造成伤害，目标束缚越高伤害越高；施加束缚与易伤。", "更高伤害，并更善于收束猎物。");
+        c.profession = PROF_RANGER; c.bind = 4; c.bindUp = 6; c.vulnerable = 1; c.targetEnemy = true; c.skillChargeGain = 2;
 
         c = addCard("arcanist_glyph", "秘文摹写", "通用", 0, 0, 2, 0, 0, 0, 0, "制造一张临时疾切，消耗。", "制造一张临时疾切，消耗。");
         c.profession = PROF_ARCANIST; c.createEcho = true; c.echoCardId = "quick_cut"; c.exhaust = true;
@@ -5148,6 +5243,8 @@ public final class GameCore {
         c.profession = PROF_ARCANIST; c.gainVoidEngine = 1; c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.exhaust = true;
         c = addCard("arcanist_convergence", "秘能汇流", "通用", 2, 1, 2, 0, 0, 0, 0, "抽1张，制造临时疾切，职业技充能+3，消耗。", "抽2张，职业技充能+4。");
         c.profession = PROF_ARCANIST; c.draw = 1; c.drawUp = 2; c.createEcho = true; c.echoCardId = "quick_cut"; c.skillChargeGain = 3; c.exhaust = true;
+        c = addCard("arcanist_eventhorizon", "事件视界", "通用", 2, 1, 2, 0, 0, 5, 8, "获得格挡，抽牌，制造临时秘文并提高回声势，消耗。", "更多格挡、抽牌和回声势。");
+        c.profession = PROF_ARCANIST; c.draw = 2; c.drawUp = 3; c.exhaust = true; c.skillChargeGain = 2; c.gainVoidEngine = 1;
 
         c = addCard("merchant_haggle", "讨价还价", "通用", 0, 0, 2, 0, 0, 0, 0, "获得金币，抽1张，消耗。", "获得更多金币，抽1张，消耗。");
         c.profession = PROF_MERCHANT; c.goldGain = 12; c.draw = c.drawUp = 1; c.exhaust = true;
@@ -5157,6 +5254,8 @@ public final class GameCore {
         c.profession = PROF_MERCHANT; c.goldDamage = true; c.goldGain = 10;
         c = addCard("merchant_speculate", "期货契据", "通用", 2, 1, 2, 0, 0, 4, 7, "获得格挡和金币，职业技充能+2。", "更多格挡和金币，职业技充能+3。");
         c.profession = PROF_MERCHANT; c.goldGain = 18; c.goldBlock = true; c.draw = c.drawUp = 1; c.skillChargeGain = 2;
+        c = addCard("merchant_kingmaker", "金座点王", "通用", 2, 2, 0, 12, 17, 8, 12, "造成伤害并获得格挡；金币越多伤害和格挡越高，获得金币。", "更高基础收益与金币转化。");
+        c.profession = PROF_MERCHANT; c.goldDamage = true; c.goldBlock = true; c.goldGain = 18; c.skillChargeGain = 2;
 
         c = addCard("blood_pact", "血契刻印", "通用", 0, 1, 0, 9, 13, 0, 0, "失去生命造成伤害。血契者会把失去生命转为额外爆发。", "失去更少生命，造成更高伤害。");
         c.profession = PROF_BLOODBOUND; c.hpLoss = 2; c.vulnerable = 1;
@@ -5166,6 +5265,8 @@ public final class GameCore {
         c.profession = PROF_BLOODBOUND; c.heal = 4; c.healUp = 7;
         c = addCard("blood_sigilstorm", "血印风暴", "通用", 2, 1, 0, 8, 12, 0, 0, "失去生命造成伤害，职业技充能+3并加入裂伤。", "更高伤害，职业技充能+4。");
         c.profession = PROF_BLOODBOUND; c.hpLoss = 2; c.createWound = true; c.skillChargeGain = 3;
+        c = addCard("blood_apotheosis", "血冕化生", "通用", 2, 2, 0, 14, 20, 0, 0, "失去生命造成伤害并治疗；失去生命越多，伤害越高，加入裂伤。", "更高伤害与治疗，损耗更低。");
+        c.profession = PROF_BLOODBOUND; c.hpLoss = 4; c.heal = 5; c.healUp = 8; c.createWound = true; c.skillChargeGain = 2;
 
         c = addCard("weaver_thread", "织线", "通用", 0, 0, 1, 0, 0, 4, 6, "获得格挡，检视牌库并抽1张。织牌师偏好牌序工程。", "更多格挡，抽2张。");
         c.profession = PROF_WEAVER; c.scry = 3; c.draw = 1; c.drawUp = 2;
@@ -5175,6 +5276,8 @@ public final class GameCore {
         c.profession = PROF_WEAVER; c.createEcho = true; c.echoCardId = "quick_cut"; c.scry = 4; c.energyGain = 1; c.draw = 1; c.drawUp = 2; c.exhaust = true;
         c = addCard("weaver_overpattern", "超定式", "通用", 2, 1, 1, 0, 0, 7, 10, "获得格挡，升级手牌，职业技充能+2。", "更多格挡，职业技充能+3。");
         c.profession = PROF_WEAVER; c.upgradeRandom = true; c.draw = c.drawUp = 1; c.skillChargeGain = 2;
+        c = addCard("weaver_clockwork", "万象织钟", "通用", 2, 2, 1, 0, 0, 12, 16, "获得格挡，抽牌并升级手牌；升级牌越多格挡越高。", "更多格挡和抽牌，升级牌收益更高。");
+        c.profession = PROF_WEAVER; c.draw = 2; c.drawUp = 3; c.upgradeRandom = true; c.scry = 3; c.skillChargeGain = 2;
 
         c = addCard("summoner_sprite", "灵火", "通用", 0, 0, 0, 4, 6, 3, 5, "造成伤害并获得格挡。唤灵师：推动灵潮。", "更高伤害与格挡。");
         c.profession = PROF_SUMMONER; c.bind = 1; c.targetEnemy = true;
@@ -5184,6 +5287,8 @@ public final class GameCore {
         c.profession = PROF_SUMMONER; c.bind = 2; c.bindUp = 3; c.targetEnemy = true; c.createEcho = true; c.echoCardId = "summoner_sprite";
         c = addCard("summoner_court", "灵庭", "通用", 2, 1, 2, 0, 0, 4, 7, "制造临时灵火，职业技充能+3，获得束缚势。", "更多格挡，职业技充能+4。");
         c.profession = PROF_SUMMONER; c.createEcho = true; c.echoCardId = "summoner_sprite"; c.skillChargeGain = 3; c.gainBindPower = 1; c.draw = c.drawUp = 1;
+        c = addCard("summoner_procession", "百灵巡游", "通用", 2, 2, 2, 0, 0, 10, 14, "获得格挡，召唤多张临时灵火，施加束缚并推动灵潮。", "更多格挡、灵火与束缚。");
+        c.profession = PROF_SUMMONER; c.createEcho = true; c.echoCardId = "summoner_sprite"; c.bind = 3; c.bindUp = 5; c.targetEnemy = true; c.skillChargeGain = 3;
 
         c = addCard("hexer_hexmark", "咒印", "通用", 0, 1, 0, 6, 9, 0, 0, "造成伤害，施加易伤与束缚。", "更高伤害，施加更多控制。");
         c.profession = PROF_HEXER; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.targetEnemy = true;
@@ -5193,6 +5298,8 @@ public final class GameCore {
         c.profession = PROF_HEXER; c.vulnerable = 1; c.bind = 2; c.bindUp = 4; c.spreadStatus = true; c.targetEnemy = true; c.skillChargeGain = 2;
         c = addCard("hexer_purge", "以咒净咒", "通用", 2, 1, 2, 0, 0, 6, 9, "消耗弃牌堆顶牌，抽2张。状态牌会推动咒术师。", "更多格挡与抽牌。");
         c.profession = PROF_HEXER; c.exhaustTopDiscard = true; c.draw = 2; c.drawUp = 3;
+        c = addCard("hexer_crownfall", "咒冠坠落", "通用", 2, 1, 2, 0, 0, 6, 9, "敌群获得易伤与束缚，扩散异常并加入状态牌。", "更多格挡，加入裂伤并加强异常扩散。");
+        c.profession = PROF_HEXER; c.vulnerable = 1; c.bind = 2; c.bindUp = 4; c.spreadStatus = true; c.targetEnemy = true; c.skillChargeGain = 2;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");

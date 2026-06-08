@@ -60,7 +60,7 @@ public final class SimulationHarness {
             if (!s.relicRewards.isEmpty()) {
                 GameCore.pickRelicReward(s, 0);
             } else if (!s.cardRewards.isEmpty()) {
-                GameCore.pickRewardCard(s, 0);
+                GameCore.pickRewardCard(s, chooseRewardCard(s));
             } else {
                 GameCore.skipReward(s);
             }
@@ -112,6 +112,40 @@ public final class SimulationHarness {
             }
         }
         return false;
+    }
+
+    private static int chooseRewardCard(GameCore.State s) {
+        int best = 0;
+        int bestScore = -9999;
+        for (int i = 0; i < s.cardRewards.size(); i++) {
+            GameCore.CardDef d = GameCore.card(s.cardRewards.get(i).id);
+            if (d == null) continue;
+            int score = d.rarity * 8 + d.damage * 2 + d.block * 2 + d.draw * 6 + d.energyGain * 8
+                    + d.burn * 4 + d.bind * 4 + d.vulnerable * 7 + d.skillChargeGain * 7
+                    + d.gainSteelEngine * 10 + d.gainAshEngine * 10 + d.gainWildEngine * 10 + d.gainVoidEngine * 10
+                    + d.goldGain * 2 + (d.goldDamage ? 8 : 0) + (d.goldBlock ? 8 : 0)
+                    + (d.createEcho ? 8 : 0) + (d.createPotion ? 8 : 0) + (d.createWound ? 5 : 0)
+                    + (d.upgradeRandom ? 8 : 0) + d.scry * 2 - d.cost * 2;
+            if (d.profession.equals(s.profession)) score += 24;
+            if ("通用".equals(d.origin) || d.origin.equals(s.origin)) score += 4;
+            if (d.rarity == 2 && d.profession.equals(s.profession)) score += 10;
+            if (GameCore.PROF_WARDEN.equals(s.profession) && (d.block > 0 || d.blockToDamage || d.gainSteelEngine > 0)) score += 12;
+            if (GameCore.PROF_DUELIST.equals(s.profession) && (d.cost == 0 || d.comboDamage > 0 || d.draw > 0)) score += 12;
+            if (GameCore.PROF_ALCHEMIST.equals(s.profession) && (d.createPotion || d.burn > 0 || d.bind > 0 || d.spreadStatus)) score += 12;
+            if (GameCore.PROF_RANGER.equals(s.profession) && (d.bind > 0 || d.aoe || d.bindToDraw)) score += 12;
+            if (GameCore.PROF_ARCANIST.equals(s.profession) && (d.exhaust || d.createEcho || d.exhaustTopDiscard || d.exhaustForDamage)) score += 12;
+            if (GameCore.PROF_MERCHANT.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) score += 12;
+            if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || d.heal > 0 || d.createWound)) score += 12;
+            if (GameCore.PROF_WEAVER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0)) score += 12;
+            if (GameCore.PROF_SUMMONER.equals(s.profession) && (d.createEcho || d.bind > 0 || d.type == 1)) score += 12;
+            if (GameCore.PROF_HEXER.equals(s.profession) && (d.vulnerable > 0 || d.createWound || d.addStatusToEnemy || d.spreadStatus)) score += 12;
+            if (s.deck.size() > 34 && d.cost >= 2 && d.draw == 0) score -= 6;
+            if (score > bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return best;
     }
 
     private static int chooseMapNode(GameCore.State s) {
@@ -264,6 +298,16 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_summoner_overflow") && (d.createEcho || c.temp || "summoner_sprite".equals(c.id) || "summoner_wisp".equals(c.id))) score += 12;
                 if (s.talents.contains("t_hexer_abysscurse") && (d.vulnerable > 0 || d.createWound || d.addStatusToEnemy || "wound".equals(c.id) || "daze".equals(c.id))) score += 12;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
+                if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
+                if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
+                if ("alchemist_sunsteel".equals(c.id) && (s.burnPower + s.bindPower >= 2 || s.potions.size() < GameCore.potionLimit(s))) score += 14;
+                if ("ranger_predator".equals(c.id) && target >= 0 && s.enemies.get(target).bind > 0) score += 14;
+                if ("arcanist_eventhorizon".equals(c.id)) score += 12;
+                if ("merchant_kingmaker".equals(c.id) && s.gold >= 120) score += 14;
+                if ("blood_apotheosis".equals(c.id) && s.hp < s.maxHp) score += 14;
+                if ("weaver_clockwork".equals(c.id)) score += 12;
+                if ("summoner_procession".equals(c.id)) score += 14;
+                if ("hexer_crownfall".equals(c.id)) score += 14;
                 if (s.relics.contains("loom_shuttle") && d.scry > 0) score += 6;
                 if (s.relics.contains("void_abacus") && d.exhaust) score += 6;
                 if (s.relics.contains("tempo_metronome") && s.cardsPlayedThisTurn == 3) score += 12;
