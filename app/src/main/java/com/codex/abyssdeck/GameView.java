@@ -1334,6 +1334,24 @@ public final class GameView extends View {
             rightLeaf.cubicTo(cx + size * 0.1f, cy - size * 0.18f, cx + size * 0.04f, cy - size * 0.36f, cx + size * 0.04f, cy - size * 0.5f);
             c.drawPath(rightLeaf, p);
             c.drawCircle(cx, cy + size * 0.28f, size * 0.16f, p);
+        } else if (GameCore.PROF_CHEF.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            c.drawRoundRect(new RectF(cx - size * 0.72f, cy - size * 0.05f, cx + size * 0.72f, cy + size * 0.68f), size * 0.18f, size * 0.18f, p);
+            c.drawLine(cx - size * 0.82f, cy - size * 0.12f, cx + size * 0.82f, cy - size * 0.12f, p);
+            c.drawLine(cx - size * 0.48f, cy + size * 0.68f, cx + size * 0.48f, cy + size * 0.68f, p);
+            c.drawArc(new RectF(cx - size * 1.08f, cy, cx - size * 0.52f, cy + size * 0.48f), 90, 160, false, p);
+            c.drawArc(new RectF(cx + size * 0.52f, cy, cx + size * 1.08f, cy + size * 0.48f), -70, 160, false, p);
+            c.drawArc(new RectF(cx - size * 0.56f, cy - size * 0.95f, cx - size * 0.1f, cy - size * 0.18f), 100, 120, false, p);
+            c.drawArc(new RectF(cx - size * 0.1f, cy - size * 1.02f, cx + size * 0.38f, cy - size * 0.22f), 100, 120, false, p);
+            c.drawLine(cx + size * 0.46f, cy - size * 0.8f, cx + size * 0.86f, cy - size * 0.38f, p);
+            c.drawLine(cx + size * 0.86f, cy - size * 0.38f, cx + size * 0.46f, cy + size * 0.1f, p);
+            p.setStyle(Paint.Style.FILL);
+            Path flame = new Path();
+            flame.moveTo(cx, cy + size * 0.5f);
+            flame.cubicTo(cx - size * 0.35f, cy + size * 0.18f, cx - size * 0.12f, cy - size * 0.1f, cx, cy - size * 0.36f);
+            flame.cubicTo(cx + size * 0.38f, cy - size * 0.02f, cx + size * 0.25f, cy + size * 0.3f, cx, cy + size * 0.5f);
+            c.drawPath(flame, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

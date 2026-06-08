@@ -196,6 +196,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_PRISMIST.equals(s.profession) && isPrismistSignal(d)) score += 14;
             if (GameCore.PROF_DREAMWALKER.equals(s.profession) && isDreamwalkerSignal(d)) score += 14;
             if (GameCore.PROF_GARDENER.equals(s.profession) && isGardenerSignal(d)) score += 14;
+            if (GameCore.PROF_CHEF.equals(s.profession) && isChefSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -222,6 +223,9 @@ public final class SimulationHarness {
             if ("gardener_grand_grove".equals(d.id) || "gardener_overgrowth".equals(d.id)
                     || "gardener_sprout".equals(d.id) || "gardener_rootwall".equals(d.id)
                     || "gardener_compost".equals(d.id) || "gardener_thornbloom".equals(d.id)) score += 14;
+            if ("chef_grand_banquet".equals(d.id) || "chef_overcook".equals(d.id)
+                    || "chef_prep".equals(d.id) || "chef_stew".equals(d.id)
+                    || "chef_spice".equals(d.id) || "chef_sizzle".equals(d.id)) score += 14;
             if (isStormcallerCard(d)) score += 14;
             if (isShadowdancerCard(d)) score += 14;
             if (isRunebladeCard(d)) score += 14;
@@ -230,6 +234,7 @@ public final class SimulationHarness {
             if (isPrismistCard(d)) score += 14;
             if (isDreamwalkerCard(d)) score += 14;
             if (isGardenerCard(d)) score += 14;
+            if (isChefCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -262,6 +267,10 @@ public final class SimulationHarness {
                     || d.gainWildEngine > 0 || d.block > 0 || d.bind > 0)) score += 18;
             if (s.relics.contains("verdant_crown") && (isGardenerSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.heal > 0 || d.gainWildEngine > 0 || d.bind > 0)) score += 20;
+            if (s.relics.contains("recipe_book") && (isChefSignal(d) || d.heal > 0
+                    || d.createPotion || d.burn > 0 || d.bind > 0)) score += 18;
+            if (s.relics.contains("banquet_crown") && (isChefSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0)) score += 20;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
@@ -351,16 +360,23 @@ public final class SimulationHarness {
                     || "stormglass_seal".equals(id) || "tempo_metronome".equals(id) || "tuning_fork".equals(id)
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "starforge_lens".equals(id)
                     || "confluence_map".equals(id) || "prism_gear".equals(id))) score += 36;
+            if (GameCore.PROF_CHEF.equals(s.profession) && ("banquet_crown".equals(id) || "recipe_book".equals(id)
+                    || "glass_vials".equals(id) || "cinder_spoon".equals(id) || "green_bell".equals(id)
+                    || "emberroot_charm".equals(id) || "markchain_seal".equals(id) || "overload_etch".equals(id)
+                    || "discipline_chart".equals(id) || "stormglass_seal".equals(id) || "tempo_metronome".equals(id)
+                    || "tuning_fork".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
+                    || "starforge_lens".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
-                    || GameCore.PROF_PRISMIST.equals(s.profession))) score += 28;
+                    || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_CHEF.equals(s.profession))) score += 28;
             if ("echo_ledger".equals(id) && (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
                     || GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession) || GameCore.PROF_MEDIUM.equals(s.profession))) score += 28;
             if ("bloodspark_contract".equals(id) && (GameCore.PROF_BLOODBOUND.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
-                    || GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_ALCHEMIST.equals(s.profession))) score += 28;
+                    || GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_ALCHEMIST.equals(s.profession)
+                    || GameCore.PROF_CHEF.equals(s.profession))) score += 28;
             if ("contract_stamp".equals(id) || "grand_ledger".equals(id)) score += 18;
             if ("storm_rod".equals(id) || "tempest_crown".equals(id)) score += 20;
             if ("shadow_sash".equals(id) || "eclipse_mask".equals(id)) score += 20;
@@ -370,6 +386,7 @@ public final class SimulationHarness {
             if ("refraction_dial".equals(id) || "spectrum_crown".equals(id)) score += 20;
             if ("dreamcatcher_charm".equals(id) || "oneiric_crown".equals(id)) score += 20;
             if ("seed_satchel".equals(id) || "verdant_crown".equals(id)) score += 20;
+            if ("recipe_book".equals(id) || "banquet_crown".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
@@ -438,7 +455,8 @@ public final class SimulationHarness {
             int score = 0;
             if ("pact_guardian".equals(id)) score += GameCore.PROF_WARDEN.equals(s.profession) ? 34 : 18;
             else if ("pact_sprinter".equals(id)) score += GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_WEAVER.equals(s.profession) ? 34 : 18;
-            else if ("pact_brewer".equals(id)) score += GameCore.PROF_ALCHEMIST.equals(s.profession) ? 38 : 16;
+            else if ("pact_brewer".equals(id)) score += (GameCore.PROF_ALCHEMIST.equals(s.profession)
+                    || GameCore.PROF_CHEF.equals(s.profession)) ? 38 : 16;
             else if ("pact_hunter".equals(id)) score += GameCore.PROF_RANGER.equals(s.profession) ? 32 : 20;
             else if ("pact_void".equals(id)) score += GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_WEAVER.equals(s.profession) ? 36 : 16;
             else if ("pact_blood".equals(id)) score += GameCore.PROF_BLOODBOUND.equals(s.profession) ? 40 : 10;
@@ -483,6 +501,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_GARDENER.equals(s.profession) && ("pact_guardian".equals(id) || "pact_hunter".equals(id)
                     || "pact_suppression".equals(id) || "pact_hex".equals(id) || "pact_confluence".equals(id)
                     || "pact_forge".equals(id))) score += 24;
+            if (GameCore.PROF_CHEF.equals(s.profession) && ("pact_brewer".equals(id) || "pact_hex".equals(id)
+                    || "pact_hunter".equals(id) || "pact_guardian".equals(id) || "pact_suppression".equals(id)
+                    || "pact_confluence".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -518,24 +539,28 @@ public final class SimulationHarness {
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession)) ? 32 : 22;
             else if ("spec_sustain".equals(id)) score += (GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
-                    || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)) ? 32 : 20;
+                    || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
+                    || GameCore.PROF_CHEF.equals(s.profession)) ? 32 : 20;
             else if ("spec_control".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_INSCRIBER.equals(s.profession) || GameCore.PROF_PACTMAKER.equals(s.profession)
                     || GameCore.PROF_STORMCALLER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
                     || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
-                    || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)) ? 31 : 24;
+                    || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
+                    || GameCore.PROF_CHEF.equals(s.profession)) ? 31 : 24;
             else if ("spec_assembly".equals(id)) score += (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_MACHINIST.equals(s.profession)
                     || GameCore.PROF_ASTROLOGER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
                     || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)) ? 31 : 24;
             else if ("spec_echoflow".equals(id)) score += (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
                     || GameCore.PROF_CHRONOMANCER.equals(s.profession) || GameCore.PROF_SHADOWDANCER.equals(s.profession)
-                    || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_DREAMWALKER.equals(s.profession)) ? 33 : 26;
+                    || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_DREAMWALKER.equals(s.profession)
+                    || GameCore.PROF_CHEF.equals(s.profession)) ? 33 : 26;
             else if ("spec_markchain".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
                     || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_PACTMAKER.equals(s.profession) || GameCore.PROF_STORMCALLER.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession) || GameCore.PROF_MEDIUM.equals(s.profession)
                     || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)
-                    || GameCore.PROF_DREAMWALKER.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)) ? 33 : 25;
+                    || GameCore.PROF_DREAMWALKER.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
+                    || GameCore.PROF_CHEF.equals(s.profession)) ? 33 : 25;
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && ("spec_sustain".equals(id) || "spec_resonance".equals(id)
                     || "spec_mastery".equals(id))) score += 6;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
@@ -560,6 +585,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_GARDENER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
                     || "spec_tempo".equals(id))) score += 8;
+            if (GameCore.PROF_CHEF.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_sustain".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id))) score += 4;
@@ -740,6 +768,19 @@ public final class SimulationHarness {
                     if (statusDeckCards(s) >= 1 && ("gardener_compost".equals(c.id) || "gardener_rootwall".equals(c.id)
                             || "gardener_grand_grove".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_CHEF.equals(s.profession) && (isChefSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0 || d.block > 0
+                            || "wound".equals(c.id) || "daze".equals(c.id)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isChefCard(d)
+                            || d.createPotion || d.heal > 0)) score += 6;
+                    if (chefEnemyPressure(s) >= 8 && ("chef_spice".equals(c.id) || "chef_sizzle".equals(c.id)
+                            || "chef_overcook".equals(c.id) || "chef_grand_banquet".equals(c.id))) score += 8;
+                    if ((s.potions.size() >= 2 || s.hp < s.maxHp) && (d.heal > 0 || d.block > 0
+                            || d.skillChargeGain > 0 || isChefCard(d))) score += 5;
+                    if (statusDeckCards(s) >= 1 && ("chef_spice".equals(c.id) || "chef_stew".equals(c.id)
+                            || "chef_grand_banquet".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -806,6 +847,14 @@ public final class SimulationHarness {
                         || "wound".equals(c.id) || "daze".equals(c.id) || isGardenerCard(d))) score += 12;
                 if (s.talents.contains("t_gardener_grand") && (d.heal > 0 || d.gainWildEngine > 0 || d.bind > 0
                         || d.skillChargeGain > 0 || d.rarity == 2 || isGardenerCard(d))) score += 14;
+                if (s.talents.contains("t_chef_prep") && (d.heal > 0 || d.createPotion || d.draw > 0
+                        || isChefCard(d))) score += 12;
+                if (s.talents.contains("t_chef_stew") && (d.block > 0 || d.type == 1 || d.heal > 0
+                        || d.createEcho || isChefCard(d))) score += 12;
+                if (s.talents.contains("t_chef_spice") && (d.burn > 0 || d.bind > 0 || d.createWound
+                        || d.exhaust || "wound".equals(c.id) || "daze".equals(c.id) || isChefCard(d))) score += 12;
+                if (s.talents.contains("t_chef_grand") && (d.heal > 0 || d.createPotion || d.burn > 0
+                        || d.bind > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isChefCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -854,6 +903,9 @@ public final class SimulationHarness {
                 if ("gardener_grand_grove".equals(c.id) || "gardener_overgrowth".equals(c.id)) score += 18;
                 if ("gardener_sprout".equals(c.id) || "gardener_rootwall".equals(c.id)
                         || "gardener_compost".equals(c.id) || "gardener_thornbloom".equals(c.id)) score += 14;
+                if ("chef_grand_banquet".equals(c.id) || "chef_overcook".equals(c.id)) score += 18;
+                if ("chef_prep".equals(c.id) || "chef_stew".equals(c.id)
+                        || "chef_spice".equals(c.id) || "chef_sizzle".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -941,6 +993,10 @@ public final class SimulationHarness {
                         || d.heal > 0 || d.gainWildEngine > 0 || d.block > 0 || d.bind > 0)) score += 14;
                 if (s.relics.contains("verdant_crown") && (isGardenerSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.heal > 0 || d.gainWildEngine > 0 || d.bind > 0)) score += 16;
+                if (s.relics.contains("recipe_book") && (isChefSignal(d) || c.temp
+                        || d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0)) score += 14;
+                if (s.relics.contains("banquet_crown") && (isChefSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -1048,6 +1104,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_CHEF.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean banquetWindow = target >= 0 && (s.enemies.get(target).burn + s.enemies.get(target).bind >= 4
+                    || s.enemies.get(target).mark >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || banquetWindow || s.potions.size() >= 2
+                    || statusDeckCards(s) >= 1 || chefEnemyPressure(s) >= 7 || s.hp < s.maxHp * 0.78f
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -1082,7 +1148,8 @@ public final class SimulationHarness {
                 || s.relics.contains("war_table") || s.relics.contains("grand_war_room")
                 || s.relics.contains("refraction_dial") || s.relics.contains("spectrum_crown")
                 || s.relics.contains("dreamcatcher_charm") || s.relics.contains("oneiric_crown")
-                || s.relics.contains("seed_satchel") || s.relics.contains("verdant_crown");
+                || s.relics.contains("seed_satchel") || s.relics.contains("verdant_crown")
+                || s.relics.contains("recipe_book") || s.relics.contains("banquet_crown");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
@@ -1184,6 +1251,19 @@ public final class SimulationHarness {
                 || "gardener_overgrowth".equals(d.id) || "gardener_grand_grove".equals(d.id));
     }
 
+    private static boolean isChefSignal(GameCore.CardDef d) {
+        return d != null && (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.createEcho || d.vulnerable > 0
+                || "wound".equals(d.id) || "daze".equals(d.id)
+                || GameCore.PROF_CHEF.equals(d.profession));
+    }
+
+    private static boolean isChefCard(GameCore.CardDef d) {
+        return d != null && ("chef_prep".equals(d.id) || "chef_stew".equals(d.id)
+                || "chef_spice".equals(d.id) || "chef_sizzle".equals(d.id)
+                || "chef_overcook".equals(d.id) || "chef_grand_banquet".equals(d.id));
+    }
+
     private static int stormcallerEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -1259,6 +1339,16 @@ public final class SimulationHarness {
         for (GameCore.Enemy e : s.enemies) {
             if (e.hp > 0) {
                 pressure += e.bind * 2 + e.mark * 2 + e.vulnerable * 2 + e.burn;
+            }
+        }
+        return pressure;
+    }
+
+    private static int chefEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.burn * 2 + e.bind * 2 + e.mark * 2 + e.vulnerable * 2;
             }
         }
         return pressure;

@@ -115,13 +115,14 @@ public final class GameCore {
     public static final String PROF_PRISMIST = "棱镜师";
     public static final String PROF_DREAMWALKER = "梦行者";
     public static final String PROF_GARDENER = "园艺师";
+    public static final String PROF_CHEF = "炊事师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
-            PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER
+            PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -802,6 +803,7 @@ public final class GameCore {
         if (PROF_PRISMIST.equals(profession)) return "折光";
         if (PROF_DREAMWALKER.equals(profession)) return "入梦";
         if (PROF_GARDENER.equals(profession)) return "萌发";
+        if (PROF_CHEF.equals(profession)) return "开宴";
         return "职业技";
     }
 
@@ -862,6 +864,7 @@ public final class GameCore {
         if (PROF_PRISMIST.equals(profession)) return "满充能：消耗光谱折光，按混搭标签、汇流链、检视、升级、异常和过载造成穿透，获得格挡、抽牌并制造棱镜牌。";
         if (PROF_DREAMWALKER.equals(profession)) return "满充能：消耗梦痕入梦，按检视、临时牌、消耗、状态牌、束缚、印记和过载造成穿透，抽牌、格挡并制造梦牌。";
         if (PROF_GARDENER.equals(profession)) return "满充能：消耗种子萌发，按治疗、格挡、束缚、状态转化、再生和过载造成穿透，治疗、抽牌并制造植牌。";
+        if (PROF_CHEF.equals(profession)) return "满充能：消耗菜谱开宴，按药剂、治疗、燃灼、束缚、状态转化和过载造成穿透，治疗、抽牌并制造菜肴。";
         return "选择职业后可用。";
     }
 
@@ -1501,6 +1504,54 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, seeds / 2);
+        } else if (PROF_CHEF.equals(s.profession)) {
+            int recipes = Math.max(1, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int heatCards = burnDeckCards(s) + bindDeckCards(s);
+            int healing = healingDeckCards(s);
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.burn * 3 + target.bind * 2 + target.mark * 2 + target.vulnerable * 2;
+            int damage = 9 + s.act * 3 + Math.min(50, recipes * 3 + potionPulse * 4 + heatCards * 3
+                    + healing * 2 + statuses * 4 + pressure) + overload * 5;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.burn += 2 + Math.min(4, recipes / 3) + s.burnPower / 2 + overload / 2;
+                target.bind += 1 + Math.min(3, potionPulse / 2) + s.bindPower / 2;
+                target.mark += 1 + Math.min(3, healing / 2 + overload / 2);
+                target.vulnerable += 1 + Math.min(2, statuses / 3 + overload / 4);
+            }
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(14, recipes / 2 + potionPulse * 2 + healing + statuses) + overload);
+            gainBlock(s, 5 + s.act * 2 + Math.min(26, recipes * 2 + potionPulse * 3 + heatCards * 2 + statuses * 3) + overload * 3);
+            draw(s, 1 + Math.min(2, recipes / 5 + potionPulse / 4) + overload / 4);
+            if (s.potions.size() < potionLimit(s) && (recipes >= 4 || potionPulse == 0 || overload >= 2)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "开宴备餐：" + p.name);
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (recipes >= 5 || potionPulse >= 3 || overload >= 3) {
+                s.energy++;
+            }
+            Card dish = new Card(overload >= 4 || hasTalent(s, "t_chef_grand") ? "chef_grand_banquet" : "chef_prep");
+            dish.temp = true;
+            dish.upgraded = recipes >= 5 || hasTalent(s, "t_chef_prep");
+            addToHand(s, dish);
+            if (hasTalent(s, "t_chef_grand")) {
+                Card stew = new Card("chef_stew");
+                stew.temp = true;
+                stew.upgraded = true;
+                addToHand(s, stew);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_BREW, 1 + Math.min(3, potionPulse));
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, Math.max(1, statuses + heatCards / 2)));
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, recipes / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2776,6 +2827,9 @@ public final class GameCore {
         if (PROF_GARDENER.equals(profession)) {
             return "用治疗、格挡、束缚和状态转化培育种子，把腐殖、扎根和再生转成续航、抽牌与萌发爆发。适合森息、守势、异常、循环和过载构筑。";
         }
+        if (PROF_CHEF.equals(profession)) {
+            return "用药剂、治疗、燃灼、束缚和状态转化积累菜谱，把备餐、炖煮和宴席转成续航、抽牌、异常与开宴爆发。适合炼药、异常、循环、守势和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2854,6 +2908,9 @@ public final class GameCore {
         }
         if (PROF_GARDENER.equals(profession)) {
             return 0xff9edc7f;
+        }
+        if (PROF_CHEF.equals(profession)) {
+            return 0xffffb56b;
         }
         return 0xffd6c07a;
     }
@@ -3156,6 +3213,16 @@ public final class GameCore {
             s.maxHp += 4;
             s.hp += 4;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_CHEF.equals(profession)) {
+            s.deck.add(new Card("chef_prep"));
+            s.deck.add(new Card("chef_stew"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 3;
+            s.hp += 3;
+            if (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3202,6 +3269,7 @@ public final class GameCore {
         else if (PROF_PRISMIST.equals(profession)) upgradeDeckCard(s, "prismist_ray");
         else if (PROF_DREAMWALKER.equals(profession)) upgradeDeckCard(s, "dreamwalker_drift");
         else if (PROF_GARDENER.equals(profession)) upgradeDeckCard(s, "gardener_sprout");
+        else if (PROF_CHEF.equals(profession)) upgradeDeckCard(s, "chef_prep");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3288,6 +3356,13 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_CHEF.equals(profession)) {
+            addUpgradedDeckCard(s, "chef_spice");
+            while (s.potions.size() < Math.min(potionLimit(s), 3)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3317,6 +3392,7 @@ public final class GameCore {
         if (PROF_PRISMIST.equals(profession)) return "prismist_overbeam";
         if (PROF_DREAMWALKER.equals(profession)) return "dreamwalker_overdream";
         if (PROF_GARDENER.equals(profession)) return "gardener_overgrowth";
+        if (PROF_CHEF.equals(profession)) return "chef_overcook";
         return "forge_signal";
     }
 
@@ -3683,6 +3759,23 @@ public final class GameCore {
         } else if ("t_gardener_grand".equals(id)) {
             addUpgradedDeckCard(s, "gardener_grand_grove");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_chef_prep".equals(id)) {
+            addUpgradedDeckCard(s, "chef_prep");
+            if (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_chef_stew".equals(id)) {
+            addUpgradedDeckCard(s, "chef_stew");
+            s.maxHp += 4;
+            s.hp += 4;
+        } else if ("t_chef_spice".equals(id)) {
+            addUpgradedDeckCard(s, "chef_spice");
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_chef_grand".equals(id)) {
+            addUpgradedDeckCard(s, "chef_grand_banquet");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -3705,7 +3798,7 @@ public final class GameCore {
                 || "t_shadowdancer_grand".equals(id) || "t_runeblade_grand".equals(id)
                 || "t_medium_grand".equals(id) || "t_tactician_grand".equals(id)
                 || "t_prismist_grand".equals(id) || "t_dreamwalker_grand".equals(id)
-                || "t_gardener_grand".equals(id);
+                || "t_gardener_grand".equals(id) || "t_chef_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -3721,7 +3814,7 @@ public final class GameCore {
                 || "shadowdancer_eclipse".equals(id) || "runeblade_grand_seal".equals(id)
                 || "medium_grand_seance".equals(id) || "tactician_grand_strategy".equals(id)
                 || "prismist_grand_spectrum".equals(id) || "dreamwalker_grand_dream".equals(id)
-                || "gardener_grand_grove".equals(id);
+                || "gardener_grand_grove".equals(id) || "chef_grand_banquet".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -3737,7 +3830,7 @@ public final class GameCore {
                 || "eclipse_mask".equals(id) || "grand_rune_blade".equals(id)
                 || "ancestral_planchette".equals(id) || "grand_war_room".equals(id)
                 || "spectrum_crown".equals(id) || "oneiric_crown".equals(id)
-                || "verdant_crown".equals(id);
+                || "verdant_crown".equals(id) || "banquet_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -4167,6 +4260,10 @@ public final class GameCore {
         else if (PROF_GARDENER.equals(s.profession) && d != null && (d.heal > 0 || d.gainWildEngine > 0
                 || d.bind > 0 || d.block > 0 || d.createWound || d.draw > 0 || d.skillChargeGain > 0
                 || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_GARDENER))) amount++;
+        else if (PROF_CHEF.equals(s.profession) && d != null && (d.heal > 0 || d.createPotion || d.burn > 0
+                || d.bind > 0 || d.draw > 0 || d.energyGain > 0 || d.createEcho || d.createWound
+                || d.skillChargeGain > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_CHEF))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -4842,6 +4939,40 @@ public final class GameCore {
             if (level >= 3 || s.wildEngine >= 2 || statuses > 0 || overload >= 3) {
                 s.energy++;
             }
+        } else if (PROF_CHEF.equals(s.profession)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int heat = burnDeckCards(s) + bindDeckCards(s);
+            int healing = healingDeckCards(s);
+            s.professionCharge += level + 1 + potionPulse / 2 + overload / 2;
+            draw(s, 1);
+            if (statuses > 0 || level >= 3) {
+                removeStatusCard(s);
+                upgradeRandomHandCard(s);
+            }
+            if (s.potions.size() < potionLimit(s) && (level >= 2 || potionPulse == 0 || overload >= 2)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "本职专修备菜：" + p.name);
+            }
+            s.hp = Math.min(s.maxHp, s.hp + 2 + level * 2 + Math.min(7, potionPulse + healing + statuses) + overload);
+            gainBlock(s, 5 + level * 3 + Math.min(18, s.professionCharge + potionPulse * 3 + heat * 2 + statuses * 3));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card dish = new Card(level >= 3 || overload >= 3 ? "chef_overcook" : "chef_prep");
+            dish.temp = true;
+            dish.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, dish);
+            if (target != null) {
+                target.burn += level + 1 + overload / 2 + s.burnPower / 2;
+                target.bind += level + Math.min(2, potionPulse / 2) + s.bindPower / 2;
+                target.mark += level + Math.min(2, healing / 2) + overload / 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(24, s.professionCharge * 2 + potionPulse * 3
+                        + heat * 3 + statuses * 4 + target.burn + target.bind * 2), true);
+            }
+            if (level >= 3 || potionPulse >= 3 || statuses > 0 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -5239,6 +5370,48 @@ public final class GameCore {
                 target.vulnerable += 1;
             }
         }
+        if (hasRelic(s, "recipe_book") && PROF_CHEF.equals(s.profession)) {
+            int potionPulse = s.potions.size() + potionCards(s);
+            int heat = burnDeckCards(s) + bindDeckCards(s);
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + potionPulse / 2));
+            gainBlock(s, 5 + s.act + Math.min(14, s.professionCharge + potionPulse * 3 + heat * 2));
+            s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(6, potionPulse + healingDeckCards(s) / 2));
+            if (s.potions.size() < potionLimit(s)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "菜谱书补料：" + p.name);
+            }
+            Card prep = new Card("chef_prep");
+            prep.temp = true;
+            prep.upgraded = true;
+            addToHand(s, prep);
+            if (target != null) {
+                target.burn += 2 + s.burnPower / 2;
+                target.bind += 1 + s.bindPower / 2;
+                target.mark += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(20, target.burn + target.bind * 2
+                        + s.professionCharge * 2 + potionPulse * 3), true);
+            }
+        }
+        if (hasRelic(s, "banquet_crown") && PROF_CHEF.equals(s.profession)) {
+            Card feast = new Card("chef_overcook");
+            feast.temp = true;
+            feast.upgraded = true;
+            addToHand(s, feast);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(7, s.potions.size() + potionCards(s)));
+            if (s.professionCharge >= 5 || s.potions.size() >= 2 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.burn += 2 + s.burnPower / 2;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -5288,6 +5461,9 @@ public final class GameCore {
         if (hasRelic(s, "seed_satchel") && PROF_GARDENER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.wildEngine > 0 || statusDeckCards(s) + statusHandCards(s) > 0
                 || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
+        if (hasRelic(s, "recipe_book") && PROF_CHEF.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || !s.potions.isEmpty() || statusDeckCards(s) + statusHandCards(s) > 0
+                || firstLiving(s) != null && (firstLiving(s).burn > 0 || firstLiving(s).bind > 0))) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -5445,13 +5621,13 @@ public final class GameCore {
         if (quest == QUEST_SKILL) {
             return s.profession != null && s.profession.length() > 0;
         }
-        if (quest == QUEST_BREW && (PROF_ALCHEMIST.equals(s.profession) || !s.potions.isEmpty()
+        if (quest == QUEST_BREW && (PROF_ALCHEMIST.equals(s.profession) || PROF_CHEF.equals(s.profession) || !s.potions.isEmpty()
                 || hasTalent(s, "t_alchemist_grandbrew") || hasRelic(s, "alchemist_case") || hasRelic(s, "glass_vials"))) {
             return true;
         }
         if (quest == QUEST_ECHO && (PROF_ARCANIST.equals(s.profession) || PROF_SUMMONER.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
-                || PROF_DREAMWALKER.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession) || PROF_CHEF.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
                 || hasRelic(s, "echo_prism") || hasRelic(s, "echoflow_charm")
@@ -5494,6 +5670,7 @@ public final class GameCore {
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
+                || PROF_CHEF.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -5507,7 +5684,8 @@ public final class GameCore {
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
-                || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession))) {
+                || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
+                || PROF_CHEF.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -5540,7 +5718,9 @@ public final class GameCore {
                     || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)
                     || "gardener_sprout".equals(d.id) || "gardener_rootwall".equals(d.id)
                     || "gardener_thornbloom".equals(d.id) || "gardener_overgrowth".equals(d.id)
-                    || "gardener_grand_grove".equals(d.id))) return true;
+                    || "gardener_grand_grove".equals(d.id) || "chef_prep".equals(d.id)
+                    || "chef_spice".equals(d.id) || "chef_sizzle".equals(d.id)
+                    || "chef_overcook".equals(d.id) || "chef_grand_banquet".equals(d.id))) return true;
             if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
@@ -6459,6 +6639,44 @@ public final class GameCore {
                 grove.temp = true;
                 grove.upgraded = true;
                 addToHand(s, grove);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_CHEF.equals(s.profession) && s.turn == 1) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int heat = burnDeckCards(s) + bindDeckCards(s);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, potionPulse / 2 + heat / 2 + statuses);
+            draw(s, 1);
+            s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, potionPulse + healingDeckCards(s) / 2 + statuses));
+            if (s.potions.size() < potionLimit(s) && (potionPulse == 0 || hasTalent(s, "t_chef_prep"))) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "开灶备料：" + p.name);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += 1 + s.burnPower / 2;
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+                firstLiving(s).mark += 1;
+                firstLiving(s).vulnerable += hasTalent(s, "t_chef_spice") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_chef_prep")) {
+                Card prep = new Card("chef_prep");
+                prep.temp = true;
+                prep.upgraded = true;
+                addToHand(s, prep);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_chef_stew")) {
+                gainBlock(s, 4 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_chef_grand")) {
+                Card dish = new Card("chef_prep");
+                dish.temp = true;
+                dish.upgraded = true;
+                addToHand(s, dish);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -8122,6 +8340,87 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("chef_prep".equals(d.id) && target != null) {
+            int recipes = Math.max(0, s.professionCharge);
+            int pantry = s.potions.size() + potionCards(s) + healingDeckCards(s);
+            damage += Math.min(c.upgraded ? 20 : 13, recipes * 2 + pantry * 2 + target.burn + target.bind);
+            target.burn += c.upgraded ? 2 : 1;
+            target.bind += 1 + s.bindPower / 2;
+            target.mark += c.upgraded ? 2 : 1;
+            if (s.potions.size() < potionLimit(s) || recipes >= 3 || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("chef_stew".equals(d.id)) {
+            int recipes = Math.max(0, s.professionCharge);
+            int pantry = s.potions.size() + potionCards(s) + healingDeckCards(s);
+            block += Math.min(c.upgraded ? 24 : 16, recipes * 2 + pantry * 3 + statusDeckCards(s) * 3);
+            heal += Math.min(c.upgraded ? 5 : 3, 1 + pantry / 2);
+            if (s.hp < s.maxHp || s.potions.size() >= 2 || c.upgraded) {
+                draw += 1;
+            }
+            if (target != null) {
+                target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            }
+        }
+        if ("chef_spice".equals(d.id) && target != null) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int pressure = target.burn * 2 + target.bind * 3 + target.mark * 2 + target.vulnerable * 3;
+            damage += Math.min(c.upgraded ? 34 : 24, pressure + s.professionCharge * 2 + s.potions.size() * 4 + statuses * 4);
+            target.burn += c.upgraded ? 3 : 2;
+            target.bind += c.upgraded ? 3 : 2;
+            target.mark += c.upgraded ? 2 : 1;
+            if (target.bind >= 4 || target.burn >= 4 || statuses > 0 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("chef_sizzle".equals(d.id) && target != null) {
+            int heat = burnDeckCards(s) + bindDeckCards(s);
+            int pressure = target.burn * 3 + target.bind * 2 + target.mark * 2 + target.vulnerable * 2;
+            damage += Math.min(c.upgraded ? 36 : 25, pressure + s.professionCharge * 2 + heat * 3 + s.potions.size() * 3);
+            target.burn += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            if (target.burn >= 5 || s.potions.size() >= 2 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("chef_overcook".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            block += Math.min(c.upgraded ? 30 : 20, s.professionCharge * 2 + overloadNow * 6 + potionPulse * 4 + statuses * 3);
+            heal += Math.min(c.upgraded ? 6 : 4, 2 + potionPulse / 2 + overloadNow);
+            if (target != null) {
+                target.burn += c.upgraded ? 4 : 3;
+                target.bind += c.upgraded ? 2 : 1;
+                target.mark += c.upgraded ? 2 : 1;
+                damage += Math.min(c.upgraded ? 38 : 27, overloadNow * 7 + target.burn * 2 + target.bind * 3
+                        + s.professionCharge * 2 + potionPulse * 3);
+            }
+            if (overloadNow >= 2 || potionPulse >= 3 || statuses > 0 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("chef_grand_banquet".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int healing = healingDeckCards(s);
+            damage += Math.min(c.upgraded ? 64 : 46, s.professionCharge * 4 + potionPulse * 7 + healing * 4
+                    + statuses * 6 + overloadNow * 7 + bestEnemyPressure(s));
+            block += Math.min(c.upgraded ? 44 : 31, s.professionCharge * 3 + potionPulse * 5 + healing * 3 + statuses * 5);
+            heal += c.upgraded ? 7 : 5;
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.burn += 3 + s.burnPower / 2;
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            if (statuses > 0 || overloadNow >= 2 || potionPulse >= 3 || c.upgraded) {
+                draw += 1;
+            }
+        }
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -8766,6 +9065,78 @@ public final class GameCore {
             sprout.upgraded = c.upgraded || s.professionCharge >= 5;
             addToHand(s, sprout);
             if (professionSkillOverload(s) >= 2 || s.wildEngine >= 2 || statusDeckCards(s) + statusHandCards(s) > 0) {
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
+            }
+        }
+        if ("chef_prep".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            if (s.potions.size() < potionLimit(s) || s.hp < s.maxHp || s.professionCharge >= 4) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("chef_stew".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+            if (s.hp < s.maxHp || s.potions.size() >= 2 || healingDeckCards(s) >= 2) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("chef_spice".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_BREW, 1);
+            Enemy e = target != null ? target : firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+            }
+            if (statusDeckCards(s) + statusHandCards(s) > 0 || s.potions.size() > 0) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("chef_sizzle".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 2 : 1);
+            Enemy e = target != null ? target : firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.burn >= 5 || e.bind >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(14, e.burn + e.bind * 2), true);
+                }
+            }
+        }
+        if ("chef_overcook".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_BREW, 1);
+            Card sizzle = new Card("chef_sizzle");
+            sizzle.temp = true;
+            sizzle.upgraded = c.upgraded || professionSkillOverload(s) >= 2;
+            addToHand(s, sizzle);
+            if (professionSkillOverload(s) >= 2 || s.potions.size() >= 2 || statusDeckCards(s) + statusHandCards(s) > 0) {
+                s.energy++;
+            }
+        }
+        if ("chef_grand_banquet".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            upgradeRandomHandCard(s);
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+            if (s.potions.size() < potionLimit(s)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "终局盛宴调制药剂：" + p.name);
+            }
+            Card dish = new Card(s.run.nextBoolean() ? "chef_prep" : "chef_stew");
+            dish.temp = true;
+            dish.upgraded = c.upgraded || s.professionCharge >= 5;
+            addToHand(s, dish);
+            if (professionSkillOverload(s) >= 2 || s.potions.size() >= 2 || statusDeckCards(s) + statusHandCards(s) > 0) {
                 s.energy++;
                 addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
             }
@@ -10308,6 +10679,100 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_CHEF.equals(s.profession) && (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0
+                || d.block > 0 || d.draw > 0 || d.energyGain > 0 || d.createEcho || d.createWound
+                || d.skillChargeGain > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_CHEF))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.burn > 0 || d.createPotion || d.profession.equals(PROF_CHEF)) {
+                    e.burn += 1 + s.burnPower / 2;
+                    e.mark += 1;
+                }
+                if (d.bind > 0 || d.heal > 0 || d.profession.equals(PROF_CHEF)) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+                if (d.createWound || statuses > 0 || "wound".equals(c.id) || "daze".equals(c.id)) {
+                    e.vulnerable += 1;
+                }
+                if (s.professionCharge >= 4 || potionPulse >= 3 || e.burn + e.bind >= 6) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(24, e.mark * 2 + e.burn + e.bind * 2
+                            + s.professionCharge * 2 + potionPulse * 3 + statuses * 3), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 4 + s.act + Math.min(15, s.professionCharge + potionPulse * 3 + statuses * 3));
+                s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(7, s.professionCharge / 2 + potionPulse + healingDeckCards(s) / 2));
+                if (s.cardsPlayedThisTurn >= 3 || potionPulse >= 2 || hasTalent(s, "t_chef_stew")) {
+                    draw(s, 1);
+                }
+                if (statuses > 0 && hasTalent(s, "t_chef_spice")) {
+                    removeStatusCard(s);
+                    s.energy++;
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_chef_prep") && (d.heal > 0 || d.createPotion || d.draw > 0
+                || d.profession.equals(PROF_CHEF))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(20, e.mark * 2 + e.burn + s.professionCharge * 2 + s.potions.size() * 3), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || s.potions.size() < potionLimit(s)) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_chef_stew") && (d.block > 0 || d.type == 1 || d.heal > 0 || d.createEcho
+                || d.profession.equals(PROF_CHEF))) {
+            gainBlock(s, 3 + s.act + Math.min(10, s.potions.size() * 2 + healingDeckCards(s) + s.professionCharge));
+            if (s.hp < s.maxHp && s.cardsPlayedThisTurn <= 3) {
+                s.hp = Math.min(s.maxHp, s.hp + 1);
+            }
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 20 + s.act * 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_chef_spice") && (d.burn > 0 || d.bind > 0 || d.createWound || d.exhaust
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_CHEF))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+                if (e.burn + e.bind >= 6 || e.vulnerable > 0) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(22, e.burn + e.bind * 2 + s.potions.size() * 3), true);
+                }
+            }
+            if (statusDeckCards(s) + statusHandCards(s) > 0 && s.cardsPlayedThisTurn <= 3) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_chef_grand") && (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_CHEF))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4 || s.potions.size() >= 2)) {
+                e.mark += 1;
+                e.burn += 1 + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(26, e.mark * 2 + e.burn + e.bind * 2
+                        + s.professionCharge * 2 + s.potions.size() * 4), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -10582,6 +11047,44 @@ public final class GameCore {
                 e.bind += 1 + s.bindPower / 2;
                 if (e.mark >= 4 || e.bind >= 4 || s.cardsPlayedThisTurn >= 4) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(22, e.mark * 2 + e.bind * 2 + s.professionCharge + s.wildEngine * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "recipe_book") && (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0 || d.block > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_CHEF))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(8, s.professionCharge + s.potions.size() * 2));
+                if (s.hp < s.maxHp) {
+                    s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, s.potions.size() + healingDeckCards(s) / 3));
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                if (e.burn + e.bind >= 6 || s.professionCharge >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(22, e.burn + e.bind * 2 + e.mark * 2 + s.professionCharge * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "banquet_crown") && (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_CHEF))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.burn += 1 + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+                if (e.mark >= 4 || e.burn + e.bind >= 7 || s.cardsPlayedThisTurn >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(24, e.mark * 2 + e.burn + e.bind * 2
+                            + s.professionCharge + s.potions.size() * 3), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -11785,6 +12288,11 @@ public final class GameCore {
             return focus == BUILD_GUARD ? 18 : focus == BUILD_STATUS ? 16 : focus == BUILD_CYCLE ? 12
                     : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_FORGE ? 8 : focus == BUILD_ECHO ? 6 : 0;
         }
+        if (PROF_CHEF.equals(s.profession)) {
+            return focus == BUILD_BREW ? 18 : focus == BUILD_STATUS ? 16 : focus == BUILD_CYCLE ? 12
+                    : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 10 : focus == BUILD_ECHO ? 8
+                    : focus == BUILD_FORGE ? 6 : 0;
+        }
         return 0;
     }
 
@@ -11847,6 +12355,9 @@ public final class GameCore {
         }
         if (PROF_GARDENER.equals(d.profession)) {
             return gardenerFocusCardValue(d, focus);
+        }
+        if (PROF_CHEF.equals(d.profession)) {
+            return chefFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -12256,6 +12767,44 @@ public final class GameCore {
         return 0;
     }
 
+    private static int chefFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.heal * 2 + (d.createPotion ? 4 : 0)
+                    + ("chef_prep".equals(d.id) ? 6 : 0) + ("chef_spice".equals(d.id) ? 8 : 0)
+                    + ("chef_overcook".equals(d.id) ? 14 : 0) + ("chef_grand_banquet".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 10 : 0) + d.draw * 3 + ("chef_stew".equals(d.id) ? 12 : 0)
+                    + ("chef_overcook".equals(d.id) ? 8 : 0) + ("chef_grand_banquet".equals(d.id) ? 6 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return (d.createPotion ? 12 : 0) + d.burn * 3 + d.bind * 2 + d.heal * 2
+                    + ("chef_prep".equals(d.id) ? 8 : 0) + ("chef_spice".equals(d.id) ? 12 : 0)
+                    + ("chef_sizzle".equals(d.id) ? 12 : 0) + ("chef_grand_banquet".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 8 : 0) + ("chef_spice".equals(d.id) ? 8 : 0)
+                    + ("chef_grand_banquet".equals(d.id) ? 8 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 4 + d.bind * 4 + d.vulnerable * 6 + d.skillChargeGain * 2 + d.heal * 2
+                    + ("chef_prep".equals(d.id) ? 8 : 0) + ("chef_spice".equals(d.id) ? 16 : 0)
+                    + ("chef_sizzle".equals(d.id) ? 16 : 0) + ("chef_overcook".equals(d.id) ? 14 : 0)
+                    + ("chef_grand_banquet".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 6 : 0) + d.skillChargeGain * 2 + d.heal * 2
+                    + ("chef_prep".equals(d.id) ? 12 : 0) + ("chef_stew".equals(d.id) ? 10 : 0)
+                    + ("chef_overcook".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + d.heal * 4 + d.bind * 2
+                    + ("chef_stew".equals(d.id) ? 16 : 0) + ("chef_overcook".equals(d.id) ? 14 : 0)
+                    + ("chef_grand_banquet".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -12504,6 +13053,15 @@ public final class GameCore {
         else if ("t_gardener_compost".equals(id)) bonus += status * 4 + exhaustDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
         else if ("t_gardener_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GUARD) * 2 + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_chef_prep".equals(id)) bonus += potionCards(s) * 3 + healingDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + professionCards;
+        else if ("t_chef_stew".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2 + healingDeckCards(s)
+                + potionCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_chef_spice".equals(id)) bonus += status * 4 + burnDeckCards(s) * 2 + bindDeckCards(s)
+                + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
+        else if ("t_chef_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_BREW) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_CYCLE)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -12522,6 +13080,7 @@ public final class GameCore {
                     "t_tactician_map", "t_tactician_flank", "t_tactician_grand",
                     "t_prismist_spill", "t_prismist_grand", "t_dreamwalker_lucid",
                     "t_dreamwalker_grand", "t_gardener_compost", "t_gardener_grand",
+                    "t_chef_spice", "t_chef_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -12534,12 +13093,13 @@ public final class GameCore {
                     "t_medium_oracle", "t_medium_veil", "t_medium_grand",
                     "t_prismist_lens", "t_prismist_grand", "t_dreamwalker_drift",
                     "t_dreamwalker_veil", "t_dreamwalker_lucid", "t_dreamwalker_grand",
-                    "t_gardener_sprout", "t_gardener_grand") ? 3 : 0;
+                    "t_gardener_sprout", "t_gardener_grand", "t_chef_stew",
+                    "t_chef_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
                     "t_alchemist_distiller", "t_alchemist_grandbrew", "t_stormcaller_front",
-                    "t_prismist_spill") ? 3 : 0;
+                    "t_prismist_spill", "t_chef_prep", "t_chef_spice", "t_chef_grand") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "t_shared_hunter", "t_shared_wayfarer", "t_merchant_interest",
@@ -12560,7 +13120,8 @@ public final class GameCore {
                     "t_runeblade_grand", "t_tactician_map", "t_tactician_bulwark",
                     "t_tactician_grand", "t_prismist_lens", "t_prismist_anchor",
                     "t_prismist_grand", "t_dreamwalker_lucid", "t_dreamwalker_grand",
-                    "t_gardener_compost", "t_gardener_grand") ? 3 : 0;
+                    "t_gardener_compost", "t_gardener_grand", "t_chef_spice",
+                    "t_chef_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -12578,7 +13139,8 @@ public final class GameCore {
                     "t_tactician_flank", "t_tactician_grand", "t_prismist_spill",
                     "t_prismist_grand", "t_dreamwalker_drift", "t_dreamwalker_lucid",
                     "t_dreamwalker_grand", "t_gardener_sprout", "t_gardener_compost",
-                    "t_gardener_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_gardener_grand", "t_chef_prep", "t_chef_spice", "t_chef_grand",
+                    "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -12595,6 +13157,7 @@ public final class GameCore {
                     "t_tactician_grand", "t_prismist_lens", "t_prismist_grand",
                     "t_dreamwalker_drift", "t_dreamwalker_lucid", "t_dreamwalker_grand",
                     "t_gardener_sprout", "t_gardener_compost", "t_gardener_grand",
+                    "t_chef_prep", "t_chef_stew", "t_chef_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -12607,7 +13170,8 @@ public final class GameCore {
                     "t_runeblade_guard", "t_runeblade_grand", "t_medium_veil",
                     "t_medium_grand", "t_tactician_bulwark", "t_tactician_grand",
                     "t_prismist_anchor", "t_prismist_grand", "t_dreamwalker_veil",
-                    "t_dreamwalker_grand", "t_gardener_rootwall", "t_gardener_grand") ? 3 : 0;
+                    "t_dreamwalker_grand", "t_gardener_rootwall", "t_gardener_grand",
+                    "t_chef_stew", "t_chef_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -12799,6 +13363,18 @@ public final class GameCore {
                 && (statusDeckCards(s) > 0 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
             return "腐殖转化";
         }
+        if (isAny(id, "t_chef_prep", "t_chef_grand")
+                && (potionCards(s) >= 1 || s.potions.size() < potionLimit(s) || healingDeckCards(s) >= 2)) {
+            return "备餐循环";
+        }
+        if (isAny(id, "t_chef_stew", "t_chef_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || healingDeckCards(s) >= 2 || s.hp < s.maxHp)) {
+            return "热汤防线";
+        }
+        if (isAny(id, "t_chef_spice", "t_chef_grand")
+                && (statusDeckCards(s) > 0 || burnDeckCards(s) + bindDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
+            return "辛香转化";
+        }
         return "";
     }
 
@@ -12870,6 +13446,17 @@ public final class GameCore {
         for (Card c : s.deck) {
             CardDef d = card(c.id);
             if (d != null && (d.bind > 0 || d.bindToDraw)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int burnDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && (d.burn > 0 || d.burnToBlock || d.detonateBurn)) {
                 count++;
             }
         }
@@ -13018,20 +13605,20 @@ public final class GameCore {
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
                     "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "spirit_bell", "spirit_processional", "void_anchor",
                     "echoflow_charm", "shadow_sash", "eclipse_mask", "spirit_planchette", "ancestral_planchette", "echo_crown",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
                     "glass_vials", "emberroot_charm", "split_anvil", "bloodspark_contract", "mosaic_core",
                     "catalyst_pump", "solar_crucible", "hex_moon", "storm_rod", "tempest_crown",
-                    "seed_satchel", "verdant_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
@@ -13048,7 +13635,7 @@ public final class GameCore {
                     "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "pattern_spool", "engraver_stylus", "gyro_wrench", "clockwork_core", "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
                     "ability_crown", "time_engine", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -13058,7 +13645,7 @@ public final class GameCore {
                     "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "warden_brand", "markchain_seal",
                     "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger", "spirit_planchette", "ancestral_planchette",
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -13067,7 +13654,7 @@ public final class GameCore {
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -13077,7 +13664,7 @@ public final class GameCore {
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -13107,7 +13694,8 @@ public final class GameCore {
                 || (PROF_TACTICIAN.equals(s.profession) && "war_table".equals(id))
                 || (PROF_PRISMIST.equals(s.profession) && "refraction_dial".equals(id))
                 || (PROF_DREAMWALKER.equals(s.profession) && "dreamcatcher_charm".equals(id))
-                || (PROF_GARDENER.equals(s.profession) && "seed_satchel".equals(id));
+                || (PROF_GARDENER.equals(s.profession) && "seed_satchel".equals(id))
+                || (PROF_CHEF.equals(s.profession) && "recipe_book".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -13146,6 +13734,7 @@ public final class GameCore {
                 || hasRelic(s, "refraction_dial") || hasRelic(s, "spectrum_crown")
                 || hasRelic(s, "dreamcatcher_charm") || hasRelic(s, "oneiric_crown")
                 || hasRelic(s, "seed_satchel") || hasRelic(s, "verdant_crown")
+                || hasRelic(s, "recipe_book") || hasRelic(s, "banquet_crown")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
@@ -13307,6 +13896,10 @@ public final class GameCore {
                 || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_GARDENER))) {
             return 4;
         }
+        if (PROF_CHEF.equals(s.profession) && (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.createEcho || d.profession.equals(PROF_CHEF))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -13337,7 +13930,8 @@ public final class GameCore {
                     || "prismist_spill".equals(d.id) || "prismist_overbeam".equals(d.id)
                     || "prismist_grand_spectrum".equals(d.id) || "dreamwalker_bind".equals(d.id)
                     || "dreamwalker_grand_dream".equals(d.id) || "gardener_thornbloom".equals(d.id)
-                    || "gardener_grand_grove".equals(d.id)) bonus += 4;
+                    || "gardener_grand_grove".equals(d.id) || "chef_spice".equals(d.id)
+                    || "chef_sizzle".equals(d.id) || "chef_grand_banquet".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
@@ -13353,7 +13947,9 @@ public final class GameCore {
                     || "prismist_overbeam".equals(d.id) || "dreamwalker_drift".equals(d.id)
                     || "dreamwalker_veil".equals(d.id) || "dreamwalker_lucid".equals(d.id)
                     || "dreamwalker_overdream".equals(d.id) || "gardener_sprout".equals(d.id)
-                    || "gardener_compost".equals(d.id) || "gardener_overgrowth".equals(d.id)) bonus += 4;
+                    || "gardener_compost".equals(d.id) || "gardener_overgrowth".equals(d.id)
+                    || "chef_prep".equals(d.id) || "chef_stew".equals(d.id)
+                    || "chef_overcook".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -13366,7 +13962,9 @@ public final class GameCore {
                     || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
                     || "dreamwalker_veil".equals(d.id) || "dreamwalker_overdream".equals(d.id)
                     || "dreamwalker_grand_dream".equals(d.id) || "gardener_rootwall".equals(d.id)
-                    || "gardener_overgrowth".equals(d.id) || "gardener_grand_grove".equals(d.id)) bonus += 4;
+                    || "gardener_overgrowth".equals(d.id) || "gardener_grand_grove".equals(d.id)
+                    || "chef_stew".equals(d.id) || "chef_overcook".equals(d.id)
+                    || "chef_grand_banquet".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -13396,7 +13994,10 @@ public final class GameCore {
                     || "dreamwalker_drift".equals(d.id) || "dreamwalker_bind".equals(d.id)
                     || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)
                     || "gardener_sprout".equals(d.id) || "gardener_thornbloom".equals(d.id)
-                    || "gardener_overgrowth".equals(d.id) || "gardener_grand_grove".equals(d.id)) bonus += 4;
+                    || "gardener_overgrowth".equals(d.id) || "gardener_grand_grove".equals(d.id)
+                    || "chef_prep".equals(d.id) || "chef_spice".equals(d.id)
+                    || "chef_sizzle".equals(d.id) || "chef_overcook".equals(d.id)
+                    || "chef_grand_banquet".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -13409,7 +14010,8 @@ public final class GameCore {
                     || "prismist_anchor".equals(d.id) || "prismist_overbeam".equals(d.id)
                     || "prismist_grand_spectrum".equals(d.id) || "dreamwalker_veil".equals(d.id)
                     || "dreamwalker_lucid".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)
-                    || "gardener_compost".equals(d.id) || "gardener_grand_grove".equals(d.id)) bonus += 4;
+                    || "gardener_compost".equals(d.id) || "gardener_grand_grove".equals(d.id)
+                    || "chef_spice".equals(d.id) || "chef_grand_banquet".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -13422,7 +14024,8 @@ public final class GameCore {
                     || "dreamwalker_drift".equals(d.id) || "dreamwalker_veil".equals(d.id)
                     || "dreamwalker_lucid".equals(d.id) || "dreamwalker_overdream".equals(d.id)
                     || "dreamwalker_grand_dream".equals(d.id) || "gardener_sprout".equals(d.id)
-                    || "gardener_overgrowth".equals(d.id)) bonus += 4;
+                    || "gardener_overgrowth".equals(d.id) || "chef_prep".equals(d.id)
+                    || "chef_stew".equals(d.id) || "chef_overcook".equals(d.id)) bonus += 4;
         } else if ("spec_markchain".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -13443,7 +14046,9 @@ public final class GameCore {
                     || "tactician_flank".equals(d.id) || "tactician_overplan".equals(d.id)
                     || "tactician_grand_strategy".equals(d.id) || "prismist_ray".equals(d.id)
                     || "prismist_spill".equals(d.id) || "prismist_overbeam".equals(d.id)
-                    || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
+                    || "prismist_grand_spectrum".equals(d.id) || "chef_prep".equals(d.id)
+                    || "chef_spice".equals(d.id) || "chef_sizzle".equals(d.id)
+                    || "chef_overcook".equals(d.id) || "chef_grand_banquet".equals(d.id)) bonus += 4;
         }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
@@ -13471,7 +14076,9 @@ public final class GameCore {
                 || "dreamwalker_drift".equals(id) || "dreamwalker_veil".equals(id)
                 || "dreamwalker_lucid".equals(id) || "dreamwalker_overdream".equals(id)
                 || "gardener_sprout".equals(id) || "gardener_rootwall".equals(id)
-                || "gardener_compost".equals(id) || "gardener_overgrowth".equals(id);
+                || "gardener_compost".equals(id) || "gardener_overgrowth".equals(id)
+                || "chef_prep".equals(id) || "chef_stew".equals(id)
+                || "chef_overcook".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -13634,6 +14241,15 @@ public final class GameCore {
                 || d.rarity == 2 || d.bind > 0 || d.profession.equals(PROF_GARDENER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "recipe_book") && (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0 || d.block > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_CHEF))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "banquet_crown") && (d.heal > 0 || d.createPotion || d.burn > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_CHEF))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -13667,7 +14283,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -13693,6 +14309,7 @@ public final class GameCore {
         if (PROF_PRISMIST.equals(s.profession)) return "refraction_dial";
         if (PROF_DREAMWALKER.equals(s.profession)) return "dreamcatcher_charm";
         if (PROF_GARDENER.equals(s.profession)) return "seed_satchel";
+        if (PROF_CHEF.equals(s.profession)) return "recipe_book";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -13886,7 +14503,17 @@ public final class GameCore {
         if (PROF_GARDENER.equals(s.profession) && "verdant_crown".equals(id)) {
             return 4;
         }
-        if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
+        if (PROF_CHEF.equals(s.profession) && ("recipe_book".equals(id) || "green_bell".equals(id)
+                || "cinder_spoon".equals(id) || "glass_vials".equals(id) || "emberroot_charm".equals(id)
+                || "stormglass_seal".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                || "confluence_map".equals(id) || "tempo_metronome".equals(id))) {
+            return 2;
+        }
+        if (PROF_CHEF.equals(s.profession) && "banquet_crown".equals(id)) {
+            return 4;
+        }
+        if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession)
+                || PROF_SUMMONER.equals(s.profession) || PROF_CHEF.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
         }
@@ -13901,7 +14528,7 @@ public final class GameCore {
             return 2;
         }
         if ((PROF_WEAVER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession) || PROF_ALCHEMIST.equals(s.profession)
-                || PROF_HEXER.equals(s.profession))
+                || PROF_HEXER.equals(s.profession) || PROF_CHEF.equals(s.profession))
                 && "split_anvil".equals(id)) {
             return 2;
         }
@@ -13911,12 +14538,12 @@ public final class GameCore {
             return 2;
         }
         if ((PROF_BLOODBOUND.equals(s.profession) || PROF_MERCHANT.equals(s.profession) || PROF_HEXER.equals(s.profession)
-                || PROF_ALCHEMIST.equals(s.profession))
+                || PROF_ALCHEMIST.equals(s.profession) || PROF_CHEF.equals(s.profession))
                 && "bloodspark_contract".equals(id)) {
             return 2;
         }
         if ((PROF_MERCHANT.equals(s.profession) || PROF_WARDEN.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
-                || PROF_ALCHEMIST.equals(s.profession) || PROF_HEXER.equals(s.profession))
+                || PROF_ALCHEMIST.equals(s.profession) || PROF_HEXER.equals(s.profession) || PROF_CHEF.equals(s.profession))
                 && "mosaic_core".equals(id)) {
             return 2;
         }
@@ -13926,7 +14553,7 @@ public final class GameCore {
                 || PROF_SHADOWDANCER.equals(s.profession) || PROF_RUNEBLADE.equals(s.profession)
                 || PROF_MEDIUM.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
                 || PROF_PRISMIST.equals(s.profession) || PROF_DREAMWALKER.equals(s.profession)
-                || PROF_GARDENER.equals(s.profession))
+                || PROF_GARDENER.equals(s.profession) || PROF_CHEF.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -14273,6 +14900,19 @@ public final class GameCore {
         } else if ("verdant_crown".equals(id)) {
             addUpgradedDeckCard(s, "gardener_grand_grove");
             addUpgradedDeckCard(s, "gardener_sprout");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("recipe_book".equals(id)) {
+            addUpgradedDeckCard(s, "chef_spice");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("banquet_crown".equals(id)) {
+            addUpgradedDeckCard(s, "chef_grand_banquet");
+            addUpgradedDeckCard(s, "chef_prep");
             upgradeRandomDeckCard(s);
             s.maxHp += 5;
             s.hp += 5;
@@ -14901,6 +15541,19 @@ public final class GameCore {
         c = addCard("gardener_grand_grove", "终局青庭", "通用", 2, 2, 0, 9, 13, 10, 14, "造成伤害并获得格挡；按种子、再生、治疗牌、腐殖和过载追加终局收益。", "更高伤害、格挡和植牌返还。");
         c.profession = PROF_GARDENER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.heal = 4; c.healUp = 6; c.gainWildEngine = 1; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("chef_prep", "备餐", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张并少量治疗；药剂、治疗和菜谱会追加备餐收益。", "更高伤害、治疗和菜谱。");
+        c.profession = PROF_CHEF; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.burn = 1; c.burnUp = 2; c.bind = 1; c.bindUp = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("chef_stew", "热汤锅", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、治疗并制造临时备餐；药剂和菜谱会加厚汤锅。", "更多格挡、治疗和抽牌窗口。");
+        c.profession = PROF_CHEF; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.createEcho = true; c.echoCardId = "chef_prep"; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("chef_spice", "辛香调味", "通用", 1, 1, 0, 5, 8, 0, 0, "造成伤害，施加燃灼、束缚与易伤；状态牌和药剂会追加转化收益。", "更高伤害、异常和状态转化。");
+        c.profession = PROF_CHEF; c.burn = 2; c.burnUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("chef_sizzle", "铁锅爆香", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加燃灼与易伤；敌方异常、药剂和热力会追加爆香。", "更高伤害、燃灼和爆香窗口。");
+        c.profession = PROF_CHEF; c.burn = 2; c.burnUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("chef_overcook", "过载猛火", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、治疗、抽牌和职业技充能；制造临时爆香，过载会放大火候。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_CHEF; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.createEcho = true; c.echoCardId = "chef_sizzle"; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("chef_grand_banquet", "终局盛宴", "通用", 2, 2, 0, 9, 13, 10, 14, "造成伤害并获得格挡；按菜谱、药剂、治疗牌、辛香和过载追加终局收益。", "更高伤害、格挡和宴席返还。");
+        c.profession = PROF_CHEF; c.draw = c.drawUp = 1; c.burn = 2; c.burnUp = 3; c.bind = 2; c.bindUp = 3; c.heal = 4; c.healUp = 6; c.createPotion = true; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -15135,6 +15788,7 @@ public final class GameCore {
         addRelicDef("refraction_dial", "折光仪", "棱镜师混搭、检视、升级、抽牌和汇流牌更快推动职业技；释放后制造折光射线、升级手牌并追加标记追击。");
         addRelicDef("dreamcatcher_charm", "捕梦坠", "梦行者检视、消耗、临时牌和状态牌更快推动职业技；释放后制造梦步漂移并把状态转成格挡与束缚。");
         addRelicDef("seed_satchel", "种囊", "园艺师治疗、格挡、束缚、再生和腐殖牌更快推动职业技；释放后制造育芽并把种子转为治疗与扎根。");
+        addRelicDef("recipe_book", "菜谱书", "炊事师药剂、治疗、燃灼、束缚和状态转化牌更快推动职业技；释放后补料、制造备餐并把菜谱转为治疗与火候。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -15160,6 +15814,7 @@ public final class GameCore {
         addRelicDef("spectrum_crown", "光谱冠冕", "获得升级终局光谱；棱镜师混搭、充能、汇流和稀有牌会滚动印记、抽牌、升级与折光追击。");
         addRelicDef("oneiric_crown", "梦王冠", "获得升级终局梦境；梦行者临时、消耗、状态、充能和稀有牌会滚动束缚、印记、抽牌与入梦追击。");
         addRelicDef("verdant_crown", "青庭冠", "获得升级终局青庭；园艺师治疗、格挡、束缚、再生、充能和稀有牌会滚动扎根、抽牌、升级与萌发追击。");
+        addRelicDef("banquet_crown", "盛宴冠", "获得升级终局盛宴；炊事师药剂、治疗、异常、充能和稀有牌会滚动火候、抽牌、升级与宴席追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -15363,6 +16018,9 @@ public final class GameCore {
         addTalent("t_gardener_sprout", PROF_GARDENER, "育芽循环", "获得生命和升级育芽；治疗、抽牌、再生和植牌追加印记，并把种子转成穿透追击。");
         addTalent("t_gardener_rootwall", PROF_GARDENER, "根墙防线", "获得生命和升级根墙；格挡、治疗、技能和束缚牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_gardener_compost", PROF_GARDENER, "腐殖转化", "获得升级腐殖堆并净化状态；状态、消耗、治疗和植牌会转成抽牌、能量和种子。");
+        addTalent("t_chef_prep", PROF_CHEF, "备餐循环", "获得升级备餐和药剂；药剂、治疗、抽牌和菜肴牌追加印记，并把菜谱转成穿透追击。");
+        addTalent("t_chef_stew", PROF_CHEF, "热汤防线", "获得生命和升级热汤锅；格挡、治疗、技能和菜肴牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_chef_spice", PROF_CHEF, "辛香转化", "获得升级辛香调味并净化状态；燃灼、束缚、状态和菜肴牌会转成抽牌、能量和火候。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -15388,6 +16046,7 @@ public final class GameCore {
         addTalent("t_prismist_grand", PROF_PRISMIST, "终局光谱", "获得升级终局光谱；混搭、汇流、升级与过载牌持续抽牌、升级并把印记转为折光裁切。");
         addTalent("t_dreamwalker_grand", PROF_DREAMWALKER, "终局梦境", "获得升级终局梦境；临时、回声、消耗、状态与过载牌持续抽牌、升级并把束缚印记转为入梦裁切。");
         addTalent("t_gardener_grand", PROF_GARDENER, "终局青庭", "获得升级终局青庭；治疗、格挡、束缚、再生与过载牌持续抽牌、升级并把扎根印记转为萌发裁切。");
+        addTalent("t_chef_grand", PROF_CHEF, "终局盛宴", "获得升级终局盛宴；药剂、治疗、燃灼、束缚与过载牌持续抽牌、升级并把火候印记转为宴席裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
