@@ -579,6 +579,10 @@ public final class GameView extends View {
         if (s.combatQuest != GameCore.QUEST_NONE) {
             context += (context.length() > 0 ? "  " : "") + "目标 " + GameCore.questName(s.combatQuest) + " " + questProgressText();
         }
+        String milestone = GameCore.milestoneProgressText(s);
+        if (milestone.length() > 0) {
+            context += (context.length() > 0 ? "  " : "") + milestone;
+        }
         if (context.length() > 0) {
             drawText(c, shortText(context, 52), dp(22), dp(158), 12, s.questComplete ? 0xfff5d276 : 0xffc9d7d3, true);
         }

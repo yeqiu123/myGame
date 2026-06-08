@@ -1404,6 +1404,75 @@ public final class GameCore {
         return "奖励：金币、奖励质量和少量长期记录。";
     }
 
+    public static String milestoneProgressText(State s) {
+        if (s == null) {
+            return "";
+        }
+        String done = doneMilestoneText(s);
+        if (done.length() > 0) {
+            return done;
+        }
+        String bestName = "铁壁";
+        int bestNow = Math.min(2, s.runGuardMilestone);
+        int bestTarget = 2;
+        int bestScaled = bestNow * 100 / bestTarget;
+        int comboNow = Math.min(2, s.runComboMilestone);
+        int comboScaled = comboNow * 100 / 2;
+        if (comboScaled > bestScaled) {
+            bestName = "连打";
+            bestNow = comboNow;
+            bestTarget = 2;
+            bestScaled = comboScaled;
+        }
+        int hexNow = Math.min(2, s.runHexMilestone);
+        int hexScaled = hexNow * 100 / 2;
+        if (hexScaled > bestScaled) {
+            bestName = "异常";
+            bestNow = hexNow;
+            bestTarget = 2;
+            bestScaled = hexScaled;
+        }
+        int echoNow = Math.min(12, s.runEchoMilestone);
+        int echoScaled = echoNow * 100 / 12;
+        if (echoScaled > bestScaled) {
+            bestName = "回声";
+            bestNow = echoNow;
+            bestTarget = 12;
+            bestScaled = echoScaled;
+        }
+        int bloodcoinNow = Math.min(10, s.runBloodcoinMilestone);
+        int bloodcoinScaled = bloodcoinNow * 100 / 10;
+        if (bloodcoinScaled > bestScaled) {
+            bestName = "血币";
+            bestNow = bloodcoinNow;
+            bestTarget = 10;
+            bestScaled = bloodcoinScaled;
+        }
+        int forgeNow = Math.min(11, s.runForgeMilestone);
+        int forgeScaled = forgeNow * 100 / 11;
+        if (forgeScaled > bestScaled) {
+            bestName = "工坊";
+            bestNow = forgeNow;
+            bestTarget = 11;
+        }
+        return "里程碑 " + bestName + " " + bestNow + "/" + bestTarget;
+    }
+
+    private static String doneMilestoneText(State s) {
+        int flags = s.runMilestoneFlags;
+        if (flags == 0) {
+            return "";
+        }
+        String text = "里程碑";
+        if ((flags & MILESTONE_GUARD) != 0) text += " 铁壁";
+        if ((flags & MILESTONE_COMBO) != 0) text += " 连打";
+        if ((flags & MILESTONE_HEX) != 0) text += " 异常";
+        if ((flags & MILESTONE_ECHO) != 0) text += " 回声";
+        if ((flags & MILESTONE_BLOODCOIN) != 0) text += " 血币";
+        if ((flags & MILESTONE_FORGE) != 0) text += " 工坊";
+        return text;
+    }
+
     public static String enemyMechanicText(Enemy e) {
         if (e == null) {
             return "";
