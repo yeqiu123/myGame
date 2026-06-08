@@ -323,6 +323,10 @@ public final class GameCore {
 
     public static String professionSkillText(State s) {
         String profession = s == null ? "" : s.profession;
+        return professionSkillTextFor(profession);
+    }
+
+    public static String professionSkillTextFor(String profession) {
         if (PROF_WARDEN.equals(profession)) return "满充能：获得格挡，按当前格挡穿透反击。";
         if (PROF_DUELIST.equals(profession)) return "满充能：对目标穿透斩击，本回合出牌越多越强。";
         if (PROF_ALCHEMIST.equals(profession)) return "满充能：向敌群施加燃灼与束缚，若药剂未满补1瓶。";

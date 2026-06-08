@@ -520,24 +520,37 @@ public final class GameView extends View {
         int w = getWidth();
         int h = getHeight();
         drawText(c, "能量 " + s.energy + "   格挡 " + s.block + "   回合 " + s.turn, dp(22), dp(82), 22, 0xfff2d373, true);
-        String engines = "职业 " + (s.profession == null || s.profession.length() == 0 ? "未定" : s.profession)
-                + "  专精 " + s.talents.size() + "  职技 " + s.professionSkillCharge + "/" + GameCore.PROF_SKILL_MAX
-                + "  被动 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
+        String job = s.profession == null || s.profession.length() == 0 ? "未定" : s.profession;
+        String engines = job + "  专精 " + s.talents.size() + "  职技 " + GameCore.professionSkillName(s.profession)
+                + " " + s.professionSkillCharge + "/" + GameCore.PROF_SKILL_MAX + (GameCore.professionSkillReady(s) ? " 可释放" : "");
+        drawText(c, engines, dp(22), dp(104), 13, GameCore.professionSkillReady(s) ? 0xfff5d276 : 0xffd6dfda, true);
+        String powers = "被动 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
         if (s.burnPower > 0 || s.bindPower > 0) {
-            engines += "  燃势 " + s.burnPower + "  束缚势 " + s.bindPower;
+            powers += "  燃势 " + s.burnPower + "  束缚势 " + s.bindPower;
         }
-        drawText(c, engines, dp(22), dp(104), 13, 0xffd6dfda, true);
+        drawText(c, powers, dp(22), dp(122), 12, 0xffbfcfcc, false);
+        String skillTip = GameCore.professionSkillText(s);
+        if (skillTip.length() > 30) {
+            skillTip = skillTip.substring(0, 30);
+        }
+        drawText(c, skillTip, dp(22), dp(140), 12, 0xffaebdc0, false);
+        String context = "";
         if (s.encounterModifier != GameCore.MOD_NONE) {
-            drawText(c, "词缀：" + GameCore.modifierName(s.encounterModifier) + " - " + GameCore.modifierText(s.encounterModifier), dp(22), dp(122), 13, 0xffc9d7d3, false);
+            context += "词缀 " + GameCore.modifierName(s.encounterModifier);
+        }
+        if (s.currentRoute != GameCore.ROUTE_NONE) {
+            context += (context.length() > 0 ? "  " : "") + "路线 " + GameCore.routeName(s.currentRoute);
         }
         if (s.combatQuest != GameCore.QUEST_NONE) {
-            String q = "目标：" + GameCore.questName(s.combatQuest) + "  " + questProgressText();
-            drawText(c, q, dp(22), dp(140), 13, s.questComplete ? 0xfff5d276 : 0xffb9d7d0, true);
+            context += (context.length() > 0 ? "  " : "") + "目标 " + GameCore.questName(s.combatQuest) + " " + questProgressText();
+        }
+        if (context.length() > 0) {
+            drawText(c, shortText(context, 52), dp(22), dp(158), 12, s.questComplete ? 0xfff5d276 : 0xffc9d7d3, true);
         }
         if (s.vulnerable > 0) {
-            drawText(c, "易伤 " + s.vulnerable, dp(22), dp(158), 15, 0xffff8d75, true);
+            drawText(c, "易伤 " + s.vulnerable, dp(22), dp(176), 15, 0xffff8d75, true);
         }
-        float enemyTop = dp(144);
+        float enemyTop = dp(154);
         float gap = w / (s.enemies.size() + 1f);
         for (int i = 0; i < s.enemies.size(); i++) {
             GameCore.Enemy e = s.enemies.get(i);
@@ -756,9 +769,9 @@ public final class GameView extends View {
         drawText(c, "图鉴", dp(24), dp(86), 30, 0xfff4d580, true);
         drawText(c, "卡牌 " + GameCore.CARD_LIBRARY.size() + "   遗物 " + GameCore.RELIC_LIBRARY.size() + "   药剂 " + GameCore.POTION_LIBRARY.size() + "   专精 " + GameCore.TALENT_LIBRARY.size(), dp(24), dp(118), 16, 0xffc9d2d2, false);
         drawText(c, "记录：旅程 " + s.meta.runs + " / 胜利 " + s.meta.wins + " / 目标 " + s.meta.questCompletions + " / 最大金币 " + s.meta.maxGold, dp(24), dp(142), 13, 0xffd7c994, true);
-        String[] tabs = {"卡牌", "遗物", "专精", "成就"};
+        String[] tabs = {"卡牌", "遗物", "专精", "职业", "成就"};
         for (int i = 0; i < tabs.length; i++) {
-            addButton(dp(18) + i * dp(82), dp(154), dp(74), dp(32), tabs[i] + (codexTab == i ? "*" : ""), "codextab", i);
+            addButton(dp(18) + i * dp(74), dp(154), dp(66), dp(32), tabs[i] + (codexTab == i ? "*" : ""), "codextab", i);
         }
         drawCodexList(c, dp(24), dp(202), w - dp(48));
         addButton(dp(24), getHeight() - dp(52), dp(74), dp(34), "上一页", "codexpage", -1);
@@ -790,6 +803,10 @@ public final class GameView extends View {
                 String prof = t.profession.length() == 0 ? "通用" : t.profession;
                 drawText(c, t.name + " / " + prof, x, rowY, 14, 0xfff0e2c8, true);
                 drawText(c, t.text, x, rowY + dp(17), 11, 0xffaebdc0, false);
+            } else if (codexTab == 3) {
+                String prof = GameCore.PROFESSIONS[i];
+                drawText(c, prof + " / " + GameCore.professionSkillName(prof), x, rowY, 14, GameCore.professionColor(prof), true);
+                drawText(c, shortText(GameCore.professionText(prof) + " " + GameCore.professionSkillTextFor(prof), 48), x, rowY + dp(17), 11, 0xffaebdc0, false);
             } else {
                 String id = achievementId(i);
                 String mark = GameCore.hasAchievement(s, id) ? "*" : "-";
@@ -802,6 +819,7 @@ public final class GameView extends View {
         if (codexTab == 0) return GameCore.CARD_LIBRARY.size();
         if (codexTab == 1) return GameCore.RELIC_LIBRARY.size();
         if (codexTab == 2) return GameCore.TALENT_LIBRARY.size();
+        if (codexTab == 3) return GameCore.PROFESSIONS.length;
         return achievementCount();
     }
 
@@ -1114,6 +1132,13 @@ public final class GameView extends View {
         if (s.combatQuest == GameCore.QUEST_HEX) return "异常 " + s.questProgress + "/" + s.questTarget;
         if (s.combatQuest == GameCore.QUEST_LEAN) return "出牌 " + s.totalCardsPlayed + "/" + s.questTarget;
         return "";
+    }
+
+    private String shortText(String value, int max) {
+        if (value == null || value.length() <= max) {
+            return value == null ? "" : value;
+        }
+        return value.substring(0, Math.max(0, max));
     }
 
     private String eventTitle() {
