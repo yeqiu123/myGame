@@ -393,6 +393,7 @@ public final class GameCore {
             draw(s, 1 + (hasTalent(s, "t_weaver_mastery") ? 1 : 0));
             s.energy++;
         }
+        applyProfessionSkillRelics(s, target);
         log(s, "释放职业技：" + professionSkillName(s.profession));
         updateQuestProgress(s);
         if (checkPlayerDefeated(s)) {
@@ -1734,10 +1735,64 @@ public final class GameCore {
         addProfessionSkillCharge(s, amount);
     }
 
+    private static void applyProfessionSkillRelics(State s, Enemy target) {
+        if (hasRelic(s, "command_banner") && PROF_WARDEN.equals(s.profession)) {
+            gainBlock(s, 6 + s.act * 2);
+            if (target != null) {
+                damageEnemy(s, target, 6 + s.steelEngine * 2, true);
+            }
+        }
+        if (hasRelic(s, "flash_heel") && PROF_DUELIST.equals(s.profession)) {
+            draw(s, 1);
+            if (s.cardsPlayedThisTurn >= 5) {
+                s.energy++;
+            }
+        }
+        if (hasRelic(s, "catalyst_pump") && PROF_ALCHEMIST.equals(s.profession)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.burn += 2 + s.burnPower;
+                e.bind += 1 + s.bindPower / 2;
+            }
+        }
+        if (hasRelic(s, "hawk_fletching") && PROF_RANGER.equals(s.profession) && target != null) {
+            target.bind += 2 + s.bindPower;
+            damageEnemy(s, target, 5 + target.bind / 2, true);
+        }
+        if (hasRelic(s, "echo_prism") && PROF_ARCANIST.equals(s.profession)) {
+            Card echo = new Card("void_glimpse");
+            echo.temp = true;
+            addToHand(s, echo);
+            s.energy++;
+        }
+        if (hasRelic(s, "ledger_stamp") && PROF_MERCHANT.equals(s.profession)) {
+            int refund = 12 + s.act * 3;
+            s.gold += refund;
+            gainBlock(s, Math.min(18, Math.max(4, s.gold / 30)));
+        }
+        if (hasRelic(s, "crimson_seal") && PROF_BLOODBOUND.equals(s.profession) && target != null) {
+            s.hp = Math.min(s.maxHp, s.hp + 3);
+            target.vulnerable += 1;
+            addProfessionSkillCharge(s, 2);
+        }
+        if (hasRelic(s, "pattern_spool") && PROF_WEAVER.equals(s.profession)) {
+            upgradeRandomHandCard(s);
+            addProfessionSkillCharge(s, 2);
+            draw(s, 1);
+        }
+    }
+
     private static void addProfessionSkillCharge(State s, int amount) {
         if (s == null || s.mode != MODE_COMBAT || s.profession == null || s.profession.length() == 0) {
             return;
         }
+        if (hasRelic(s, "command_banner") && PROF_WARDEN.equals(s.profession) && amount > 0) amount++;
+        if (hasRelic(s, "flash_heel") && PROF_DUELIST.equals(s.profession) && s.cardsPlayedThisTurn >= 3 && amount > 0) amount++;
+        if (hasRelic(s, "catalyst_pump") && PROF_ALCHEMIST.equals(s.profession) && s.potions.size() > 0 && amount > 0) amount++;
+        if (hasRelic(s, "hawk_fletching") && PROF_RANGER.equals(s.profession) && firstLiving(s) != null && firstLiving(s).bind > 0 && amount > 0) amount++;
+        if (hasRelic(s, "echo_prism") && PROF_ARCANIST.equals(s.profession) && s.voidEngine > 0 && amount > 0) amount++;
+        if (hasRelic(s, "ledger_stamp") && PROF_MERCHANT.equals(s.profession) && s.gold >= 120 && amount > 0) amount++;
+        if (hasRelic(s, "crimson_seal") && PROF_BLOODBOUND.equals(s.profession) && s.hp <= s.maxHp / 2 && amount > 0) amount++;
+        if (hasRelic(s, "pattern_spool") && PROF_WEAVER.equals(s.profession) && s.hand.size() >= 5 && amount > 0) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX, s.professionSkillCharge + amount));
     }
 
@@ -3554,28 +3609,28 @@ public final class GameCore {
     }
 
     private static int professionRelicBonus(State s, String id) {
-        if (PROF_WARDEN.equals(s.profession) && ("warden_plate".equals(id) || "steel_oath".equals(id) || "thorn_ring".equals(id))) {
+        if (PROF_WARDEN.equals(s.profession) && ("warden_plate".equals(id) || "steel_oath".equals(id) || "thorn_ring".equals(id) || "command_banner".equals(id))) {
             return 2;
         }
-        if (PROF_DUELIST.equals(s.profession) && ("duelist_sash".equals(id) || "amber_quill".equals(id) || "opal_scar".equals(id) || "tempo_metronome".equals(id))) {
+        if (PROF_DUELIST.equals(s.profession) && ("duelist_sash".equals(id) || "amber_quill".equals(id) || "opal_scar".equals(id) || "tempo_metronome".equals(id) || "flash_heel".equals(id))) {
             return 2;
         }
-        if (PROF_ALCHEMIST.equals(s.profession) && ("alchemist_case".equals(id) || "cinder_spoon".equals(id) || "green_bell".equals(id) || "glass_vials".equals(id))) {
+        if (PROF_ALCHEMIST.equals(s.profession) && ("alchemist_case".equals(id) || "cinder_spoon".equals(id) || "green_bell".equals(id) || "glass_vials".equals(id) || "catalyst_pump".equals(id))) {
             return 2;
         }
-        if (PROF_RANGER.equals(s.profession) && ("ranger_map".equals(id) || "root_drum".equals(id) || "green_bell".equals(id))) {
+        if (PROF_RANGER.equals(s.profession) && ("ranger_map".equals(id) || "root_drum".equals(id) || "green_bell".equals(id) || "hawk_fletching".equals(id))) {
             return 2;
         }
-        if (PROF_ARCANIST.equals(s.profession) && ("arcane_ink".equals(id) || "hollow_crown".equals(id) || "void_lens".equals(id) || "void_abacus".equals(id))) {
+        if (PROF_ARCANIST.equals(s.profession) && ("arcane_ink".equals(id) || "hollow_crown".equals(id) || "void_lens".equals(id) || "void_abacus".equals(id) || "echo_prism".equals(id))) {
             return 2;
         }
-        if (PROF_MERCHANT.equals(s.profession) && ("merchant_scale".equals(id) || "merchant_key".equals(id) || "cracked_compass".equals(id) || "tithe_box".equals(id))) {
+        if (PROF_MERCHANT.equals(s.profession) && ("merchant_scale".equals(id) || "merchant_key".equals(id) || "cracked_compass".equals(id) || "tithe_box".equals(id) || "ledger_stamp".equals(id))) {
             return 2;
         }
-        if (PROF_BLOODBOUND.equals(s.profession) && ("blood_contract".equals(id) || "silver_suture".equals(id) || "cup_of_mist".equals(id) || "scar_talisman".equals(id))) {
+        if (PROF_BLOODBOUND.equals(s.profession) && ("blood_contract".equals(id) || "silver_suture".equals(id) || "cup_of_mist".equals(id) || "scar_talisman".equals(id) || "crimson_seal".equals(id))) {
             return 2;
         }
-        if (PROF_WEAVER.equals(s.profession) && ("ink_fountain".equals(id) || "glass_anvil".equals(id) || "amber_quill".equals(id) || "loom_shuttle".equals(id) || "polished_cog".equals(id))) {
+        if (PROF_WEAVER.equals(s.profession) && ("ink_fountain".equals(id) || "glass_anvil".equals(id) || "amber_quill".equals(id) || "loom_shuttle".equals(id) || "polished_cog".equals(id) || "pattern_spool".equals(id))) {
             return 2;
         }
         if (ORIGIN_WILD.equals(s.origin) && "vital_sprout".equals(id)) {
@@ -4015,6 +4070,14 @@ public final class GameCore {
         addRelicDef("vital_sprout", "活芽", "治疗牌额外获得格挡，并给首个敌人施加束缚。");
         addRelicDef("tithe_box", "什一匣", "获得时得到金币；金币牌追加穿透伤害。");
         addRelicDef("polished_cog", "抛光齿轮", "获得时升级一张牌；每回合前两张升级牌额外提供格挡。");
+        addRelicDef("command_banner", "号令战旗", "守卫职业技更快充能；释放后追加格挡与穿透反击。");
+        addRelicDef("flash_heel", "闪击鞋钉", "决斗者连打后职业技更快充能；释放后抽牌，连打足够时获得能量。");
+        addRelicDef("catalyst_pump", "催化泵", "炼金师持有药剂时职业技更快充能；释放后追加异常。");
+        addRelicDef("hawk_fletching", "鹰羽箭尾", "游侠对束缚敌人更快充能；释放职业技后追加束缚穿透伤害。");
+        addRelicDef("echo_prism", "回声棱镜", "秘术师拥有回声势时职业技更快充能；释放后获得临时窥见和能量。");
+        addRelicDef("ledger_stamp", "账本印章", "行商富裕时职业技更快充能；释放后返还金币并获得格挡。");
+        addRelicDef("crimson_seal", "猩红封蜡", "血契者低血线时职业技更快充能；释放后治疗、施加易伤并保留少量充能。");
+        addRelicDef("pattern_spool", "定式线轴", "织牌师手牌充足时职业技更快充能；释放后升级手牌、抽牌并保留少量充能。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");

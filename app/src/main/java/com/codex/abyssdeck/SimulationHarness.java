@@ -182,6 +182,15 @@ public final class SimulationHarness {
                 if (s.relics.contains("polished_cog") && c.upgraded) score += 4;
                 if (s.relics.contains("scar_talisman") && "wound".equals(c.id)) score += 12;
                 if (d.skillChargeGain > 0 && s.professionSkillCharge >= GameCore.PROF_SKILL_MAX - 4) score += 12;
+                if (hasSkillRelic(s) && d.skillChargeGain > 0) score += 10;
+                if (s.relics.contains("command_banner") && d.type == 1) score += 5;
+                if (s.relics.contains("flash_heel") && s.cardsPlayedThisTurn >= 3) score += 5;
+                if (s.relics.contains("catalyst_pump") && (d.createPotion || d.burn > 0 || d.bind > 0)) score += 6;
+                if (s.relics.contains("hawk_fletching") && d.bind > 0) score += 6;
+                if (s.relics.contains("echo_prism") && (d.exhaust || d.createEcho)) score += 6;
+                if (s.relics.contains("ledger_stamp") && d.goldGain > 0) score += 6;
+                if (s.relics.contains("crimson_seal") && (d.hpLoss > 0 || "wound".equals(c.id))) score += 6;
+                if (s.relics.contains("pattern_spool") && (d.upgradeRandom || d.draw > 0)) score += 6;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -207,7 +216,14 @@ public final class SimulationHarness {
         if (GameCore.PROF_MERCHANT.equals(s.profession) && s.gold < 25) {
             return false;
         }
-        return s.turn >= 2 || s.enemies.size() > 1 || s.combatKind == 'E' || s.combatKind == 'B';
+        return hasSkillRelic(s) || s.turn >= 2 || s.enemies.size() > 1 || s.combatKind == 'E' || s.combatKind == 'B';
+    }
+
+    private static boolean hasSkillRelic(GameCore.State s) {
+        return s.relics.contains("command_banner") || s.relics.contains("flash_heel")
+                || s.relics.contains("catalyst_pump") || s.relics.contains("hawk_fletching")
+                || s.relics.contains("echo_prism") || s.relics.contains("ledger_stamp")
+                || s.relics.contains("crimson_seal") || s.relics.contains("pattern_spool");
     }
 
     private static int firstEnemy(GameCore.State s) {
