@@ -4053,6 +4053,7 @@ public final class GameCore {
                 weight += 7;
             }
             weight += professionCardBonus(s, d);
+            weight += relicCardBonus(s, d);
             for (int i = 0; i < weight; i++) {
                 pool.add(d);
             }
@@ -4106,6 +4107,33 @@ public final class GameCore {
             return 1;
         }
         return 0;
+    }
+
+    private static int relicCardBonus(State s, CardDef d) {
+        int bonus = 0;
+        if (hasRelic(s, "emberroot_charm") && (d.burn > 0 || d.bind > 0)) {
+            bonus += 3;
+        }
+        if (hasRelic(s, "stormglass_seal") && ((d.draw > 0 && d.block > 0) || (d.damage > 0 && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy)))) {
+            bonus += 3;
+        }
+        if (hasRelic(s, "curse_censer") && (d.exhaust || d.createEcho || d.createWound || d.type == 3)) {
+            bonus += 3;
+        }
+        if (hasRelic(s, "bloodcoin_broach") && (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || d.createWound)) {
+            bonus += 3;
+        }
+        if (hasRelic(s, "mirror_anvil") && (d.upgradeRandom || d.rarity == 2)) {
+            bonus += 2;
+        }
+        if (hasRelic(s, "rift_compass")) {
+            boolean offOrigin = !"通用".equals(d.origin) && !d.origin.equals(s.origin);
+            boolean offProfession = d.profession.length() > 0 && !d.profession.equals(s.profession);
+            if (offOrigin || offProfession || d.createEcho) {
+                bonus += 3;
+            }
+        }
+        return bonus;
     }
 
     private static RelicDef randomRelic(State s) {
@@ -4381,6 +4409,22 @@ public final class GameCore {
         c.goldDamage = true;
         c = addCard("vault_guard", "库藏护符", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡，金币越多格挡越高。", "更高基础格挡与金币加成。");
         c.goldBlock = true;
+        c = addCard("ember_snare", "烬缚", "通用", 0, 1, 0, 6, 9, 0, 0, "造成伤害，施加燃灼与束缚。", "更高伤害，更多燃灼与束缚。");
+        c.burn = 1; c.burnUp = 2; c.bind = 1; c.bindUp = 2; c.targetEnemy = true;
+        c = addCard("glass_sprint", "玻璃疾行", "通用", 1, 0, 1, 0, 0, 3, 5, "获得格挡，抽1张，消耗。", "更多格挡，抽2张，消耗。");
+        c.draw = 1; c.drawUp = 2; c.exhaust = true;
+        c = addCard("echo_bait", "回声诱饵", "通用", 1, 1, 1, 0, 0, 4, 7, "获得格挡，制造临时灵火，抽1张。", "更多格挡，制造临时灵火，抽1张。");
+        c.createEcho = true; c.echoCardId = "summoner_sprite"; c.draw = c.drawUp = 1;
+        c = addCard("forge_signal", "锻痕信标", "通用", 1, 1, 1, 0, 0, 8, 11, "获得格挡，升级手牌，职业技充能+1。", "更多格挡，职业技充能+2。");
+        c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("cursed_coin", "咒币", "通用", 1, 0, 2, 0, 0, 0, 0, "获得金币，加入1张裂伤，抽1张，消耗。", "获得更多金币，抽2张，消耗。");
+        c.goldGain = 8; c.createWound = true; c.draw = 1; c.drawUp = 2; c.exhaust = true;
+        c = addCard("blood_suture", "血缝", "通用", 1, 1, 1, 0, 0, 7, 10, "失去生命，获得格挡、治疗并加入裂伤。", "失去更少生命，更多格挡与治疗。");
+        c.hpLoss = 2; c.heal = 2; c.healUp = 3; c.createWound = true;
+        c = addCard("void_tithe", "空契税", "通用", 2, 1, 2, 0, 0, 0, 0, "失去生命，获得金币、抽牌和能量，消耗。", "抽更多牌，获得更多金币。");
+        c.hpLoss = 2; c.goldGain = 18; c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.exhaust = true;
+        c = addCard("prism_barrage", "棱镜齐射", "通用", 2, 2, 0, 6, 9, 0, 0, "对所有敌人造成伤害，施加燃灼、束缚与易伤。", "更高伤害与异常。");
+        c.aoe = true; c.burn = 1; c.burnUp = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1;
 
         c = addCard("warden_oath", "坚守誓言", "通用", 0, 1, 1, 0, 0, 10, 14, "获得格挡。守卫：推动护卫计数。", "更多格挡。");
         c.profession = PROF_WARDEN;

@@ -228,7 +228,9 @@ public final class SimulationHarness {
                 int score = GameCore.cardDamage(c) * 3 + GameCore.cardBlock(c) * 2 + d.draw * 4 + d.energyGain * 7
                         + d.burn * 4 + d.bind * 3 + d.gainSteelEngine * 12 + d.gainAshEngine * 12
                         + d.gainWildEngine * 12 + d.gainVoidEngine * 12 + d.heal * 4 + d.scry * 2
-                        + d.skillChargeGain * 7 + (d.upgradeRandom ? 8 : 0) + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0);
+                        + d.skillChargeGain * 7 + d.vulnerable * 5 + d.goldGain * 2 + (d.goldDamage ? 8 : 0)
+                        + (d.goldBlock ? 8 : 0) + (d.exhaust ? 2 : 0) + (d.upgradeRandom ? 8 : 0)
+                        + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0) - d.hpLoss * 2;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
                 }
