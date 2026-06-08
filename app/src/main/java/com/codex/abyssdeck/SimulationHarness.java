@@ -160,6 +160,7 @@ public final class SimulationHarness {
                     + (d.upgradeRandom ? 8 : 0) + d.scry * 2 - d.cost * 2;
             if (d.profession.equals(s.profession)) score += 24;
             if (d.skillChargeGain > 0) score += 8;
+            score += GameCore.skillSpecCardBonus(s, d) * 5;
             if ("通用".equals(d.origin) || d.origin.equals(s.origin)) score += 4;
             if (d.rarity == 2 && d.profession.equals(s.profession)) score += 10;
             if (GameCore.PROF_WARDEN.equals(s.profession) && (d.block > 0 || d.blockToDamage || d.gainSteelEngine > 0)) score += 12;

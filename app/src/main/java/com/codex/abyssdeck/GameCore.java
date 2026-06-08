@@ -1123,7 +1123,7 @@ public final class GameCore {
         s.shopScoutUsed = true;
         s.pendingAction = "shop_scout";
         s.mode = MODE_REWARD;
-        log(s, "商栈寻路锁定：" + BUILD_FOCUS_NAMES[focus] + "。");
+        log(s, "商栈寻路锁定：" + BUILD_FOCUS_NAMES[focus] + " / " + skillSpecName(s) + "。");
     }
 
     public static void shopChoose(State s, String action) {
@@ -1274,7 +1274,7 @@ public final class GameCore {
         }
         s.pendingAction = "rest_attune";
         s.mode = MODE_REWARD;
-        log(s, "营地调校锁定：" + BUILD_FOCUS_NAMES[focus] + "。");
+        log(s, "营地调校锁定：" + BUILD_FOCUS_NAMES[focus] + " / " + skillSpecName(s) + "。");
     }
 
     public static void eventChoose(State s, int choice) {
@@ -5997,6 +5997,7 @@ public final class GameCore {
                 weight += 5;
             }
             weight += professionCardBonus(s, d);
+            weight += skillSpecCardBonus(s, d);
             for (int i = 0; i < weight; i++) {
                 pool.add(d);
             }
@@ -6041,6 +6042,7 @@ public final class GameCore {
             }
             weight += professionCardBonus(s, d);
             weight += relicCardBonus(s, d);
+            weight += skillSpecCardBonus(s, d);
             for (int i = 0; i < weight; i++) {
                 pool.add(d);
             }
@@ -6088,6 +6090,7 @@ public final class GameCore {
             }
             weight += professionCardBonus(s, d);
             weight += relicCardBonus(s, d);
+            weight += skillSpecCardBonus(s, d);
             if (weight <= 0) {
                 continue;
             }
@@ -6564,6 +6567,9 @@ public final class GameCore {
         if (d.skillChargeGain > 0) {
             hint += (hint.length() == 0 ? "" : "  ") + "充能+" + d.skillChargeGain;
         }
+        if (skillSpecCardBonus(s, d) >= 4) {
+            hint += (hint.length() == 0 ? "" : "  ") + skillSpecName(s) + "适配";
+        }
         if (d.rarity == 2) {
             hint += (hint.length() == 0 ? "" : "  ") + "稀有";
         }
@@ -6802,6 +6808,42 @@ public final class GameCore {
             return 1;
         }
         return 0;
+    }
+
+    public static int skillSpecCardBonus(State s, CardDef d) {
+        if (s == null || d == null) {
+            return 0;
+        }
+        SkillSpecDef spec = skillSpec(s.skillSpec);
+        if (spec == null) {
+            return 0;
+        }
+        int bonus = 0;
+        if ("spec_burst".equals(spec.id)) {
+            if (d.damage > 0 || d.comboDamage > 0 || d.aoe) bonus += 3;
+            if (d.vulnerable > 0 || d.skillChargeGain > 0) bonus += 2;
+            if ("heavy_line".equals(d.id) || "clean_arc".equals(d.id)) bonus += 4;
+        } else if ("spec_tempo".equals(spec.id)) {
+            if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
+            if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
+            if ("quick_cut".equals(d.id) || "double_step".equals(d.id) || "battle_trance".equals(d.id)) bonus += 4;
+        } else if ("spec_sustain".equals(spec.id)) {
+            if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
+            if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
+            if ("focus_breath".equals(d.id) || "last_light".equals(d.id) || "blood_suture".equals(d.id)) bonus += 4;
+        } else if ("spec_resonance".equals(spec.id)) {
+            int focus = buildScoutFocus(s);
+            int value = buildFocusCardValue(d, focus);
+            if (value > 0) bonus += Math.min(8, 2 + value / 4);
+            if (d.skillChargeGain > 0) bonus += 2;
+        } else if ("spec_mastery".equals(spec.id)) {
+            if (d.profession.equals(s.profession)) bonus += 5;
+            if (d.skillChargeGain > 0 || masteryOverloadCard(s.profession).equals(d.id)) bonus += 4;
+        }
+        if (bonus > 0) {
+            bonus += Math.max(0, s.skillSpecLevel - 1);
+        }
+        return bonus;
     }
 
     private static int relicCardBonus(State s, CardDef d) {
