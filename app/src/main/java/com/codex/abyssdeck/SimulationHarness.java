@@ -178,6 +178,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_TUNER.equals(s.profession) && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0
                     || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) score += 12;
             if (isHybridCore(d)) score += 14;
+            if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
@@ -185,6 +186,7 @@ public final class SimulationHarness {
             if (s.relics.contains("echo_ledger") && (d.exhaust || d.createEcho || d.draw > 0 || d.goldGain > 0)) score += 12;
             if (s.relics.contains("bloodspark_contract") && (d.hpLoss > 0 || d.createWound || d.goldGain > 0 || d.burn > 0 || d.vulnerable > 0)) score += 14;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
+            if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 20;
             if (s.deck.size() > 34 && d.cost >= 2 && d.draw == 0) score -= 6;
             if (score > bestScore) {
                 bestScore = score;
@@ -217,7 +219,7 @@ public final class SimulationHarness {
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "curse_censer".equals(id) || "stormglass_seal".equals(id))) score += 34;
             if (GameCore.PROF_TUNER.equals(s.profession) && ("conductor_baton".equals(id) || "tuning_fork".equals(id)
                     || "tempo_metronome".equals(id) || "echo_ledger".equals(id) || "confluence_map".equals(id))) score += 34;
-            if ("confluence_map".equals(id)) score += 28;
+            if ("confluence_map".equals(id) || "prism_gear".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession))) score += 28;
             if ("echo_ledger".equals(id) && (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
@@ -452,6 +454,7 @@ public final class SimulationHarness {
                 if ("inscriber_codex".equals(c.id)) score += 14;
                 if ("tuner_grand_cadence".equals(c.id) || "tuner_loop".equals(c.id) || "tuner_overclock".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
+                if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
                 if (s.relics.contains("loom_shuttle") && d.scry > 0) score += 6;
                 if (s.relics.contains("void_abacus") && d.exhaust) score += 6;
@@ -485,6 +488,7 @@ public final class SimulationHarness {
                 if (s.relics.contains("echo_ledger") && (d.exhaust || d.createEcho || c.temp || d.goldGain > 0)) score += 11;
                 if (s.relics.contains("bloodspark_contract") && (d.hpLoss > 0 || d.createWound || d.goldGain > 0 || d.burn > 0 || d.vulnerable > 0 || "wound".equals(c.id))) score += 12;
                 if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 14;
+                if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 16;
                 if (s.relics.contains("aegis_throne") && d.type == 1) score += 9;
                 if (s.relics.contains("finale_rapier") && d.type == 0 && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.relics.contains("solar_crucible") && (d.createPotion || d.burn > 0 || d.bind > 0)) score += 10;
@@ -546,7 +550,7 @@ public final class SimulationHarness {
                 || s.relics.contains("spirit_processional") || s.relics.contains("fallen_crown")
                 || s.relics.contains("engraver_stylus") || s.relics.contains("living_codex")
                 || s.relics.contains("split_anvil") || s.relics.contains("echo_ledger")
-                || s.relics.contains("bloodspark_contract") || s.relics.contains("confluence_map")
+                || s.relics.contains("bloodspark_contract") || s.relics.contains("confluence_map") || s.relics.contains("prism_gear")
                 || s.relics.contains("tuning_fork") || s.relics.contains("conductor_baton");
     }
 
@@ -560,6 +564,11 @@ public final class SimulationHarness {
         return d != null && ("hybrid_forgebrand".equals(d.id) || "hybrid_echo_step".equals(d.id)
                 || "hybrid_blood_tithe".equals(d.id) || "hybrid_guard_conduit".equals(d.id)
                 || "hybrid_plague_brew".equals(d.id) || "hybrid_rift_engine".equals(d.id));
+    }
+
+    private static boolean isConfluenceCore(GameCore.CardDef d) {
+        return d != null && ("confluence_chord".equals(d.id) || "prism_anchor".equals(d.id)
+                || "apex_confluence".equals(d.id));
     }
 
     private static int firstEnemy(GameCore.State s) {

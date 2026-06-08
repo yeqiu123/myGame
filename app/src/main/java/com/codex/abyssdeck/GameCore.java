@@ -1737,10 +1737,18 @@ public final class GameCore {
     }
 
     public static String buildResonanceText(State s) {
-        if (s == null || s.buildResonanceScore < 35 || s.buildResonanceFocus < 0 || s.buildResonanceFocus >= BUILD_FOCUS_NAMES.length) {
+        if (s == null) {
             return "";
         }
-        return BUILD_FOCUS_NAMES[s.buildResonanceFocus] + "共鸣 " + buildFocusRank(s.buildResonanceScore);
+        String text = "";
+        if (s.buildResonanceScore >= 35 && s.buildResonanceFocus >= 0 && s.buildResonanceFocus < BUILD_FOCUS_NAMES.length) {
+            text = BUILD_FOCUS_NAMES[s.buildResonanceFocus] + "共鸣 " + buildFocusRank(s.buildResonanceScore);
+        }
+        if (s.mode == MODE_COMBAT && s.confluenceChain > 0) {
+            String chain = "汇流链 " + s.confluenceChain + "/" + Math.max(1, focusMaskCount(s.confluenceMask));
+            text += (text.length() == 0 ? "" : "  ") + chain;
+        }
+        return text;
     }
 
     public static String talentSynergyHint(State s, String id) {
@@ -3404,6 +3412,9 @@ public final class GameCore {
         s.ashEngine = 0;
         s.wildEngine = 0;
         s.voidEngine = 0;
+        s.confluenceMask = 0;
+        s.confluenceChain = 0;
+        s.confluenceBurstThisTurn = 0;
         s.vulnerable = 0;
         s.nextEnergyPenalty = 0;
         s.professionCharge = 0;
@@ -3897,6 +3908,9 @@ public final class GameCore {
         s.professionUsedThisTurn = 0;
         s.relicTriggersThisTurn = 0;
         s.bossRelicTriggersThisTurn = 0;
+        s.confluenceMask = 0;
+        s.confluenceChain = 0;
+        s.confluenceBurstThisTurn = 0;
         s.professionSkillUsedThisTurn = false;
         if (hasRelic(s, "amber_quill") && s.turn == 1) {
             s.energy++;
@@ -4929,6 +4943,12 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("prism_anchor".equals(d.id)) {
+            block += Math.min(c.upgraded ? 14 : 10, focusMaskCount(s.confluenceMask) * (c.upgraded ? 3 : 2));
+        }
+        if ("apex_confluence".equals(d.id)) {
+            damage += Math.min(c.upgraded ? 36 : 26, s.confluenceChain * (c.upgraded ? 4 : 3));
+        }
 
         if (damage > 0) {
             if (d.aoe) {
@@ -5150,6 +5170,7 @@ public final class GameCore {
     }
 
     private static void triggerAfterPlay(State s, Card c, CardDef d) {
+        triggerConfluenceChain(s, c, d);
         if (hasRelic(s, "thorn_ring") && d.type == 1) {
             Enemy e = firstLiving(s);
             if (e != null) {
@@ -6693,6 +6714,8 @@ public final class GameCore {
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
                     + ("hybrid_guard_conduit".equals(d.id) ? 10 : 0) + ("hybrid_rift_engine".equals(d.id) ? 8 : 0)
                     + ("hybrid_echo_step".equals(d.id) ? 4 : 0) + ("hybrid_forgebrand".equals(d.id) ? 4 : 0)
+                    + ("confluence_chord".equals(d.id) ? 8 : 0) + ("prism_anchor".equals(d.id) ? 8 : 0)
+                    + ("apex_confluence".equals(d.id) ? 8 : 0)
                     + ("tuner_overclock".equals(d.id) ? 12 : 0) + ("tuner_note".equals(d.id) ? 5 : 0)
                     + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_overseal".equals(d.id) ? 4 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
@@ -6701,7 +6724,8 @@ public final class GameCore {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
                     + (d.exhaustForDamage ? 6 : 0) + ("summoner_sprite".equals(d.echoCardId) ? 3 : 0)
                     + ("echo_matrix".equals(d.id) ? 10 : 0) + ("hybrid_echo_step".equals(d.id) ? 10 : 0)
-                    + ("hybrid_rift_engine".equals(d.id) ? 8 : 0) + ("tuner_loop".equals(d.id) ? 8 : 0);
+                    + ("hybrid_rift_engine".equals(d.id) ? 8 : 0) + ("confluence_chord".equals(d.id) ? 4 : 0)
+                    + ("tuner_loop".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 5 : 0)
@@ -6720,12 +6744,14 @@ public final class GameCore {
         if (focus == BUILD_FORGE) {
             return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0)
                     + ("forge_blueprint".equals(d.id) ? 10 : 0) + ("hybrid_forgebrand".equals(d.id) ? 12 : 0)
-                    + ("hybrid_rift_engine".equals(d.id) ? 10 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
+                    + ("hybrid_rift_engine".equals(d.id) ? 10 : 0) + ("prism_anchor".equals(d.id) ? 10 : 0)
+                    + ("inscriber_codex".equals(d.id) ? 5 : 0);
         }
         if (focus == BUILD_STATUS) {
             return d.burn * 2 + d.bind * 2 + d.vulnerable * 5 + (d.addStatusToEnemy ? 7 : 0)
                     + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0) + ("plague_vector".equals(d.id) ? 10 : 0)
                     + ("hybrid_forgebrand".equals(d.id) ? 10 : 0) + ("hybrid_plague_brew".equals(d.id) ? 12 : 0)
+                    + ("apex_confluence".equals(d.id) ? 10 : 0)
                     + ("tuner_harmonic".equals(d.id) ? 8 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_glyphstorm".equals(d.id) ? 5 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
         }
@@ -6733,6 +6759,7 @@ public final class GameCore {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
                     + ("cycle_metronome".equals(d.id) ? 10 : 0) + ("hybrid_echo_step".equals(d.id) ? 10 : 0)
                     + ("hybrid_guard_conduit".equals(d.id) ? 4 : 0) + ("hybrid_rift_engine".equals(d.id) ? 10 : 0)
+                    + ("confluence_chord".equals(d.id) ? 12 : 0) + ("apex_confluence".equals(d.id) ? 4 : 0)
                     + ("tuner_note".equals(d.id) ? 10 : 0) + ("tuner_pulse".equals(d.id) ? 8 : 0)
                     + ("tuner_loop".equals(d.id) ? 12 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_palimp".equals(d.id) ? 4 : 0);
@@ -6740,7 +6767,8 @@ public final class GameCore {
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
                     + (d.burnToBlock ? 4 : 0) + ("aegis_engine".equals(d.id) ? 10 : 0)
-                    + ("hybrid_guard_conduit".equals(d.id) ? 12 : 0) + ("hybrid_rift_engine".equals(d.id) ? 4 : 0);
+                    + ("hybrid_guard_conduit".equals(d.id) ? 12 : 0) + ("hybrid_rift_engine".equals(d.id) ? 4 : 0)
+                    + ("prism_anchor".equals(d.id) ? 8 : 0);
         }
         return 0;
     }
@@ -6756,6 +6784,94 @@ public final class GameCore {
             }
         }
         return count;
+    }
+
+    private static int cardFocusMask(CardDef d) {
+        if (d == null) {
+            return 0;
+        }
+        int mask = 0;
+        for (int focus = 0; focus < BUILD_FOCUS_NAMES.length; focus++) {
+            if (buildFocusCardValue(d, focus) >= 8) {
+                mask |= 1 << focus;
+            }
+        }
+        return mask;
+    }
+
+    private static int focusMaskCount(int mask) {
+        int count = 0;
+        while (mask != 0) {
+            count += mask & 1;
+            mask >>>= 1;
+        }
+        return count;
+    }
+
+    private static void triggerConfluenceChain(State s, Card c, CardDef d) {
+        if (s == null || c == null || d == null || s.mode != MODE_COMBAT) {
+            return;
+        }
+        int mask = cardFocusMask(d);
+        if (mask == 0) {
+            return;
+        }
+        int newMask = mask & ~s.confluenceMask;
+        s.confluenceMask |= mask;
+        if (newMask == 0 && hybridFocusCount(d) < 3 && !hasRelic(s, "prism_gear")) {
+            return;
+        }
+        int newFocuses = focusMaskCount(newMask);
+        int chainGain = Math.max(1, newFocuses);
+        if (hybridFocusCount(d) >= 3) {
+            chainGain++;
+        }
+        if (hasRelic(s, "confluence_map") && hybridFocusCount(d) >= 2) {
+            chainGain++;
+        }
+        if (hasRelic(s, "prism_gear") && s.cardsPlayedThisTurn >= 3) {
+            chainGain++;
+        }
+        s.confluenceChain = Math.min(9, s.confluenceChain + chainGain);
+        int reward = Math.min(4, s.confluenceChain / 2);
+        if (reward > 0) {
+            gainBlock(s, reward + s.act);
+            addProfessionSkillCharge(s, reward);
+        }
+        Enemy e = firstLiving(s);
+        if (e != null && s.confluenceChain >= 3) {
+            e.mark += 1;
+            if ((mask & (1 << BUILD_STATUS)) != 0 || (mask & (1 << BUILD_BREW)) != 0) {
+                e.vulnerable += 1;
+            }
+            damageEnemy(s, e, 2 + s.act + s.confluenceChain + hybridFocusCount(d), true);
+        }
+        if (s.confluenceChain >= 4 && s.confluenceBurstThisTurn == 0) {
+            draw(s, 1);
+            s.confluenceBurstThisTurn = 1;
+            log(s, "汇流链启动：" + s.confluenceChain + "。");
+        }
+        if (s.confluenceChain >= 6 && s.confluenceBurstThisTurn < 2) {
+            s.energy++;
+            s.confluenceBurstThisTurn = 2;
+            log(s, "汇流链返还能量。");
+        }
+        if (hasRelic(s, "prism_gear") && s.confluenceChain >= 5 && s.confluenceBurstThisTurn < 3) {
+            upgradeRandomHandCard(s);
+            s.confluenceBurstThisTurn = 3;
+        }
+        if ("confluence_chord".equals(d.id) && s.confluenceChain >= 5) {
+            draw(s, c.upgraded ? 2 : 1);
+            s.energy++;
+        } else if ("prism_anchor".equals(d.id)) {
+            gainBlock(s, (c.upgraded ? 2 : 1) * Math.max(1, focusMaskCount(s.confluenceMask)));
+            addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+        } else if ("apex_confluence".equals(d.id) && e != null) {
+            damageEnemy(s, e, (c.upgraded ? 4 : 3) * Math.max(1, s.confluenceChain), true);
+            if (s.confluenceChain >= 6) {
+                e.vulnerable += 1;
+            }
+        }
     }
 
     public static int talentSynergyScore(State s, String id) {
@@ -7118,11 +7234,11 @@ public final class GameCore {
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
                     "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet",
                     "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
-                    "tuning_fork", "conductor_baton", "split_anvil", "echo_ledger", "confluence_map", "ability_crown") ? 3 : 0;
+                    "tuning_fork", "conductor_baton", "split_anvil", "echo_ledger", "confluence_map", "prism_gear", "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
-                    "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "tuning_fork", "spirit_bell", "spirit_processional", "void_anchor",
+                    "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "tuning_fork", "spirit_bell", "spirit_processional", "void_anchor",
                     "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
@@ -7139,7 +7255,7 @@ public final class GameCore {
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
-                    "split_anvil", "confluence_map", "pattern_spool", "engraver_stylus", "clockwork_loom", "living_codex", "forge_heart",
+                    "split_anvil", "confluence_map", "prism_gear", "pattern_spool", "engraver_stylus", "clockwork_loom", "living_codex", "forge_heart",
                     "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
@@ -7150,13 +7266,13 @@ public final class GameCore {
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
-                    "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "tuning_fork", "conductor_baton", "flash_heel", "pattern_spool",
+                "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "tuning_fork", "conductor_baton", "flash_heel", "pattern_spool",
                     "tempo_spindle", "finale_rapier", "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
                     "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach", "mirror_anvil",
-                    "split_anvil", "confluence_map", "vigil_bloom", "command_banner", "aegis_throne", "forge_heart") ? 3 : 0;
+                "split_anvil", "confluence_map", "prism_gear", "vigil_bloom", "command_banner", "aegis_throne", "forge_heart") ? 3 : 0;
         }
         return 0;
     }
@@ -7383,6 +7499,10 @@ public final class GameCore {
         if (hasRelic(s, "confluence_map") && hybridFocusCount(d) >= 2) {
             bonus += 5;
         }
+        if (hasRelic(s, "prism_gear") && (hybridFocusCount(d) >= 2 || "confluence_chord".equals(d.id)
+                || "prism_anchor".equals(d.id) || "apex_confluence".equals(d.id))) {
+            bonus += 6;
+        }
         if (hasRelic(s, "tuning_fork") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0 || d.createEcho)) {
             bonus += 3;
         }
@@ -7539,6 +7659,9 @@ public final class GameCore {
         if ("confluence_map".equals(id)) {
             return 2;
         }
+        if ("prism_gear".equals(id)) {
+            return 2;
+        }
         if ("rift_compass".equals(id)) {
             return 1;
         }
@@ -7585,7 +7708,7 @@ public final class GameCore {
         if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark", "conductor_baton")) return 1;
         if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork")) return 1;
         if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist", "bloodspark_contract")) return 1;
-        if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown", "confluence_map", "split_anvil", "conductor_baton")) return 1;
+        if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown", "confluence_map", "split_anvil", "conductor_baton", "prism_gear")) return 1;
         if ("spec_mastery".equals(spec.id) && isSkillRelicForProfession(s, id)) return 2;
         return 0;
     }
@@ -7718,6 +7841,9 @@ public final class GameCore {
             s.hp += 4;
         } else if ("confluence_map".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_rift_engine");
+        } else if ("prism_gear".equals(id)) {
+            addUpgradedDeckCard(s, "confluence_chord");
+            addUpgradedDeckCard(s, "prism_anchor");
         }
         log(s, "获得遗物：" + r.name);
     }
@@ -7919,6 +8045,12 @@ public final class GameCore {
         c.createPotion = true; c.burn = 2; c.burnUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.spreadStatus = true; c.targetEnemy = true; c.exhaust = true;
         c = addCard("hybrid_rift_engine", "裂隙万用机", "通用", 2, 2, 2, 0, 0, 5, 8, "获得格挡，抽2张，获得1能量，检视牌库，升级手牌，制造临时疾切，职业技充能+2，消耗。", "更多格挡与抽牌，职业技充能+3。");
         c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.scry = 4; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "quick_cut"; c.skillChargeGain = 2; c.exhaust = true;
+        c = addCard("confluence_chord", "汇流和弦", "通用", 1, 0, 2, 0, 0, 3, 5, "抽1张，职业技充能+1；若本回合汇流链足够长，额外抽牌并返能。", "更多格挡和充能，汇流返还更强。");
+        c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("prism_anchor", "棱锚", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡，升级手牌；按本回合汇流标签追加格挡和充能。", "更多格挡，追加充能更强。");
+        c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("apex_confluence", "终点汇流", "通用", 2, 2, 0, 10, 15, 0, 0, "造成伤害，施加易伤；汇流链越长，追加穿透越强。", "更高伤害与汇流爆发。");
+        c.vulnerable = 1; c.skillChargeGain = 2; c.comboDamage = 2; c.targetEnemy = true;
 
         c = addCard("warden_oath", "坚守誓言", "通用", 0, 1, 1, 0, 0, 10, 14, "获得格挡。守卫：推动护卫计数。", "更多格挡。");
         c.profession = PROF_WARDEN;
@@ -8269,7 +8401,8 @@ public final class GameCore {
         addRelicDef("split_anvil", "分流砧", "获得升级锻火刻痕；升级与异常同时出现时追加格挡、充能和穿透伤害。");
         addRelicDef("echo_ledger", "回声账本", "获得升级回声步和金币；消耗、临时与回声牌会积累金币，并定期抽牌。");
         addRelicDef("bloodspark_contract", "血火契约", "获得升级血币契据和最大生命；自损、裂伤与异常牌连接金币、燃灼和续航。");
-        addRelicDef("confluence_map", "汇流星图", "获得升级裂隙万用机；多构筑焦点牌会提供格挡、充能并在关键节奏抽牌。");
+        addRelicDef("confluence_map", "汇流星图", "获得升级裂隙万用机；多构筑焦点牌会强化汇流链并在关键节奏抽牌。");
+        addRelicDef("prism_gear", "棱镜齿轮", "获得升级汇流和弦与棱锚；同回合串联不同构筑标签会升级手牌并强化汇流奖励。");
         addRelicDef("razor_pactstone", "裂锋誓石", "裂锋专修释放职业技时追加穿透斩击；击杀后抽牌。");
         addRelicDef("tempo_spindle", "疾调纺锤", "疾调专修释放职业技时抽牌并获得能量；高阶时额外制造疾切。");
         addRelicDef("vigil_bloom", "续战夜花", "续战专修释放职业技时获得格挡和治疗，低血线翻倍部分收益。");
@@ -8568,6 +8701,9 @@ public final class GameCore {
         public int skillSpecLevel;
         public int buildResonanceFocus = -1;
         public int buildResonanceScore;
+        public int confluenceMask;
+        public int confluenceChain;
+        public int confluenceBurstThisTurn;
         public int runGuardMilestone;
         public int runComboMilestone;
         public int runHexMilestone;
