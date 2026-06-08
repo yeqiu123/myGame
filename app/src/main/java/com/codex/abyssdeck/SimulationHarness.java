@@ -148,9 +148,13 @@ public final class SimulationHarness {
     private static void combat(GameCore.State s) {
         int safety = 0;
         while (s.mode == GameCore.MODE_COMBAT && s.playerTurn && safety++ < 20) {
+            int target = firstEnemy(s);
+            if (target >= 0 && shouldUseProfessionSkill(s)) {
+                GameCore.useProfessionSkill(s, target);
+                continue;
+            }
             int best = -1;
             int bestScore = -9999;
-            int target = firstEnemy(s);
             for (int i = 0; i < s.hand.size(); i++) {
                 GameCore.Card c = s.hand.get(i);
                 GameCore.CardDef d = GameCore.card(c.id);
@@ -192,6 +196,17 @@ public final class SimulationHarness {
         if (s.mode == GameCore.MODE_COMBAT && s.playerTurn) {
             GameCore.endTurn(s);
         }
+    }
+
+    private static boolean shouldUseProfessionSkill(GameCore.State s) {
+        if (!GameCore.professionSkillReady(s)) return false;
+        if (s.hp < s.maxHp * 0.35f && (GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession))) {
+            return true;
+        }
+        if (GameCore.PROF_MERCHANT.equals(s.profession) && s.gold < 25) {
+            return false;
+        }
+        return s.turn >= 2 || s.enemies.size() > 1 || s.combatKind == 'E' || s.combatKind == 'B';
     }
 
     private static int firstEnemy(GameCore.State s) {

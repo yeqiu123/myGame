@@ -196,6 +196,8 @@ public final class GameView extends View {
             GameCore.endTurn(s);
         } else if ("potion".equals(action)) {
             GameCore.usePotion(s, index, currentEnemyTarget());
+        } else if ("profession_skill".equals(action)) {
+            GameCore.useProfessionSkill(s, currentEnemyTarget());
         } else if ("reward_card".equals(action)) {
             GameCore.pickRewardCard(s, index);
         } else if ("reward_relic".equals(action)) {
@@ -519,7 +521,8 @@ public final class GameView extends View {
         int h = getHeight();
         drawText(c, "能量 " + s.energy + "   格挡 " + s.block + "   回合 " + s.turn, dp(22), dp(82), 22, 0xfff2d373, true);
         String engines = "职业 " + (s.profession == null || s.profession.length() == 0 ? "未定" : s.profession)
-                + "  专精 " + s.talents.size() + "  充能 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
+                + "  专精 " + s.talents.size() + "  职技 " + s.professionSkillCharge + "/" + GameCore.PROF_SKILL_MAX
+                + "  被动 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
         if (s.burnPower > 0 || s.bindPower > 0) {
             engines += "  燃势 " + s.burnPower + "  束缚势 " + s.bindPower;
         }
@@ -552,6 +555,14 @@ public final class GameView extends View {
             drawCard(c, s.hand.get(i), new RectF(x, y - (selectedHand == i ? dp(18) : 0), x + cardW, y + cardH - (selectedHand == i ? dp(18) : 0)), selectedHand == i);
             cardHits.add(new CardHit(new RectF(x, y - dp(28), x + cardW, y + cardH), i));
         }
+        String skill = GameCore.professionSkillName(s.profession);
+        String skillLabel = skill + " " + s.professionSkillCharge + "/" + GameCore.PROF_SKILL_MAX;
+        if (GameCore.professionSkillReady(s)) {
+            skillLabel = skill + "!";
+        } else if (s.professionSkillUsedThisTurn) {
+            skillLabel = skill + "*";
+        }
+        addButton(w - dp(224), h - dp(52), dp(104), dp(40), skillLabel, "profession_skill", 0);
         addButton(w - dp(112), h - dp(52), dp(96), dp(40), "结束回合", "endturn", 0);
         for (int i = 0; i < s.potions.size(); i++) {
             String name = GameCore.potion(s.potions.get(i)).name;

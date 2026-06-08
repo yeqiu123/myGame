@@ -54,6 +54,7 @@ public final class GameCore {
     public static final int ROUTE_SUPPLY = 4;
     public static final int ROUTE_AMBUSH = 5;
     public static final int ROUTE_FORGE = 6;
+    public static final int PROF_SKILL_MAX = 10;
 
     public static final String ORIGIN_STEEL = "钢律";
     public static final String ORIGIN_ASH = "烬火";
@@ -285,6 +286,7 @@ public final class GameCore {
         s.energy -= costOf(s, c, d);
         s.cardsPlayedThisTurn++;
         s.totalCardsPlayed++;
+        chargeProfessionSkill(s, d);
         updateQuestProgress(s);
         boolean exhaust = c.temp || d.exhaust;
         applyCard(s, c, d, target);
@@ -294,6 +296,105 @@ public final class GameCore {
         } else {
             s.discard.add(c);
         }
+        if (checkPlayerDefeated(s)) {
+            return;
+        }
+        if (allEnemiesDead(s)) {
+            winCombat(s);
+        }
+    }
+
+    public static boolean professionSkillReady(State s) {
+        return s.mode == MODE_COMBAT && s.playerTurn && !s.professionSkillUsedThisTurn
+                && s.professionSkillCharge >= PROF_SKILL_MAX && firstLiving(s) != null;
+    }
+
+    public static String professionSkillName(String profession) {
+        if (PROF_WARDEN.equals(profession)) return "盾阵";
+        if (PROF_DUELIST.equals(profession)) return "终步";
+        if (PROF_ALCHEMIST.equals(profession)) return "催化";
+        if (PROF_RANGER.equals(profession)) return "猎标";
+        if (PROF_ARCANIST.equals(profession)) return "回流";
+        if (PROF_MERCHANT.equals(profession)) return "投机";
+        if (PROF_BLOODBOUND.equals(profession)) return "血誓";
+        if (PROF_WEAVER.equals(profession)) return "织局";
+        return "职业技";
+    }
+
+    public static String professionSkillText(State s) {
+        String profession = s == null ? "" : s.profession;
+        if (PROF_WARDEN.equals(profession)) return "满充能：获得格挡，按当前格挡穿透反击。";
+        if (PROF_DUELIST.equals(profession)) return "满充能：对目标穿透斩击，本回合出牌越多越强。";
+        if (PROF_ALCHEMIST.equals(profession)) return "满充能：向敌群施加燃灼与束缚，若药剂未满补1瓶。";
+        if (PROF_RANGER.equals(profession)) return "满充能：标记目标，施加束缚与易伤并抽牌。";
+        if (PROF_ARCANIST.equals(profession)) return "满充能：抽牌、获得能量并制造临时疾切。";
+        if (PROF_MERCHANT.equals(profession)) return "满充能：花少量金币换格挡并用金币打击目标。";
+        if (PROF_BLOODBOUND.equals(profession)) return "满充能：失去少量生命，治疗并穿透打击。";
+        if (PROF_WEAVER.equals(profession)) return "满充能：升级手牌、抽牌并获得能量。";
+        return "选择职业后可用。";
+    }
+
+    public static void useProfessionSkill(State s, int enemyIndex) {
+        if (!professionSkillReady(s)) {
+            return;
+        }
+        Enemy target = firstLiving(s);
+        if (enemyIndex >= 0 && enemyIndex < s.enemies.size() && s.enemies.get(enemyIndex).hp > 0) {
+            target = s.enemies.get(enemyIndex);
+        }
+        s.professionSkillCharge = 0;
+        s.professionSkillUsedThisTurn = true;
+        if (PROF_WARDEN.equals(s.profession)) {
+            gainBlock(s, 10 + s.act * 2 + s.steelEngine);
+            damageEnemy(s, target, 8 + Math.min(32, s.block / 2), true);
+        } else if (PROF_DUELIST.equals(s.profession)) {
+            int damage = 14 + s.act * 3 + Math.min(18, s.cardsPlayedThisTurn * 3);
+            damageEnemy(s, target, damage, true);
+            if (target.hp <= 0) {
+                s.energy++;
+                draw(s, 1);
+            }
+        } else if (PROF_ALCHEMIST.equals(s.profession)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.burn += 3 + s.burnPower + s.act;
+                e.bind += 2 + s.bindPower;
+                e.vulnerable += 1;
+            }
+            if (s.potions.size() < potionLimit(s)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "职业技调制药剂：" + p.name);
+            }
+        } else if (PROF_RANGER.equals(s.profession)) {
+            target.bind += 5 + s.bindPower + s.act;
+            target.vulnerable += 2;
+            target.mark += 2;
+            draw(s, 1);
+        } else if (PROF_ARCANIST.equals(s.profession)) {
+            draw(s, 2 + Math.min(2, s.voidEngine));
+            s.energy++;
+            Card cut = new Card("quick_cut");
+            cut.temp = true;
+            addToHand(s, cut);
+        } else if (PROF_MERCHANT.equals(s.profession)) {
+            int spend = Math.min(s.gold, 18 + s.act * 4);
+            s.gold -= spend;
+            gainBlock(s, 8 + spend / 2);
+            damageEnemy(s, target, 10 + spend, false);
+        } else if (PROF_BLOODBOUND.equals(s.profession)) {
+            int loss = Math.min(4, Math.max(1, s.hp - 1));
+            s.hp = Math.max(1, s.hp - loss);
+            int missing = Math.max(0, s.maxHp - s.hp);
+            damageEnemy(s, target, 12 + s.act * 3 + missing / 5, true);
+            s.hp = Math.min(s.maxHp, s.hp + 5 + (hasTalent(s, "t_bloodbound_feast") ? 3 : 0));
+        } else if (PROF_WEAVER.equals(s.profession)) {
+            upgradeRandomHandCard(s);
+            upgradeRandomHandCard(s);
+            draw(s, 1 + (hasTalent(s, "t_weaver_mastery") ? 1 : 0));
+            s.energy++;
+        }
+        log(s, "释放职业技：" + professionSkillName(s.profession));
+        updateQuestProgress(s);
         if (checkPlayerDefeated(s)) {
             return;
         }
@@ -416,6 +517,7 @@ public final class GameCore {
             s.gold += 20;
         }
         if (PROF_ALCHEMIST.equals(s.profession)) {
+            addProfessionSkillCharge(s, 2);
             draw(s, 1);
             s.energy += s.professionUsedThisTurn == 0 ? 1 : 0;
             s.professionUsedThisTurn++;
@@ -1617,6 +1719,28 @@ public final class GameCore {
         return pool.get(s.run.nextInt(pool.size()));
     }
 
+    private static void chargeProfessionSkill(State s, CardDef d) {
+        int amount = 1;
+        if (d != null && d.profession.equals(s.profession)) {
+            amount++;
+        } else if (PROF_WARDEN.equals(s.profession) && d != null && (d.type == 1 || d.block > 0 || d.blockToDamage)) amount++;
+        else if (PROF_DUELIST.equals(s.profession) && d != null && (d.type == 0 || d.cost == 0 || d.comboDamage > 0)) amount++;
+        else if (PROF_ALCHEMIST.equals(s.profession) && d != null && (d.burn > 0 || d.bind > 0 || d.createPotion || d.spreadStatus)) amount++;
+        else if (PROF_RANGER.equals(s.profession) && d != null && (d.bind > 0 || d.aoe || d.bindToDraw)) amount++;
+        else if (PROF_ARCANIST.equals(s.profession) && d != null && (d.exhaust || d.createEcho || d.exhaustTopDiscard || d.exhaustForDamage)) amount++;
+        else if (PROF_MERCHANT.equals(s.profession) && d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) amount++;
+        else if (PROF_BLOODBOUND.equals(s.profession) && d != null && (d.hpLoss > 0 || d.heal > 0 || "wound".equals(d.id))) amount++;
+        else if (PROF_WEAVER.equals(s.profession) && d != null && (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.createEcho)) amount++;
+        addProfessionSkillCharge(s, amount);
+    }
+
+    private static void addProfessionSkillCharge(State s, int amount) {
+        if (s == null || s.mode != MODE_COMBAT || s.profession == null || s.profession.length() == 0) {
+            return;
+        }
+        s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX, s.professionSkillCharge + amount));
+    }
+
     private static void startCombat(State s, char kind) {
         s.mode = MODE_COMBAT;
         s.combatKind = kind;
@@ -1634,6 +1758,8 @@ public final class GameCore {
         s.vulnerable = 0;
         s.nextEnergyPenalty = 0;
         s.professionCharge = 0;
+        s.professionSkillCharge = 0;
+        s.professionSkillUsedThisTurn = false;
         s.professionUsedThisTurn = 0;
         s.combatQuest = chooseCombatQuest(s, kind);
         s.questTarget = questTargetFor(s, s.combatQuest, kind);
@@ -1942,6 +2068,7 @@ public final class GameCore {
         s.cardsPlayedThisTurn = 0;
         s.professionUsedThisTurn = 0;
         s.relicTriggersThisTurn = 0;
+        s.professionSkillUsedThisTurn = false;
         if (hasRelic(s, "amber_quill") && s.turn == 1) {
             s.energy++;
         }
@@ -2762,6 +2889,7 @@ public final class GameCore {
             s.energy++;
         }
         if (PROF_WARDEN.equals(s.profession) && d.type == 1) {
+            addProfessionSkillCharge(s, 1);
             s.professionCharge++;
             if (s.professionCharge >= 2) {
                 gainBlock(s, 5);
@@ -2782,6 +2910,7 @@ public final class GameCore {
             }
         }
         if (PROF_DUELIST.equals(s.profession) && d.type == 0) {
+            addProfessionSkillCharge(s, s.cardsPlayedThisTurn >= 4 ? 2 : 1);
             s.professionCharge++;
             if (s.professionCharge >= 3) {
                 Enemy e = firstLiving(s);
@@ -2793,12 +2922,14 @@ public final class GameCore {
             }
         }
         if (PROF_RANGER.equals(s.profession) && d.type == 0) {
+            addProfessionSkillCharge(s, 1);
             Enemy e = firstLiving(s);
             if (e != null) {
                 e.bind += 1 + s.bindPower / 2;
             }
         }
         if (PROF_ARCANIST.equals(s.profession) && (d.exhaust || c.temp)) {
+            addProfessionSkillCharge(s, 1);
             s.professionCharge++;
             if (s.professionCharge >= 2) {
                 draw(s, 1);
@@ -2812,6 +2943,7 @@ public final class GameCore {
             }
         }
         if (PROF_MERCHANT.equals(s.profession) && d.goldGain > 0) {
+            addProfessionSkillCharge(s, 1);
             gainBlock(s, 4 + Math.min(8, s.gold / 80));
         }
         if (hasTalent(s, "t_merchant_blackmarket") && s.cardsPlayedThisTurn == 2) {
@@ -2840,6 +2972,7 @@ public final class GameCore {
         }
         if (PROF_BLOODBOUND.equals(s.profession)) {
             if (d.hpLoss > 0 || "wound".equals(c.id)) {
+                addProfessionSkillCharge(s, 1);
                 s.professionCharge++;
             }
             if (s.professionCharge >= 3) {
@@ -2853,6 +2986,7 @@ public final class GameCore {
             }
         }
         if (PROF_WEAVER.equals(s.profession) && d.type == 1) {
+            addProfessionSkillCharge(s, 1);
             s.professionCharge++;
             if (s.professionCharge >= 3) {
                 draw(s, hasTalent(s, "t_weaver_mastery") ? 2 : 1);
@@ -4031,10 +4165,12 @@ public final class GameCore {
         public int wildEngine;
         public int voidEngine;
         public int professionCharge;
+        public int professionSkillCharge;
         public int professionUsedThisTurn;
         public int relicTriggersThisTurn;
         public int cardsPlayedThisTurn;
         public int totalCardsPlayed;
+        public boolean professionSkillUsedThisTurn;
 
         public void ensureRandom() {
             if (run == null) {
