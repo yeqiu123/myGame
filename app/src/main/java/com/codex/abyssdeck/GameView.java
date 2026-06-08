@@ -392,7 +392,8 @@ public final class GameView extends View {
                 "灵体临牌 / 召唤控场",
                 "状态诅咒 / 易伤压制",
                 "升级刻印 / 异常过载",
-                "低费调律 / 印记爆发"
+                "低费调律 / 印记爆发",
+                "目标裁令 / 誓约过载"
         };
         int rows = (GameCore.PROFESSIONS.length + cols - 1) / cols;
         float startY = dp(126);
@@ -1177,6 +1178,13 @@ public final class GameView extends View {
             c.drawLine(cx - size * 0.45f, cy - size * 0.55f, cx + size * 0.45f, cy + size * 0.55f, p);
             c.drawLine(cx - size * 0.45f, cy + size * 0.55f, cx + size * 0.45f, cy - size * 0.55f, p);
             c.drawCircle(cx, cy, size * 0.24f, p);
+        } else if (GameCore.PROF_ADJUDICATOR.equals(profession)) {
+            c.drawLine(cx - size * 0.9f, cy - size * 0.55f, cx + size * 0.9f, cy - size * 0.55f, p);
+            c.drawLine(cx - size * 0.65f, cy + size * 0.75f, cx + size * 0.65f, cy + size * 0.75f, p);
+            c.drawLine(cx, cy - size * 0.55f, cx, cy + size * 0.75f, p);
+            c.drawLine(cx - size * 0.55f, cy - size * 0.15f, cx + size * 0.55f, cy - size * 0.15f, p);
+            c.drawLine(cx - size * 0.42f, cy + size * 0.25f, cx + size * 0.42f, cy + size * 0.25f, p);
+            c.drawCircle(cx, cy - size * 0.85f, size * 0.18f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

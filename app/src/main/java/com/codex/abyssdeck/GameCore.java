@@ -102,10 +102,12 @@ public final class GameCore {
     public static final String PROF_HEXER = "咒术师";
     public static final String PROF_INSCRIBER = "刻印师";
     public static final String PROF_TUNER = "调律师";
+    public static final String PROF_ADJUDICATOR = "裁定官";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
-            PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER
+            PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
+            PROF_ADJUDICATOR
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -710,6 +712,7 @@ public final class GameCore {
         if (PROF_HEXER.equals(profession)) return "咒环";
         if (PROF_INSCRIBER.equals(profession)) return "刻痕";
         if (PROF_TUNER.equals(profession)) return "调律";
+        if (PROF_ADJUDICATOR.equals(profession)) return "裁令";
         return "职业技";
     }
 
@@ -757,6 +760,7 @@ public final class GameCore {
         if (PROF_HEXER.equals(profession)) return "满充能：施加群体诅咒，污染牌组但抽牌并获得能量。";
         if (PROF_INSCRIBER.equals(profession)) return "满充能：铭刻手牌，施加易伤与束缚，并把状态转为资源。";
         if (PROF_TUNER.equals(profession)) return "满充能：调律目标，按本回合节奏与敌人印记造成穿透，抽牌并返还能量。";
+        if (PROF_ADJUDICATOR.equals(profession)) return "满充能：按战斗目标进度与誓约兑现裁决目标，目标完成后返还资源。";
         return "选择职业后可用。";
     }
 
@@ -900,6 +904,43 @@ public final class GameCore {
                 Card note = new Card("tuner_note");
                 note.temp = true;
                 addToHand(s, note);
+            }
+        } else if (PROF_ADJUDICATOR.equals(s.profession)) {
+            int progress = adjudicatorQuestProgress(s);
+            int targetGoal = Math.max(1, s.questTarget);
+            int progressBonus = s.combatQuest == QUEST_NONE ? Math.min(12, s.cardsPlayedThisTurn * 2)
+                    : Math.min(22, progress * 22 / targetGoal);
+            int fulfilled = Math.min(3, Math.max(0, s.pactFulfilled));
+            boolean completed = adjudicatorQuestReady(s);
+            int damage = 11 + s.act * 3 + progressBonus + fulfilled * 4 + overload * 5;
+            if (completed) {
+                damage += 8 + s.act * 2;
+            }
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 1 + fulfilled + overload / 2;
+                target.vulnerable += 1 + overload / 4 + (completed ? 1 : 0);
+                if (completed) {
+                    target.bind += 1 + s.bindPower / 2;
+                }
+            }
+            gainBlock(s, 6 + s.act * 2 + progressBonus / 2 + fulfilled * 3 + overload * 3);
+            if (completed) {
+                draw(s, 1 + overload / 4);
+                s.energy += 1 + (overload >= 4 ? 1 : 0);
+                addProfessionSkillCharge(s, 1 + fulfilled);
+            } else if (s.combatQuest != QUEST_NONE) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_adjudicator_grand")) {
+                Enemy e = target != null && target.hp > 0 ? target : firstLiving(s);
+                if (e != null) {
+                    damageEnemy(s, e, 5 + s.act * 2 + progressBonus / 2, true);
+                    e.mark += 1;
+                }
+                if (completed || overload >= 3) {
+                    draw(s, 1);
+                }
             }
         }
         applyProfessionSkillResonance(s, target, overload);
@@ -2084,6 +2125,9 @@ public final class GameCore {
         if (PROF_TUNER.equals(profession)) {
             return "用低费、抽牌和充能牌校准节奏，把印记转成职业技爆发。适合循环、过载、回声和异常混合构筑。";
         }
+        if (PROF_ADJUDICATOR.equals(profession)) {
+            return "围绕战斗目标、誓约兑现和过载裁令滚动优势，能把任务进度转化为格挡、抽牌、印记和终局爆发。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2123,6 +2167,9 @@ public final class GameCore {
         }
         if (PROF_TUNER.equals(profession)) {
             return 0xfff1d36d;
+        }
+        if (PROF_ADJUDICATOR.equals(profession)) {
+            return 0xffe8a86f;
         }
         return 0xffd6c07a;
     }
@@ -2342,6 +2389,12 @@ public final class GameCore {
             s.deck.add(new Card("tuner_pulse"));
             s.maxHp += 2;
             s.hp += 2;
+        } else if (PROF_ADJUDICATOR.equals(profession)) {
+            s.deck.add(new Card("adjudicator_writ"));
+            s.deck.add(new Card("adjudicator_clause"));
+            s.maxHp += 4;
+            s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -2375,6 +2428,7 @@ public final class GameCore {
         else if (PROF_HEXER.equals(profession)) upgradeDeckCard(s, "hexer_hexmark");
         else if (PROF_INSCRIBER.equals(profession)) upgradeDeckCard(s, "inscriber_mark");
         else if (PROF_TUNER.equals(profession)) upgradeDeckCard(s, "tuner_note");
+        else if (PROF_ADJUDICATOR.equals(profession)) upgradeDeckCard(s, "adjudicator_writ");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -2414,6 +2468,9 @@ public final class GameCore {
         } else if (PROF_TUNER.equals(profession)) {
             addUpgradedDeckCard(s, "tuner_pulse");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_ADJUDICATOR.equals(profession)) {
+            addUpgradedDeckCard(s, "adjudicator_audit");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -2430,6 +2487,7 @@ public final class GameCore {
         if (PROF_HEXER.equals(profession)) return "hexer_overcurse";
         if (PROF_INSCRIBER.equals(profession)) return "inscriber_overseal";
         if (PROF_TUNER.equals(profession)) return "tuner_overclock";
+        if (PROF_ADJUDICATOR.equals(profession)) return "adjudicator_overrule";
         return "forge_signal";
     }
 
@@ -2629,6 +2687,18 @@ public final class GameCore {
         } else if ("t_tuner_grand".equals(id)) {
             addUpgradedDeckCard(s, "tuner_grand_cadence");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_adjudicator_docket".equals(id)) {
+            addUpgradedDeckCard(s, "adjudicator_audit");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_adjudicator_clause".equals(id)) {
+            addUpgradedDeckCard(s, "adjudicator_clause");
+        } else if ("t_adjudicator_oath".equals(id)) {
+            addUpgradedDeckCard(s, "adjudicator_bond");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_adjudicator_grand".equals(id)) {
+            addUpgradedDeckCard(s, "adjudicator_final_decree");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -2644,7 +2714,8 @@ public final class GameCore {
                 || "t_arcanist_singularity".equals(id) || "t_merchant_monopoly".equals(id)
                 || "t_bloodbound_hemocraft".equals(id) || "t_weaver_grandpattern".equals(id)
                 || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id)
-                || "t_inscriber_grandcodex".equals(id) || "t_tuner_grand".equals(id);
+                || "t_inscriber_grandcodex".equals(id) || "t_tuner_grand".equals(id)
+                || "t_adjudicator_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -2653,7 +2724,8 @@ public final class GameCore {
                 || "arcanist_eventhorizon".equals(id) || "merchant_kingmaker".equals(id)
                 || "blood_apotheosis".equals(id) || "weaver_clockwork".equals(id)
                 || "summoner_procession".equals(id) || "hexer_crownfall".equals(id)
-                || "inscriber_codex".equals(id) || "tuner_grand_cadence".equals(id);
+                || "inscriber_codex".equals(id) || "tuner_grand_cadence".equals(id)
+                || "adjudicator_final_decree".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -2662,7 +2734,8 @@ public final class GameCore {
                 || "singularity_orb".equals(id) || "kingmaker_seal".equals(id)
                 || "blood_crown".equals(id) || "clockwork_loom".equals(id)
                 || "spirit_processional".equals(id) || "fallen_crown".equals(id)
-                || "living_codex".equals(id) || "conductor_baton".equals(id);
+                || "living_codex".equals(id) || "conductor_baton".equals(id)
+                || "judgment_codex".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -3027,6 +3100,8 @@ public final class GameCore {
                 || d.addStatusToEnemy || d.createWound || d.skillChargeGain > 0 || "wound".equals(d.id) || "daze".equals(d.id))) amount++;
         else if (PROF_TUNER.equals(s.profession) && d != null && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0
                 || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) amount++;
+        else if (PROF_ADJUDICATOR.equals(s.profession) && d != null && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.upgradeRandom || d.scry > 0 || d.draw > 0 || d.type == 1 || d.profession.equals(PROF_ADJUDICATOR))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -3313,6 +3388,19 @@ public final class GameCore {
             if (level >= 3 || s.cardsPlayedThisTurn >= 4) {
                 s.energy++;
             }
+        } else if (PROF_ADJUDICATOR.equals(s.profession)) {
+            int progress = Math.min(18, adjudicatorQuestProgress(s));
+            gainBlock(s, 4 + level * 3 + progress / 2 + overload);
+            addProfessionSkillCharge(s, level + overload / 2);
+            if (target != null) {
+                target.mark += level + overload / 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(16, progress), true);
+            }
+            if (adjudicatorQuestReady(s) || level >= 3) {
+                draw(s, 1);
+                s.energy += overload >= 3 ? 1 : 0;
+            }
         }
     }
 
@@ -3390,6 +3478,24 @@ public final class GameCore {
                 damageEnemy(s, target, 5 + s.act * 2 + Math.min(12, target.mark * 2), true);
             }
         }
+        if (hasRelic(s, "verdict_seal") && PROF_ADJUDICATOR.equals(s.profession)) {
+            addProfessionSkillCharge(s, 2 + (adjudicatorQuestReady(s) ? 1 : 0));
+            gainBlock(s, 4 + s.act + Math.min(8, adjudicatorQuestProgress(s) / 2));
+            if (target != null) {
+                target.mark += 1 + Math.min(2, s.pactFulfilled);
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(12, adjudicatorQuestProgress(s)), true);
+            }
+        }
+        if (hasRelic(s, "judgment_codex") && PROF_ADJUDICATOR.equals(s.profession)) {
+            draw(s, 1);
+            if (target != null) {
+                target.vulnerable += 1;
+                target.mark += 2;
+            }
+            if (adjudicatorQuestReady(s)) {
+                s.energy++;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -3408,6 +3514,8 @@ public final class GameCore {
         if (hasRelic(s, "hex_tablet") && PROF_HEXER.equals(s.profession) && amount > 0 && firstLiving(s) != null && firstLiving(s).vulnerable > 0) amount++;
         if (hasRelic(s, "engraver_stylus") && PROF_INSCRIBER.equals(s.profession) && amount > 0 && upgradedCardCount(s) >= 3) amount++;
         if (hasRelic(s, "tuning_fork") && PROF_TUNER.equals(s.profession) && amount > 0 && s.cardsPlayedThisTurn >= 3) amount++;
+        if (hasRelic(s, "verdict_seal") && PROF_ADJUDICATOR.equals(s.profession) && amount > 0
+                && (adjudicatorQuestProgress(s) >= Math.max(1, s.questTarget / 2) || s.pactFulfilled > 0)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -3562,12 +3670,13 @@ public final class GameCore {
             return true;
         }
         if (quest == QUEST_BLOODCOIN && (PROF_MERCHANT.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
-                || PROF_HEXER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
+                || PROF_HEXER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession) || PROF_ADJUDICATOR.equals(s.profession)
                 || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
                 || hasTalent(s, "t_hexer_darkdeal") || hasRelic(s, "bloodcoin_broach") || hasRelic(s, "kingmaker_seal"))) {
             return true;
         }
         if (quest == QUEST_FORGE && (PROF_WEAVER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
+                || PROF_ADJUDICATOR.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -3581,6 +3690,7 @@ public final class GameCore {
             return true;
         }
         if (quest == QUEST_MARK && (PROF_RANGER.equals(s.profession) || PROF_TUNER.equals(s.profession)
+                || PROF_ADJUDICATOR.equals(s.profession)
                 || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton"))) {
@@ -3588,7 +3698,7 @@ public final class GameCore {
         }
         if (quest == QUEST_OVERLOAD && (s.profession != null && s.profession.length() > 0)
                 && (hasSkillRelic(s) || PROF_TUNER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
-                || PROF_ARCANIST.equals(s.profession) || PROF_WEAVER.equals(s.profession))) {
+                || PROF_ARCANIST.equals(s.profession) || PROF_WEAVER.equals(s.profession) || PROF_ADJUDICATOR.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -3605,7 +3715,9 @@ public final class GameCore {
             if (quest == QUEST_MARK && ("tuner_note".equals(d.id) || "tuner_harmonic".equals(d.id)
                     || "tuner_overclock".equals(d.id) || "tuner_grand_cadence".equals(d.id)
                     || "inscriber_codex".equals(d.id) || "ranger_overmark".equals(d.id)
-                    || "ranger_predator".equals(d.id))) return true;
+                    || "ranger_predator".equals(d.id) || "adjudicator_clause".equals(d.id)
+                    || "adjudicator_bond".equals(d.id) || "adjudicator_overrule".equals(d.id)
+                    || "adjudicator_final_decree".equals(d.id))) return true;
             if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
@@ -4110,6 +4222,28 @@ public final class GameCore {
                 Card note = new Card("tuner_note");
                 note.temp = true;
                 addToHand(s, note);
+                addProfessionSkillCharge(s, 2);
+            }
+        }
+        if (PROF_ADJUDICATOR.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 1 + Math.min(2, s.pactFulfilled));
+            gainBlock(s, 3 + s.act);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            if (hasTalent(s, "t_adjudicator_docket")) {
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_adjudicator_oath")) {
+                addProfessionSkillCharge(s, 1);
+                if (s.combatQuest != QUEST_NONE) {
+                    gainBlock(s, 4 + s.act);
+                }
+            }
+            if (hasTalent(s, "t_adjudicator_grand")) {
+                Card writ = new Card("adjudicator_writ");
+                writ.temp = true;
+                addToHand(s, writ);
                 addProfessionSkillCharge(s, 2);
             }
         }
@@ -4989,6 +5123,43 @@ public final class GameCore {
         if ("apex_confluence".equals(d.id)) {
             damage += Math.min(c.upgraded ? 36 : 26, s.confluenceChain * (c.upgraded ? 4 : 3));
         }
+        if ("adjudicator_clause".equals(d.id) && target != null) {
+            int progress = adjudicatorQuestProgress(s);
+            damage += Math.min(c.upgraded ? 18 : 12, progress * (c.upgraded ? 3 : 2) / Math.max(1, s.questTarget / 2));
+            if (s.questComplete || s.pactFulfilled > 0) {
+                target.mark += c.upgraded ? 2 : 1;
+            }
+        }
+        if ("adjudicator_audit".equals(d.id)) {
+            int progress = adjudicatorQuestProgress(s);
+            if (s.combatQuest != QUEST_NONE && progress >= Math.max(1, s.questTarget / 2)) {
+                draw += 1;
+                block += c.upgraded ? 4 : 2;
+            }
+        }
+        if ("adjudicator_bond".equals(d.id)) {
+            block += Math.min(c.upgraded ? 14 : 9, s.pactFulfilled * 4 + (s.questComplete ? 5 : 0));
+            if (target != null && s.pactFulfilled > 0) {
+                target.mark += Math.min(3, s.pactFulfilled);
+            }
+        }
+        if ("adjudicator_overrule".equals(d.id) && target != null) {
+            int overloadNow = professionSkillOverload(s);
+            damage += Math.min(c.upgraded ? 22 : 15, adjudicatorQuestProgress(s) + overloadNow * 4);
+            target.mark += c.upgraded ? 2 : 1;
+        }
+        if ("adjudicator_final_decree".equals(d.id)) {
+            int progress = adjudicatorQuestProgress(s);
+            damage += Math.min(c.upgraded ? 42 : 30, progress * (c.upgraded ? 3 : 2) + s.pactFulfilled * 5);
+            block += Math.min(c.upgraded ? 24 : 16, progress + s.pactFulfilled * 4);
+            if (target != null && (s.questComplete || s.pactFulfilled >= 2)) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+            }
+            if (s.questComplete) {
+                draw += 1;
+            }
+        }
 
         if (damage > 0) {
             if (d.aoe) {
@@ -5179,6 +5350,41 @@ public final class GameCore {
             }
             if (c.upgraded) {
                 draw(s, 1);
+            }
+        }
+        if ("adjudicator_writ".equals(d.id)) {
+            if (s.combatQuest != QUEST_NONE && !s.questComplete) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (adjudicatorQuestProgress(s) >= Math.max(1, s.questTarget / 2)) {
+                gainBlock(s, c.upgraded ? 5 : 3);
+            }
+        }
+        if ("adjudicator_audit".equals(d.id)) {
+            addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            if (s.combatQuest == QUEST_FORGE || s.combatQuest == QUEST_CONFLUENCE) {
+                addQuestProgress(s, s.combatQuest, 1);
+            }
+        }
+        if ("adjudicator_bond".equals(d.id) && target != null) {
+            target.bind += 1 + s.bindPower / 2 + (s.questComplete ? 1 : 0);
+            if (s.pactFulfilled >= 2) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("adjudicator_overrule".equals(d.id)) {
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            if (s.questComplete && target != null) {
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(12, target.mark * 2), true);
+            }
+        }
+        if ("adjudicator_final_decree".equals(d.id)) {
+            if (s.questComplete || s.pactFulfilled >= 2) {
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
+            }
+            if (c.upgraded) {
+                upgradeRandomHandCard(s);
             }
         }
         if (d.retainBlock) {
@@ -5820,6 +6026,72 @@ public final class GameCore {
                 }
             }
         }
+        if (PROF_ADJUDICATOR.equals(s.profession) && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.upgradeRandom || d.scry > 0 || "adjudicator_writ".equals(c.id) || "adjudicator_audit".equals(c.id))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (s.combatQuest != QUEST_NONE || d.vulnerable > 0) {
+                    e.mark += 1;
+                }
+                if (s.professionCharge >= 3) {
+                    e.vulnerable += 1;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(12, adjudicatorQuestProgress(s)), true);
+                }
+            }
+            if (s.professionCharge >= 3) {
+                gainBlock(s, 4 + s.act + Math.min(8, s.pactFulfilled * 2 + adjudicatorQuestProgress(s) / 3));
+                if (hasTalent(s, "t_adjudicator_docket")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = 0;
+            }
+        }
+        if (hasTalent(s, "t_adjudicator_clause") && (d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 3 + s.act * 2 + Math.min(10, e.mark * 2), true);
+            }
+        }
+        if (hasTalent(s, "t_adjudicator_oath") && (s.questComplete || s.pactFulfilled > 0)
+                && (d.type == 1 || d.skillChargeGain > 0 || d.draw > 0)) {
+            gainBlock(s, 3 + s.act + Math.min(6, s.pactFulfilled * 2));
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_adjudicator_grand") && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || c.upgraded)) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.questComplete || s.cardsPlayedThisTurn >= 3)) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(14, adjudicatorQuestProgress(s)), true);
+            }
+            if (s.cardsPlayedThisTurn % 3 == 0) {
+                addProfessionSkillCharge(s, 1);
+                draw(s, 1);
+            }
+        }
+        if (hasRelic(s, "verdict_seal") && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || s.questComplete)) {
+            addProfessionSkillCharge(s, 1);
+            if (s.questComplete && s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act);
+                s.relicTriggersThisTurn++;
+            }
+        }
+        if (hasRelic(s, "judgment_codex") && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || c.upgraded)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(14, e.mark * 2), true);
+                }
+            }
+            if (s.questComplete && s.cardsPlayedThisTurn == 3) {
+                s.energy++;
+            }
+        }
         if (s.steelEngine > 0 && d.type == 1) {
             Enemy e = firstLiving(s);
             if (e != null) {
@@ -6084,12 +6356,12 @@ public final class GameCore {
         if (s.combatQuest == QUEST_COMBO) {
             s.questProgress = Math.max(s.questProgress, s.cardsPlayedThisTurn);
             if (s.questProgress >= s.questTarget) {
-                s.questComplete = true;
+                completeQuest(s);
             }
         } else if (s.combatQuest == QUEST_GUARD) {
             s.questProgress = Math.max(s.questProgress, s.block);
             if (s.questProgress >= s.questTarget) {
-                s.questComplete = true;
+                completeQuest(s);
             }
         } else if (s.combatQuest == QUEST_HEX) {
             int best = 0;
@@ -6098,12 +6370,12 @@ public final class GameCore {
             }
             s.questProgress = Math.max(s.questProgress, best);
             if (s.questProgress >= s.questTarget) {
-                s.questComplete = true;
+                completeQuest(s);
             }
         } else if (s.combatQuest == QUEST_CONFLUENCE) {
             s.questProgress = Math.max(s.questProgress, s.confluenceChain);
             if (s.questProgress >= s.questTarget) {
-                s.questComplete = true;
+                completeQuest(s);
             }
         } else if (s.combatQuest == QUEST_MARK) {
             int best = 0;
@@ -6112,12 +6384,12 @@ public final class GameCore {
             }
             s.questProgress = Math.max(s.questProgress, best);
             if (s.questProgress >= s.questTarget) {
-                s.questComplete = true;
+                completeQuest(s);
             }
         } else if (s.combatQuest == QUEST_OVERLOAD) {
             s.questProgress = Math.max(s.questProgress, professionSkillOverload(s));
             if (s.questProgress >= s.questTarget) {
-                s.questComplete = true;
+                completeQuest(s);
             }
         } else if (s.combatQuest == QUEST_UNHURT) {
             s.questComplete = s.questProgress <= s.questTarget;
@@ -6128,7 +6400,7 @@ public final class GameCore {
             s.questProgress = s.totalCardsPlayed;
             s.questComplete = s.totalCardsPlayed <= s.questTarget;
         } else if (isCumulativeQuest(s.combatQuest) && s.questProgress >= s.questTarget) {
-            s.questComplete = true;
+            completeQuest(s);
         }
     }
 
@@ -6144,8 +6416,79 @@ public final class GameCore {
         }
         s.questProgress += amount;
         if (s.questProgress >= s.questTarget) {
-            s.questComplete = true;
+            completeQuest(s);
         }
+    }
+
+    private static void completeQuest(State s) {
+        if (s == null || s.questComplete) {
+            return;
+        }
+        s.questComplete = true;
+        triggerQuestCompletionPulse(s);
+    }
+
+    private static void triggerQuestCompletionPulse(State s) {
+        if (s == null || s.mode != MODE_COMBAT || !PROF_ADJUDICATOR.equals(s.profession)) {
+            return;
+        }
+        int progress = Math.max(1, adjudicatorQuestProgress(s));
+        gainBlock(s, 5 + s.act * 2 + Math.min(10, progress));
+        addProfessionSkillCharge(s, 2 + Math.min(2, s.pactFulfilled));
+        Enemy e = firstLiving(s);
+        if (e != null) {
+            e.mark += 1 + Math.min(2, s.pactFulfilled);
+            e.vulnerable += 1;
+            damageEnemy(s, e, 4 + s.act * 2 + Math.min(12, progress), true);
+        }
+        if (hasTalent(s, "t_adjudicator_docket") || hasRelic(s, "verdict_seal")) {
+            draw(s, 1);
+        }
+        if (hasTalent(s, "t_adjudicator_oath") || hasRelic(s, "judgment_codex")) {
+            s.energy++;
+        }
+        log(s, "裁定官即时裁决：" + questName(s.combatQuest) + "达成。");
+    }
+
+    private static int adjudicatorQuestProgress(State s) {
+        if (s == null || s.combatQuest == QUEST_NONE) {
+            return s == null ? 0 : Math.max(0, s.cardsPlayedThisTurn + s.pactFulfilled * 2);
+        }
+        if (s.combatQuest == QUEST_COMBO) return Math.max(s.questProgress, s.cardsPlayedThisTurn);
+        if (s.combatQuest == QUEST_GUARD) return Math.max(s.questProgress, s.block);
+        if (s.combatQuest == QUEST_HEX) {
+            int best = s.questProgress;
+            for (Enemy e : livingEnemies(s)) {
+                best = Math.max(best, e.burn + e.bind + e.vulnerable);
+            }
+            return best;
+        }
+        if (s.combatQuest == QUEST_CONFLUENCE) return Math.max(s.questProgress, s.confluenceChain);
+        if (s.combatQuest == QUEST_MARK) {
+            int best = s.questProgress;
+            for (Enemy e : livingEnemies(s)) {
+                best = Math.max(best, e.mark);
+            }
+            return best;
+        }
+        if (s.combatQuest == QUEST_OVERLOAD) return Math.max(s.questProgress, professionSkillOverload(s));
+        if (s.combatQuest == QUEST_SWIFT) return Math.max(0, s.questTarget - s.turn + 1);
+        if (s.combatQuest == QUEST_UNHURT) return Math.max(0, s.questTarget - s.questProgress);
+        if (s.combatQuest == QUEST_LEAN) return Math.max(0, s.questTarget - s.totalCardsPlayed);
+        return Math.max(0, s.questProgress);
+    }
+
+    private static boolean adjudicatorQuestReady(State s) {
+        if (s == null || s.combatQuest == QUEST_NONE) {
+            return false;
+        }
+        if (s.combatQuest == QUEST_SWIFT || s.combatQuest == QUEST_UNHURT || s.combatQuest == QUEST_LEAN) {
+            return false;
+        }
+        if (s.questComplete) {
+            return true;
+        }
+        return s.questTarget > 0 && adjudicatorQuestProgress(s) >= s.questTarget;
     }
 
     private static boolean questSucceeded(State s) {
@@ -6167,6 +6510,13 @@ public final class GameCore {
         int bonus = 16 + s.act * 6 + (s.combatKind == 'B' ? 30 : s.combatKind == 'E' ? 18 : 0);
         s.gold += bonus;
         s.meta.questCompletions++;
+        if (PROF_ADJUDICATOR.equals(s.profession)) {
+            int charge = 1 + (s.combatKind == 'B' ? 2 : s.combatKind == 'E' ? 1 : 0);
+            s.masterySkillCharge = Math.min(PROF_SKILL_MAX, Math.max(s.masterySkillCharge, charge + Math.min(2, s.pactFulfilled)));
+            if (s.run.nextInt(100) < (hasTalent(s, "t_adjudicator_docket") ? 55 : 28)) {
+                upgradeRandomDeckCard(s);
+            }
+        }
         if (s.meta.questCompletions >= 10) {
             unlockAchievement(s, "quest_hunter");
         }
@@ -6740,6 +7090,9 @@ public final class GameCore {
         if (PROF_TUNER.equals(s.profession)) {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_STATUS || focus == BUILD_ECHO ? 7 : 0;
         }
+        if (PROF_ADJUDICATOR.equals(s.profession)) {
+            return focus == BUILD_OVERLOAD ? 18 : focus == BUILD_STATUS ? 12 : focus == BUILD_GUARD || focus == BUILD_CYCLE ? 8 : focus == BUILD_FORGE ? 5 : 0;
+        }
         return 0;
     }
 
@@ -6786,14 +7139,16 @@ public final class GameCore {
                     + ("apex_confluence".equals(d.id) ? 8 : 0)
                     + ("tuner_overclock".equals(d.id) ? 12 : 0) + ("tuner_note".equals(d.id) ? 5 : 0)
                     + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
-                    + ("inscriber_overseal".equals(d.id) ? 4 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
+                    + ("inscriber_overseal".equals(d.id) ? 4 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0)
+                    + ("adjudicator_writ".equals(d.id) ? 6 : 0) + ("adjudicator_audit".equals(d.id) ? 8 : 0)
+                    + ("adjudicator_overrule".equals(d.id) ? 12 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_ECHO) {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
                     + (d.exhaustForDamage ? 6 : 0) + ("summoner_sprite".equals(d.echoCardId) ? 3 : 0)
                     + ("echo_matrix".equals(d.id) ? 10 : 0) + ("hybrid_echo_step".equals(d.id) ? 10 : 0)
                     + ("hybrid_rift_engine".equals(d.id) ? 8 : 0) + ("confluence_chord".equals(d.id) ? 4 : 0)
-                    + ("tuner_loop".equals(d.id) ? 8 : 0);
+                    + ("tuner_loop".equals(d.id) ? 8 : 0) + ("adjudicator_audit".equals(d.id) ? 4 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 5 : 0)
@@ -6821,7 +7176,9 @@ public final class GameCore {
                     + ("hybrid_forgebrand".equals(d.id) ? 10 : 0) + ("hybrid_plague_brew".equals(d.id) ? 12 : 0)
                     + ("apex_confluence".equals(d.id) ? 10 : 0)
                     + ("tuner_harmonic".equals(d.id) ? 8 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
-                    + ("inscriber_glyphstorm".equals(d.id) ? 5 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
+                    + ("inscriber_glyphstorm".equals(d.id) ? 5 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0)
+                    + ("adjudicator_clause".equals(d.id) ? 8 : 0) + ("adjudicator_bond".equals(d.id) ? 6 : 0)
+                    + ("adjudicator_overrule".equals(d.id) ? 8 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_CYCLE) {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
@@ -6830,13 +7187,15 @@ public final class GameCore {
                     + ("confluence_chord".equals(d.id) ? 12 : 0) + ("apex_confluence".equals(d.id) ? 4 : 0)
                     + ("tuner_note".equals(d.id) ? 10 : 0) + ("tuner_pulse".equals(d.id) ? 8 : 0)
                     + ("tuner_loop".equals(d.id) ? 12 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
-                    + ("inscriber_palimp".equals(d.id) ? 4 : 0);
+                    + ("inscriber_palimp".equals(d.id) ? 4 : 0)
+                    + ("adjudicator_writ".equals(d.id) ? 10 : 0) + ("adjudicator_audit".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
                     + (d.burnToBlock ? 4 : 0) + ("aegis_engine".equals(d.id) ? 10 : 0)
                     + ("hybrid_guard_conduit".equals(d.id) ? 12 : 0) + ("hybrid_rift_engine".equals(d.id) ? 4 : 0)
-                    + ("prism_anchor".equals(d.id) ? 8 : 0);
+                    + ("prism_anchor".equals(d.id) ? 8 : 0)
+                    + ("adjudicator_bond".equals(d.id) ? 8 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0);
         }
         return 0;
     }
@@ -7034,6 +7393,10 @@ public final class GameCore {
         else if ("t_hexer_abysscurse".equals(id)) bonus += status * 3 + buildFocusDeckCards(s, BUILD_STATUS) * 2;
         else if ("t_inscriber_grandcodex".equals(id)) bonus += upgraded * 2 + status * 2 + buildFocusDeckCards(s, BUILD_FORGE) * 2;
         else if ("t_tuner_grand".equals(id)) bonus += zeroCost * 2 + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_adjudicator_docket".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_adjudicator_clause".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2 + bindDeckCards(s);
+        else if ("t_adjudicator_oath".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2 + Math.min(12, s.pactFulfilled * 5 + s.act * 2);
+        else if ("t_adjudicator_grand".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) * 2 + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
         return Math.min(36, bonus);
     }
 
@@ -7041,7 +7404,8 @@ public final class GameCore {
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
                     "t_arcanist_singularity", "t_merchant_monopoly", "t_weaver_grandpattern",
-                    "t_inscriber_grandcodex", "t_tuner_resonance", "t_tuner_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_inscriber_grandcodex", "t_tuner_resonance", "t_tuner_grand", "t_adjudicator_docket",
+                    "t_adjudicator_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -7064,24 +7428,26 @@ public final class GameCore {
         if (focus == BUILD_FORGE) {
             return isAny(id, "t_shared_masterwork", "t_warden_armory", "t_weaver_setup",
                     "t_weaver_mastery", "t_weaver_grandpattern", "t_inscriber_rubbing",
-                    "t_inscriber_grandcodex") ? 3 : 0;
+                    "t_inscriber_grandcodex", "t_adjudicator_docket") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
                     "t_ranger_quarry", "t_ranger_net", "t_ranger_wildpath", "t_ranger_apex",
                     "t_hexer_darkdeal", "t_hexer_malediction", "t_hexer_cleanse",
                     "t_hexer_abysscurse", "t_inscriber_etching", "t_inscriber_archive",
-                    "t_inscriber_grandcodex", "t_tuner_counterpoint", "t_tuner_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_inscriber_grandcodex", "t_tuner_counterpoint", "t_tuner_grand", "t_adjudicator_clause",
+                    "t_adjudicator_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
                     "t_arcanist_overflow", "t_weaver_setup", "t_weaver_quicksilver",
-                    "t_inscriber_archive", "t_tuner_meter", "t_tuner_resonance", "t_tuner_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_inscriber_archive", "t_tuner_meter", "t_tuner_resonance", "t_tuner_grand",
+                    "t_adjudicator_docket", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
                     "t_warden_vanguard", "t_ranger_net", "t_bloodbound_scar",
-                    "t_summoner_bond", "t_weaver_grandpattern") ? 3 : 0;
+                    "t_summoner_bond", "t_weaver_grandpattern", "t_adjudicator_oath") ? 3 : 0;
         }
         return 0;
     }
@@ -7121,6 +7487,13 @@ public final class GameCore {
         }
         if (isAny(id, "t_tuner_counterpoint", "t_tuner_grand") && buildFocusDeckCards(s, BUILD_STATUS) >= 2) {
             return "标记异常";
+        }
+        if (isAny(id, "t_adjudicator_docket", "t_adjudicator_oath", "t_adjudicator_grand") && s.pactFulfilled > 0) {
+            return "誓约兑现";
+        }
+        if (isAny(id, "t_adjudicator_docket", "t_adjudicator_clause", "t_adjudicator_grand")
+                && buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2) {
+            return "目标充能";
         }
         return "";
     }
@@ -7302,7 +7675,8 @@ public final class GameCore {
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
                     "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet",
                     "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
-                    "tuning_fork", "conductor_baton", "split_anvil", "echo_ledger", "confluence_map", "prism_gear", "ability_crown") ? 3 : 0;
+                    "tuning_fork", "conductor_baton", "verdict_seal", "judgment_codex", "split_anvil",
+                    "echo_ledger", "confluence_map", "prism_gear", "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
@@ -7330,17 +7704,18 @@ public final class GameCore {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
                     "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
                     "split_anvil", "bloodspark_contract", "tuning_fork", "conductor_baton", "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
-                    "fallen_crown", "engraver_stylus", "living_codex", "hex_moon") ? 3 : 0;
+                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "hex_moon") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
                 "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "tuning_fork", "conductor_baton", "flash_heel", "pattern_spool",
-                    "tempo_spindle", "finale_rapier", "echo_crown") ? 3 : 0;
+                    "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
                     "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach", "mirror_anvil",
-                "split_anvil", "confluence_map", "prism_gear", "vigil_bloom", "command_banner", "aegis_throne", "forge_heart") ? 3 : 0;
+                "split_anvil", "confluence_map", "prism_gear", "vigil_bloom", "command_banner", "aegis_throne",
+                    "verdict_seal", "judgment_codex", "forge_heart") ? 3 : 0;
         }
         return 0;
     }
@@ -7357,7 +7732,8 @@ public final class GameCore {
                 || (PROF_SUMMONER.equals(s.profession) && "spirit_bell".equals(id))
                 || (PROF_HEXER.equals(s.profession) && "hex_tablet".equals(id))
                 || (PROF_INSCRIBER.equals(s.profession) && "engraver_stylus".equals(id))
-                || (PROF_TUNER.equals(s.profession) && "tuning_fork".equals(id));
+                || (PROF_TUNER.equals(s.profession) && "tuning_fork".equals(id))
+                || (PROF_ADJUDICATOR.equals(s.profession) && "verdict_seal".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -7386,7 +7762,8 @@ public final class GameCore {
         return hasRelic(s, "command_banner") || hasRelic(s, "flash_heel") || hasRelic(s, "catalyst_pump")
                 || hasRelic(s, "hawk_fletching") || hasRelic(s, "echo_prism") || hasRelic(s, "ledger_stamp")
                 || hasRelic(s, "crimson_seal") || hasRelic(s, "pattern_spool") || hasRelic(s, "spirit_bell")
-                || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus") || hasRelic(s, "tuning_fork");
+                || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus") || hasRelic(s, "tuning_fork")
+                || hasRelic(s, "verdict_seal");
     }
 
     private static CardDef randomOverloadCard(State s, boolean allowRare) {
@@ -7485,6 +7862,10 @@ public final class GameCore {
                 || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) {
             return 4;
         }
+        if (PROF_ADJUDICATOR.equals(s.profession) && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.upgradeRandom || d.scry > 0 || d.draw > 0 || d.type == 1 || d.profession.equals(PROF_ADJUDICATOR))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -7577,6 +7958,12 @@ public final class GameCore {
         if (hasRelic(s, "conductor_baton") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.comboDamage > 0)) {
             bonus += 4;
         }
+        if (hasRelic(s, "verdict_seal") && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.draw > 0 || d.type == 1)) {
+            bonus += 3;
+        }
+        if (hasRelic(s, "judgment_codex") && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.upgradeRandom || d.rarity == 2)) {
+            bonus += 4;
+        }
         return bonus;
     }
 
@@ -7604,7 +7991,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -7617,6 +8004,7 @@ public final class GameCore {
         if (PROF_HEXER.equals(s.profession)) return "hex_tablet";
         if (PROF_INSCRIBER.equals(s.profession)) return "engraver_stylus";
         if (PROF_TUNER.equals(s.profession)) return "tuning_fork";
+        if (PROF_ADJUDICATOR.equals(s.profession)) return "verdict_seal";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -7693,6 +8081,13 @@ public final class GameCore {
             return 2;
         }
         if (PROF_TUNER.equals(s.profession) && "conductor_baton".equals(id)) {
+            return 4;
+        }
+        if (PROF_ADJUDICATOR.equals(s.profession) && ("verdict_seal".equals(id) || "stormglass_seal".equals(id)
+                || "tempo_metronome".equals(id) || "confluence_map".equals(id) || "mirror_anvil".equals(id))) {
+            return 2;
+        }
+        if (PROF_ADJUDICATOR.equals(s.profession) && "judgment_codex".equals(id)) {
             return 4;
         }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
@@ -7896,6 +8291,14 @@ public final class GameCore {
         } else if ("conductor_baton".equals(id)) {
             addUpgradedDeckCard(s, "tuner_grand_cadence");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("verdict_seal".equals(id)) {
+            addUpgradedDeckCard(s, "adjudicator_audit");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("judgment_codex".equals(id)) {
+            addUpgradedDeckCard(s, "adjudicator_final_decree");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 4;
+            s.hp += 4;
         } else if ("split_anvil".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_forgebrand");
             upgradeRandomDeckCard(s);
@@ -8276,6 +8679,19 @@ public final class GameCore {
         c = addCard("tuner_grand_cadence", "终局大调", "通用", 2, 1, 0, 9, 13, 0, 0, "造成伤害，抽1张，施加易伤；印记越多越强，职业技充能+2。", "更高伤害与节奏收益。");
         c.profession = PROF_TUNER; c.draw = c.drawUp = 1; c.vulnerable = 1; c.skillChargeGain = 2; c.comboDamage = 2; c.targetEnemy = true;
 
+        c = addCard("adjudicator_writ", "判令书", "通用", 0, 0, 2, 0, 0, 2, 4, "抽1张，职业技充能+1；若目标推进过半，额外格挡。", "更多格挡，职业技充能+2。");
+        c.profession = PROF_ADJUDICATOR; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("adjudicator_clause", "条款斩", "通用", 0, 1, 0, 6, 9, 0, 0, "造成伤害并施加易伤；战斗目标进度越高，伤害越高。", "更高伤害与易伤。");
+        c.profession = PROF_ADJUDICATOR; c.vulnerable = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("adjudicator_audit", "审计步", "通用", 1, 0, 2, 0, 0, 2, 4, "检视牌库，抽1张，职业技充能+2；目标过半时额外抽牌。", "更多格挡和充能。");
+        c.profession = PROF_ADJUDICATOR; c.draw = c.drawUp = 1; c.scry = 3; c.skillChargeGain = 2;
+        c = addCard("adjudicator_bond", "誓约缚令", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡，施加束缚；誓约兑现越多越强。", "更多格挡和束缚。");
+        c.profession = PROF_ADJUDICATOR; c.bind = 2; c.bindUp = 3; c.targetEnemy = true; c.skillChargeGain = 1;
+        c = addCard("adjudicator_overrule", "过载裁决", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，职业技充能+3，目标与过载进度会追加爆发。", "更高伤害，职业技充能+4。");
+        c.profession = PROF_ADJUDICATOR; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("adjudicator_final_decree", "终局判辞", "通用", 2, 2, 0, 10, 15, 8, 12, "造成伤害并获得格挡；按战斗目标和誓约兑现追加终局收益。", "更高伤害、格挡和裁令返还。");
+        c.profession = PROF_ADJUDICATOR; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -8488,6 +8904,7 @@ public final class GameCore {
         addRelicDef("hex_tablet", "咒碑", "咒术师面对易伤敌人时职业技更快充能；释放后追加控制与穿透伤害。");
         addRelicDef("engraver_stylus", "活刻笔", "刻印师升级牌较多时职业技更快充能；释放后升级手牌、抽牌并追加刻痕控制。");
         addRelicDef("tuning_fork", "定音叉", "调律师连打后职业技更快充能；释放后抽牌、追加印记和穿透伤害。");
+        addRelicDef("verdict_seal", "裁决印章", "裁定官推进目标或兑现誓约时职业技更快充能；释放后按目标进度获得格挡和追击。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -8500,6 +8917,7 @@ public final class GameCore {
         addRelicDef("fallen_crown", "坠落咒冠", "获得升级咒冠坠落；异常与状态牌扩散易伤，状态牌额外格挡。");
         addRelicDef("living_codex", "活页刻典", "获得升级无名刻典；升级、刻印和状态牌扩散易伤束缚，并定期升级手牌。");
         addRelicDef("conductor_baton", "指挥棒", "获得升级终局大调；节奏、充能和印记牌会推动调律师形成终局爆发。");
+        addRelicDef("judgment_codex", "审判法典", "获得升级终局判辞；裁定官目标完成后返还能量，并把印记转为终局追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -8658,6 +9076,9 @@ public final class GameCore {
         addTalent("t_tuner_meter", PROF_TUNER, "稳拍计", "首回合抽牌；每回合第4张牌抽牌并获得职业技充能。");
         addTalent("t_tuner_counterpoint", PROF_TUNER, "对位标记", "获得升级和声叠印；异常与易伤牌会追加印记和穿透伤害。");
         addTalent("t_tuner_resonance", PROF_TUNER, "共鸣调弦", "获得升级回拍循环；首回合获得能量和职业技充能。");
+        addTalent("t_adjudicator_docket", PROF_ADJUDICATOR, "卷宗索引", "首回合抽牌；目标完成时抽牌，审计与充能牌更容易滚动裁令。");
+        addTalent("t_adjudicator_clause", PROF_ADJUDICATOR, "严苛条款", "获得升级条款斩；易伤、束缚和充能牌追加印记与穿透追击。");
+        addTalent("t_adjudicator_oath", PROF_ADJUDICATOR, "誓约担保", "获得升级誓约缚令和生命；目标完成或誓约兑现后持续获得格挡与充能。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -8670,6 +9091,7 @@ public final class GameCore {
         addTalent("t_hexer_abysscurse", PROF_HEXER, "深渊咒冠", "获得升级恶咒并加入眩光；异常与状态牌会向敌群扩散易伤、束缚和穿透伤害。");
         addTalent("t_inscriber_grandcodex", PROF_INSCRIBER, "活页宗典", "获得最大生命和升级无名刻典；升级、刻印与状态牌持续给职业技、格挡和抽牌。");
         addTalent("t_tuner_grand", PROF_TUNER, "终局指挥", "获得升级终局大调；节奏牌定期返还能量，印记目标承受追加穿透。");
+        addTalent("t_adjudicator_grand", PROF_ADJUDICATOR, "终审庭", "获得升级终局判辞；目标、誓约和过载牌持续抽牌、充能并把印记转为穿透裁决。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
