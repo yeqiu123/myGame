@@ -977,6 +977,7 @@ public final class GameCore {
             offered.add(d.id);
             RewardCard rc = new RewardCard();
             rc.id = d.id;
+            rc.hint = rewardCardHint(s, d);
             s.cardRewards.add(rc);
         }
         if (s.cardRewards.isEmpty()) {
@@ -5222,6 +5223,7 @@ public final class GameCore {
             offeredCards.add(d.id);
             RewardCard rc = new RewardCard();
             rc.id = d.id;
+            rc.hint = rewardCardHint(s, d);
             s.cardRewards.add(rc);
         }
         s.relicRewards.clear();
@@ -5687,6 +5689,40 @@ public final class GameCore {
                     + (d.burnToBlock ? 4 : 0);
         }
         return 0;
+    }
+
+    private static String rewardCardHint(State s, CardDef d) {
+        if (d == null) {
+            return "";
+        }
+        int[] top = topBuildFocuses(s, 3);
+        String tags = "";
+        for (int i = 0; i < top.length; i++) {
+            int focus = top[i];
+            int value = buildFocusCardValue(d, focus);
+            if (value > 0) {
+                tags += (tags.length() == 0 ? "" : "/") + BUILD_FOCUS_NAMES[focus];
+            }
+        }
+        String hint = tags.length() > 0 ? "契合 " + tags : "";
+        if (d.profession.equals(s.profession)) {
+            hint += (hint.length() == 0 ? "" : "  ") + "职业牌";
+        }
+        if (d.origin.equals(s.origin)) {
+            hint += (hint.length() == 0 ? "" : "  ") + "同源";
+        } else if ("通用".equals(d.origin)) {
+            hint += (hint.length() == 0 ? "" : "  ") + "通用";
+        }
+        if (d.skillChargeGain > 0) {
+            hint += (hint.length() == 0 ? "" : "  ") + "充能+" + d.skillChargeGain;
+        }
+        if (d.rarity == 2) {
+            hint += (hint.length() == 0 ? "" : "  ") + "稀有";
+        }
+        if (hint.length() == 0) {
+            hint = d.cost == 0 ? "低费节奏" : d.draw > 0 ? "补充循环" : d.block > 0 ? "补足防线" : "泛用补强";
+        }
+        return hint;
     }
 
     private static boolean hasSkillRelic(State s) {
@@ -6975,6 +7011,7 @@ public final class GameCore {
 
     public static final class RewardCard implements Serializable {
         public String id;
+        public String hint = "";
     }
 
     public static final class RelicDef implements Serializable {

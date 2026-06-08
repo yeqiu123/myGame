@@ -706,9 +706,13 @@ public final class GameView extends View {
             GameCore.Card card = new GameCore.Card(s.cardRewards.get(i).id);
             RectF r = new RectF(dp(22) + i * (cardW + dp(8)), dp(120), dp(22) + i * (cardW + dp(8)) + cardW, dp(120) + cardH);
             drawCard(c, card, r, false);
-            addButton(r.left, r.bottom + dp(8), r.width(), dp(34), "收下", "reward_card", i);
+            String hint = s.cardRewards.get(i).hint == null ? "" : s.cardRewards.get(i).hint;
+            if (hint.length() > 0) {
+                drawWrapped(c, shortText(hint, 22), r.left, r.bottom + dp(15), r.width(), 10, 0xff9fd5c5);
+            }
+            addButton(r.left, r.bottom + dp(28), r.width(), dp(34), "收下", "reward_card", i);
         }
-        float y = dp(120) + cardH + dp(72);
+        float y = dp(120) + cardH + dp(94);
         if (!s.relicRewards.isEmpty()) {
             drawText(c, s.combatKind == 'B' ? "Boss 遗物选择" : "遗物", dp(24), y - dp(12), 17, 0xffe9d7a1, true);
         }
