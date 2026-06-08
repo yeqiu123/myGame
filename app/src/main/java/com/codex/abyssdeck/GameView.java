@@ -1276,6 +1276,20 @@ public final class GameView extends View {
             planchette.lineTo(cx - size * 0.34f, cy + size * 0.35f);
             planchette.close();
             c.drawPath(planchette, p);
+        } else if (GameCore.PROF_TACTICIAN.equals(profession)) {
+            c.drawLine(cx - size * 0.78f, cy + size * 0.78f, cx - size * 0.78f, cy - size * 0.85f, p);
+            Path banner = new Path();
+            banner.moveTo(cx - size * 0.72f, cy - size * 0.82f);
+            banner.lineTo(cx + size * 0.62f, cy - size * 0.62f);
+            banner.lineTo(cx + size * 0.22f, cy - size * 0.1f);
+            banner.lineTo(cx + size * 0.62f, cy + size * 0.32f);
+            banner.lineTo(cx - size * 0.72f, cy + size * 0.16f);
+            banner.close();
+            c.drawPath(banner, p);
+            c.drawLine(cx - size * 0.58f, cy + size * 0.58f, cx + size * 0.78f, cy + size * 0.58f, p);
+            c.drawLine(cx - size * 0.38f, cy + size * 0.2f, cx + size * 0.38f, cy + size * 0.82f, p);
+            c.drawLine(cx + size * 0.38f, cy + size * 0.2f, cx - size * 0.38f, cy + size * 0.82f, p);
+            c.drawCircle(cx + size * 0.58f, cy + size * 0.58f, size * 0.16f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
