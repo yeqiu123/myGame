@@ -1260,6 +1260,22 @@ public final class GameView extends View {
             rune.lineTo(cx - size * 0.34f, cy);
             rune.close();
             c.drawPath(rune, p);
+        } else if (GameCore.PROF_MEDIUM.equals(profession)) {
+            c.drawCircle(cx, cy, size * 0.72f, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2));
+            c.drawCircle(cx, cy, size * 0.38f, p);
+            c.drawArc(new RectF(cx - size * 0.92f, cy - size * 0.92f, cx + size * 0.92f, cy + size * 0.92f), 210, 120, false, p);
+            c.drawArc(new RectF(cx - size * 0.92f, cy - size * 0.92f, cx + size * 0.92f, cy + size * 0.92f), 30, 120, false, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx - size * 0.72f, cy + size * 0.42f, size * 0.13f, p);
+            c.drawCircle(cx + size * 0.72f, cy + size * 0.42f, size * 0.13f, p);
+            Path planchette = new Path();
+            planchette.moveTo(cx, cy - size * 0.42f);
+            planchette.lineTo(cx + size * 0.34f, cy + size * 0.35f);
+            planchette.lineTo(cx - size * 0.34f, cy + size * 0.35f);
+            planchette.close();
+            c.drawPath(planchette, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
