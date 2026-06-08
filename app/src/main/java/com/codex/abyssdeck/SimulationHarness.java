@@ -193,6 +193,8 @@ public final class SimulationHarness {
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
             if (s.relics.contains("echo_ledger") && (d.exhaust || d.createEcho || d.draw > 0 || d.goldGain > 0)) score += 12;
             if (s.relics.contains("bloodspark_contract") && (d.hpLoss > 0 || d.createWound || d.goldGain > 0 || d.burn > 0 || d.vulnerable > 0)) score += 14;
+            if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
+            if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
             if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 20;
             if (s.deck.size() > 34 && d.cost >= 2 && d.draw == 0) score -= 6;
@@ -232,7 +234,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_ASTROLOGER.equals(s.profession) && ("celestial_orrery".equals(id) || "star_compass".equals(id)
                     || "echo_ledger".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
                     || "tempo_metronome".equals(id) || "tuning_fork".equals(id))) score += 34;
-            if ("confluence_map".equals(id) || "prism_gear".equals(id)) score += 28;
+            if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession))) score += 28;
             if ("echo_ledger".equals(id) && (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
@@ -520,6 +522,8 @@ public final class SimulationHarness {
                         && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 12;
                 if (s.relics.contains("echo_ledger") && (d.exhaust || d.createEcho || c.temp || d.goldGain > 0)) score += 11;
                 if (s.relics.contains("bloodspark_contract") && (d.hpLoss > 0 || d.createWound || d.goldGain > 0 || d.burn > 0 || d.vulnerable > 0 || "wound".equals(c.id))) score += 12;
+                if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 14;
+                if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 14;
                 if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 14;
                 if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 16;
                 if (s.relics.contains("aegis_throne") && d.type == 1) score += 9;
@@ -591,6 +595,7 @@ public final class SimulationHarness {
                 || s.relics.contains("engraver_stylus") || s.relics.contains("living_codex")
                 || s.relics.contains("split_anvil") || s.relics.contains("echo_ledger")
                 || s.relics.contains("bloodspark_contract") || s.relics.contains("confluence_map") || s.relics.contains("prism_gear")
+                || s.relics.contains("mosaic_core") || s.relics.contains("starforge_lens")
                 || s.relics.contains("tuning_fork") || s.relics.contains("conductor_baton")
                 || s.relics.contains("verdict_seal") || s.relics.contains("judgment_codex")
                 || s.relics.contains("star_compass") || s.relics.contains("celestial_orrery");
@@ -605,7 +610,10 @@ public final class SimulationHarness {
     private static boolean isHybridCore(GameCore.CardDef d) {
         return d != null && ("hybrid_forgebrand".equals(d.id) || "hybrid_echo_step".equals(d.id)
                 || "hybrid_blood_tithe".equals(d.id) || "hybrid_guard_conduit".equals(d.id)
-                || "hybrid_plague_brew".equals(d.id) || "hybrid_rift_engine".equals(d.id));
+                || "hybrid_plague_brew".equals(d.id) || "hybrid_coinwall".equals(d.id)
+                || "hybrid_bloodcharge".equals(d.id) || "hybrid_echo_vial".equals(d.id)
+                || "hybrid_hexdance".equals(d.id) || "hybrid_spirit_anvil".equals(d.id)
+                || "hybrid_rift_engine".equals(d.id));
     }
 
     private static boolean isConfluenceCore(GameCore.CardDef d) {

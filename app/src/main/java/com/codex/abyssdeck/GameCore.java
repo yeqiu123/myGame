@@ -5318,6 +5318,38 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("hybrid_coinwall".equals(d.id)) {
+            block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
+            if (s.gold >= 120) {
+                draw += 1;
+            }
+        }
+        if ("hybrid_bloodcharge".equals(d.id) && target != null) {
+            int missing = Math.max(0, s.maxHp - s.hp);
+            damage += Math.min(c.upgraded ? 22 : 15, missing / 5 + professionSkillOverload(s) * 4);
+            if (s.hp <= s.maxHp / 2 || professionSkillOverload(s) >= 2) {
+                target.vulnerable += 1;
+            }
+        }
+        if ("hybrid_echo_vial".equals(d.id)) {
+            block += Math.min(c.upgraded ? 14 : 9, s.potions.size() * 3 + s.voidEngine * 2);
+            if (s.potions.size() < potionLimit(s) || s.voidEngine >= 2) {
+                draw += 1;
+            }
+        }
+        if ("hybrid_hexdance".equals(d.id) && target != null) {
+            int status = target.burn + target.bind + target.vulnerable;
+            damage += Math.min(c.upgraded ? 24 : 16, s.cardsPlayedThisTurn * 2 + status);
+            if (s.cardsPlayedThisTurn >= 4) {
+                target.mark += 1;
+            }
+        }
+        if ("hybrid_spirit_anvil".equals(d.id)) {
+            block += Math.min(c.upgraded ? 16 : 10, upgradedCardCount(s) + tempOrEchoHandCount(s) * 3);
+            if (tempOrEchoHandCount(s) >= 2 || upgradedCardCount(s) >= 6) {
+                draw += 1;
+            }
+        }
 
         if (damage > 0) {
             if (d.aoe) {
@@ -5576,6 +5608,39 @@ public final class GameCore {
             if (s.confluenceChain >= 4) {
                 s.energy++;
             }
+        }
+        if ("hybrid_coinwall".equals(d.id)) {
+            s.gold += c.upgraded ? 12 : 8;
+            if (s.confluenceChain >= 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("hybrid_bloodcharge".equals(d.id)) {
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            if (s.hp <= s.maxHp / 2) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("hybrid_echo_vial".equals(d.id)) {
+            if (s.potions.size() < potionLimit(s)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "回声瓶调制药剂：" + p.name);
+            }
+            addQuestProgress(s, QUEST_ECHO, 1);
+        }
+        if ("hybrid_hexdance".equals(d.id)) {
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+            if (target != null && s.cardsPlayedThisTurn >= 4) {
+                damageEnemy(s, target, 4 + s.act * 2 + Math.min(12, target.vulnerable + target.bind + target.burn), true);
+            }
+        }
+        if ("hybrid_spirit_anvil".equals(d.id)) {
+            Card spirit = new Card("summoner_sprite");
+            spirit.temp = true;
+            spirit.upgraded = c.upgraded;
+            addToHand(s, spirit);
+            upgradeRandomHandCard(s);
         }
         if (d.retainBlock) {
             s.block += s.turn;
@@ -6354,6 +6419,27 @@ public final class GameCore {
             }
             if (s.cardsPlayedThisTurn == 3) {
                 upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "mosaic_core") && hybridFocusCount(d) >= 2) {
+            gainBlock(s, 3 + s.act + Math.min(6, hybridFocusCount(d) * 2));
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                draw(s, 1);
+            }
+            if (hybridFocusCount(d) >= 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasRelic(s, "starforge_lens") && (d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0 || hybridFocusCount(d) >= 2)) {
+            addProfessionSkillCharge(s, 1);
+            if (s.confluenceChain >= 3 && s.relicTriggersThisTurn < 2) {
+                upgradeRandomHandCard(s);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null && s.confluenceChain >= 4) {
+                e.mark += 1;
+                damageEnemy(s, e, 3 + s.act * 2 + Math.min(12, s.confluenceChain * 2), true);
             }
         }
         if (s.steelEngine > 0 && d.type == 1) {
@@ -7402,6 +7488,8 @@ public final class GameCore {
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
                     + ("hybrid_guard_conduit".equals(d.id) ? 10 : 0) + ("hybrid_rift_engine".equals(d.id) ? 8 : 0)
                     + ("hybrid_echo_step".equals(d.id) ? 4 : 0) + ("hybrid_forgebrand".equals(d.id) ? 4 : 0)
+                    + ("hybrid_bloodcharge".equals(d.id) ? 12 : 0) + ("hybrid_coinwall".equals(d.id) ? 5 : 0)
+                    + ("hybrid_spirit_anvil".equals(d.id) ? 5 : 0)
                     + ("confluence_chord".equals(d.id) ? 8 : 0) + ("prism_anchor".equals(d.id) ? 8 : 0)
                     + ("apex_confluence".equals(d.id) ? 8 : 0)
                     + ("tuner_overclock".equals(d.id) ? 12 : 0) + ("tuner_note".equals(d.id) ? 5 : 0)
@@ -7416,7 +7504,8 @@ public final class GameCore {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
                     + (d.exhaustForDamage ? 6 : 0) + ("summoner_sprite".equals(d.echoCardId) ? 3 : 0)
                     + ("echo_matrix".equals(d.id) ? 10 : 0) + ("hybrid_echo_step".equals(d.id) ? 10 : 0)
-                    + ("hybrid_rift_engine".equals(d.id) ? 8 : 0) + ("confluence_chord".equals(d.id) ? 4 : 0)
+                    + ("hybrid_rift_engine".equals(d.id) ? 8 : 0) + ("hybrid_echo_vial".equals(d.id) ? 12 : 0)
+                    + ("hybrid_spirit_anvil".equals(d.id) ? 8 : 0) + ("confluence_chord".equals(d.id) ? 4 : 0)
                     + ("tuner_loop".equals(d.id) ? 8 : 0) + ("adjudicator_audit".equals(d.id) ? 4 : 0)
                     + ("astrologer_orbit".equals(d.id) ? 10 : 0) + ("astrologer_ephemeris".equals(d.id) ? 6 : 0)
                     + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0);
@@ -7424,27 +7513,30 @@ public final class GameCore {
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 5 : 0)
                     + (d.gainBurnPower + d.gainBindPower) * 3 + ("brew_crucible".equals(d.id) ? 10 : 0)
-                    + ("hybrid_plague_brew".equals(d.id) ? 12 : 0) + ("hybrid_forgebrand".equals(d.id) ? 4 : 0);
+                    + ("hybrid_plague_brew".equals(d.id) ? 12 : 0) + ("hybrid_forgebrand".equals(d.id) ? 4 : 0)
+                    + ("hybrid_echo_vial".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_GOLD) {
             return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0)
                     + ("golden_engine".equals(d.id) ? 10 : 0) + ("hybrid_blood_tithe".equals(d.id) ? 12 : 0)
-                    + ("hybrid_rift_engine".equals(d.id) ? 3 : 0);
+                    + ("hybrid_rift_engine".equals(d.id) ? 3 : 0) + ("hybrid_coinwall".equals(d.id) ? 12 : 0);
         }
         if (focus == BUILD_BLOOD) {
             return d.hpLoss * 4 + d.heal * 2 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0)
-                    + ("crimson_loop".equals(d.id) ? 10 : 0) + ("hybrid_blood_tithe".equals(d.id) ? 12 : 0);
+                    + ("crimson_loop".equals(d.id) ? 10 : 0) + ("hybrid_blood_tithe".equals(d.id) ? 12 : 0)
+                    + ("hybrid_bloodcharge".equals(d.id) ? 12 : 0);
         }
         if (focus == BUILD_FORGE) {
             return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0)
                     + ("forge_blueprint".equals(d.id) ? 10 : 0) + ("hybrid_forgebrand".equals(d.id) ? 12 : 0)
                     + ("hybrid_rift_engine".equals(d.id) ? 10 : 0) + ("prism_anchor".equals(d.id) ? 10 : 0)
-                    + ("inscriber_codex".equals(d.id) ? 5 : 0);
+                    + ("hybrid_spirit_anvil".equals(d.id) ? 12 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
         }
         if (focus == BUILD_STATUS) {
             return d.burn * 2 + d.bind * 2 + d.vulnerable * 5 + (d.addStatusToEnemy ? 7 : 0)
                     + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0) + ("plague_vector".equals(d.id) ? 10 : 0)
                     + ("hybrid_forgebrand".equals(d.id) ? 10 : 0) + ("hybrid_plague_brew".equals(d.id) ? 12 : 0)
+                    + ("hybrid_hexdance".equals(d.id) ? 12 : 0) + ("hybrid_bloodcharge".equals(d.id) ? 5 : 0)
                     + ("apex_confluence".equals(d.id) ? 10 : 0)
                     + ("tuner_harmonic".equals(d.id) ? 8 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_glyphstorm".equals(d.id) ? 5 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0)
@@ -7457,6 +7549,7 @@ public final class GameCore {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
                     + ("cycle_metronome".equals(d.id) ? 10 : 0) + ("hybrid_echo_step".equals(d.id) ? 10 : 0)
                     + ("hybrid_guard_conduit".equals(d.id) ? 4 : 0) + ("hybrid_rift_engine".equals(d.id) ? 10 : 0)
+                    + ("hybrid_hexdance".equals(d.id) ? 10 : 0) + ("hybrid_echo_vial".equals(d.id) ? 8 : 0)
                     + ("confluence_chord".equals(d.id) ? 12 : 0) + ("apex_confluence".equals(d.id) ? 4 : 0)
                     + ("tuner_note".equals(d.id) ? 10 : 0) + ("tuner_pulse".equals(d.id) ? 8 : 0)
                     + ("tuner_loop".equals(d.id) ? 12 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
@@ -7470,6 +7563,7 @@ public final class GameCore {
             return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
                     + (d.burnToBlock ? 4 : 0) + ("aegis_engine".equals(d.id) ? 10 : 0)
                     + ("hybrid_guard_conduit".equals(d.id) ? 12 : 0) + ("hybrid_rift_engine".equals(d.id) ? 4 : 0)
+                    + ("hybrid_coinwall".equals(d.id) ? 12 : 0) + ("hybrid_spirit_anvil".equals(d.id) ? 8 : 0)
                     + ("prism_anchor".equals(d.id) ? 8 : 0)
                     + ("adjudicator_bond".equals(d.id) ? 8 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0);
         }
@@ -7879,6 +7973,17 @@ public final class GameCore {
         return count;
     }
 
+    private static int tempOrEchoHandCount(State s) {
+        int count = 0;
+        for (Card c : s.hand) {
+            CardDef d = card(c.id);
+            if (c.temp || (d != null && d.createEcho)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private static String rewardCardHint(State s, CardDef d) {
         if (d == null) {
             return "";
@@ -7971,45 +8076,45 @@ public final class GameCore {
                     "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet",
                     "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
                     "tuning_fork", "conductor_baton", "verdict_seal", "judgment_codex", "split_anvil",
-                    "echo_ledger", "confluence_map", "prism_gear", "ability_crown") ? 3 : 0;
+                    "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
-                    "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "tuning_fork", "spirit_bell", "spirit_processional", "void_anchor",
+                    "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "spirit_bell", "spirit_processional", "void_anchor",
                     "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
-                    "glass_vials", "emberroot_charm", "split_anvil", "bloodspark_contract", "catalyst_pump", "solar_crucible", "hex_moon") ? 3 : 0;
+                    "glass_vials", "emberroot_charm", "split_anvil", "bloodspark_contract", "mosaic_core", "catalyst_pump", "solar_crucible", "hex_moon") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
-                    "ledger_stamp", "kingmaker_seal", "bloodcoin_broach", "echo_ledger", "bloodspark_contract", "runic_shackle", "golden_throne") ? 3 : 0;
+                    "ledger_stamp", "kingmaker_seal", "bloodcoin_broach", "echo_ledger", "bloodspark_contract", "mosaic_core", "runic_shackle", "golden_throne") ? 3 : 0;
         }
         if (focus == BUILD_BLOOD) {
             return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
-                    "bloodspark_contract", "crimson_seal", "blood_crown", "blood_contract", "hex_moon") ? 3 : 0;
+                    "bloodspark_contract", "crimson_seal", "blood_crown", "blood_contract", "mosaic_core", "hex_moon") ? 3 : 0;
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
-                    "split_anvil", "confluence_map", "prism_gear", "pattern_spool", "engraver_stylus", "clockwork_loom", "living_codex", "forge_heart",
+                    "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "pattern_spool", "engraver_stylus", "clockwork_loom", "living_codex", "forge_heart",
                     "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
                     "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
                     "split_anvil", "bloodspark_contract", "tuning_fork", "conductor_baton", "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
-                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "hex_moon") ? 3 : 0;
+                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "mosaic_core", "hex_moon") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
-                "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "tuning_fork", "conductor_baton", "flash_heel", "pattern_spool",
+                "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "conductor_baton", "flash_heel", "pattern_spool",
                     "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
                     "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach", "mirror_anvil",
-                "split_anvil", "confluence_map", "prism_gear", "vigil_bloom", "command_banner", "aegis_throne",
+                "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "vigil_bloom", "command_banner", "aegis_throne",
                     "verdict_seal", "judgment_codex", "forge_heart") ? 3 : 0;
         }
         return 0;
@@ -8245,6 +8350,12 @@ public final class GameCore {
         if (hasRelic(s, "bloodspark_contract") && (d.hpLoss > 0 || d.createWound || d.goldGain > 0 || d.burn > 0 || d.vulnerable > 0)) {
             bonus += 4;
         }
+        if (hasRelic(s, "mosaic_core") && hybridFocusCount(d) >= 2) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "starforge_lens") && (d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2)) {
+            bonus += 4;
+        }
         if (hasRelic(s, "confluence_map") && hybridFocusCount(d) >= 2) {
             bonus += 5;
         }
@@ -8434,10 +8545,20 @@ public final class GameCore {
                 && "bloodspark_contract".equals(id)) {
             return 2;
         }
-        if ("confluence_map".equals(id)) {
+        if ((PROF_MERCHANT.equals(s.profession) || PROF_WARDEN.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
+                || PROF_ALCHEMIST.equals(s.profession) || PROF_HEXER.equals(s.profession))
+                && "mosaic_core".equals(id)) {
             return 2;
         }
-        if ("prism_gear".equals(id)) {
+        if ((PROF_WEAVER.equals(s.profession) || PROF_SUMMONER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
+                || PROF_TUNER.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession))
+                && "starforge_lens".equals(id)) {
+            return 2;
+        }
+        if ("confluence_map".equals(id) || "mosaic_core".equals(id)) {
+            return 2;
+        }
+        if ("prism_gear".equals(id) || "starforge_lens".equals(id)) {
             return 2;
         }
         if ("rift_compass".equals(id)) {
@@ -8487,6 +8608,7 @@ public final class GameCore {
         if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork")) return 1;
         if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist", "bloodspark_contract")) return 1;
         if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown", "confluence_map", "split_anvil", "conductor_baton", "prism_gear")) return 1;
+        if ("spec_resonance".equals(spec.id) && isAny(id, "mosaic_core", "starforge_lens")) return 1;
         if ("spec_mastery".equals(spec.id) && isSkillRelicForProfession(s, id)) return 2;
         return 0;
     }
@@ -8638,6 +8760,12 @@ public final class GameCore {
         } else if ("prism_gear".equals(id)) {
             addUpgradedDeckCard(s, "confluence_chord");
             addUpgradedDeckCard(s, "prism_anchor");
+        } else if ("mosaic_core".equals(id)) {
+            addUpgradedDeckCard(s, "hybrid_coinwall");
+            addUpgradedDeckCard(s, "hybrid_hexdance");
+        } else if ("starforge_lens".equals(id)) {
+            addUpgradedDeckCard(s, "hybrid_spirit_anvil");
+            upgradeRandomDeckCard(s);
         }
         log(s, "获得遗物：" + r.name);
     }
@@ -8837,6 +8965,16 @@ public final class GameCore {
         c.draw = c.drawUp = 1; c.skillChargeGain = 2; c.gainSteelEngine = 1;
         c = addCard("hybrid_plague_brew", "疫酿蒸锅", "通用", 1, 1, 2, 0, 0, 0, 0, "调制药剂，施加燃灼、束缚与易伤，并扩散异常，消耗。", "更多异常并扩散，调制药剂。");
         c.createPotion = true; c.burn = 2; c.burnUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.spreadStatus = true; c.targetEnemy = true; c.exhaust = true;
+        c = addCard("hybrid_coinwall", "金垒协议", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡和金币；金币与汇流链会追加防线，富裕时抽牌。", "更多格挡与金币。");
+        c.goldGain = 10; c.goldBlock = true; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("hybrid_bloodcharge", "血涌导管", "通用", 1, 1, 0, 8, 12, 0, 0, "失去生命造成伤害，职业技充能+2；低血线或过载时追加易伤。", "更高伤害，职业技充能+3。");
+        c.hpLoss = 2; c.skillChargeGain = 2; c.vulnerable = 1; c.targetEnemy = true;
+        c = addCard("hybrid_echo_vial", "回声药瓶", "通用", 1, 1, 2, 0, 0, 4, 7, "制造临时疾切并调制药剂；药剂与回声势提高格挡和抽牌。", "更多格挡与抽牌。");
+        c.createEcho = true; c.echoCardId = "quick_cut"; c.createPotion = true; c.draw = c.drawUp = 1; c.exhaust = true;
+        c = addCard("hybrid_hexdance", "咒舞步", "通用", 1, 0, 0, 4, 7, 0, 0, "低费攻击，施加易伤与束缚；连打和异常会追加爆发。", "更高伤害、控制和连打收益。");
+        c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.comboDamage = 2; c.targetEnemy = true;
+        c = addCard("hybrid_spirit_anvil", "灵锻砧", "通用", 2, 1, 1, 0, 0, 8, 12, "获得格挡，升级手牌并制造临时灵火；临时牌与升级牌会追加格挡。", "更多格挡和临时灵火。");
+        c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "summoner_sprite"; c.skillChargeGain = 1;
         c = addCard("hybrid_rift_engine", "裂隙万用机", "通用", 2, 2, 2, 0, 0, 5, 8, "获得格挡，抽2张，获得1能量，检视牌库，升级手牌，制造临时疾切，职业技充能+2，消耗。", "更多格挡与抽牌，职业技充能+3。");
         c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.scry = 4; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "quick_cut"; c.skillChargeGain = 2; c.exhaust = true;
         c = addCard("confluence_chord", "汇流和弦", "通用", 1, 0, 2, 0, 0, 3, 5, "抽1张，职业技充能+1；若本回合汇流链足够长，额外抽牌并返能。", "更多格挡和充能，汇流返还更强。");
@@ -9223,6 +9361,8 @@ public final class GameCore {
         addRelicDef("bloodspark_contract", "血火契约", "获得升级血币契据和最大生命；自损、裂伤与异常牌连接金币、燃灼和续航。");
         addRelicDef("confluence_map", "汇流星图", "获得升级裂隙万用机；多构筑焦点牌会强化汇流链并在关键节奏抽牌。");
         addRelicDef("prism_gear", "棱镜齿轮", "获得升级汇流和弦与棱锚；同回合串联不同构筑标签会升级手牌并强化汇流奖励。");
+        addRelicDef("mosaic_core", "镶嵌核心", "获得升级金垒协议；混搭核心牌提供额外格挡、抽牌和职业技充能。");
+        addRelicDef("starforge_lens", "星锻透镜", "获得升级灵锻砧；充能、检视、升级与混搭牌会推动星锻汇流。");
         addRelicDef("razor_pactstone", "裂锋誓石", "裂锋专修释放职业技时追加穿透斩击；击杀后抽牌。");
         addRelicDef("tempo_spindle", "疾调纺锤", "疾调专修释放职业技时抽牌并获得能量；高阶时额外制造疾切。");
         addRelicDef("vigil_bloom", "续战夜花", "续战专修释放职业技时获得格挡和治疗，低血线翻倍部分收益。");
