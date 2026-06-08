@@ -723,8 +723,8 @@ public final class GameView extends View {
         }
         for (int i = 0; i < s.relicRewards.size(); i++) {
             GameCore.RelicDef r = GameCore.relic(s.relicRewards.get(i));
-            drawRelicRow(c, r, dp(24), y + i * dp(62), w - dp(48));
-            addButton(w - dp(104), y + i * dp(62) + dp(10), dp(82), dp(36), "拿取", "reward_relic", i);
+            drawRelicRow(c, r, dp(24), y + i * dp(70), w - dp(48));
+            addButton(w - dp(104), y + i * dp(70) + dp(14), dp(82), dp(36), "拿取", "reward_relic", i);
         }
         if (!shopScout && !restAttune && !s.cardRewards.isEmpty() && !s.cardRewardSkipped) {
             int gold = s.relics.contains("cracked_compass") ? 14 : 10;
@@ -754,10 +754,10 @@ public final class GameView extends View {
         drawText(c, "遗物", dp(24), y, 18, 0xffe9d7a1, true);
         for (int i = 0; i < s.shopRelics.size(); i++) {
             GameCore.RelicDef r = GameCore.relic(s.shopRelics.get(i));
-            drawRelicRow(c, r, dp(24), y + dp(18) + i * dp(52), w - dp(48));
-            addButton(w - dp(96), y + dp(26) + i * dp(52), dp(74), dp(32), GameCore.shopRelicPrice(s) + "金", "shop_relic", i);
+            drawRelicRow(c, r, dp(24), y + dp(18) + i * dp(60), w - dp(48));
+            addButton(w - dp(96), y + dp(30) + i * dp(60), dp(74), dp(32), GameCore.shopRelicPrice(s) + "金", "shop_relic", i);
         }
-        float py = y + dp(180);
+        float py = y + dp(202);
         drawText(c, "药剂", dp(24), py, 18, 0xffe9d7a1, true);
         for (int i = 0; i < s.shopPotions.size(); i++) {
             GameCore.PotionDef po = GameCore.potion(s.shopPotions.get(i));
@@ -1150,11 +1150,14 @@ public final class GameView extends View {
     private void drawRelicRow(Canvas c, GameCore.RelicDef r, float x, float y, float width) {
         if (r == null) return;
         p.setColor(0xaa111923);
-        c.drawRoundRect(new RectF(x, y, x + width, y + dp(46)), dp(6), dp(6), p);
+        c.drawRoundRect(new RectF(x, y, x + width, y + dp(56)), dp(6), dp(6), p);
         p.setColor(0xffd0b66e);
-        c.drawCircle(x + dp(22), y + dp(23), dp(14), p);
-        drawText(c, r.name, x + dp(44), y + dp(19), 15, 0xfff2ead7, true);
-        drawText(c, r.text, x + dp(44), y + dp(37), 11, 0xffb8c6c5, false);
+        c.drawCircle(x + dp(22), y + dp(28), dp(14), p);
+        float textWidth = Math.max(dp(120), width - dp(154));
+        drawText(c, fitText(r.name, 15, textWidth), x + dp(44), y + dp(17), 15, 0xfff2ead7, true);
+        String hint = GameCore.relicSynergyHint(s, r.id);
+        drawText(c, fitText(hint, 10, textWidth), x + dp(44), y + dp(33), 10, 0xff9fd5c5, true);
+        drawText(c, fitText(r.text, 10, textWidth), x + dp(44), y + dp(49), 10, 0xffb8c6c5, false);
     }
 
     private void drawButtons(Canvas c) {
@@ -1278,6 +1281,21 @@ public final class GameView extends View {
             return value == null ? "" : value;
         }
         return value.substring(0, Math.max(0, max));
+    }
+
+    private String fitText(String value, float size, float width) {
+        if (value == null || value.length() == 0) {
+            return "";
+        }
+        text.setTextSize(size);
+        if (text.measureText(value) <= width) {
+            return value;
+        }
+        String result = value;
+        while (result.length() > 0 && text.measureText(result + "...") > width) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result.length() == 0 ? "" : result + "...";
     }
 
     private String eventTitle() {

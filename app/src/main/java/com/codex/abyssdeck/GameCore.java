@@ -5765,6 +5765,133 @@ public final class GameCore {
         return hint;
     }
 
+    public static String relicSynergyHint(State s, String id) {
+        RelicDef r = relic(id);
+        if (s == null || r == null) {
+            return "";
+        }
+        String tags = "";
+        int[] top = topBuildFocuses(s, 3);
+        for (int i = 0; i < top.length; i++) {
+            int focus = top[i];
+            if (relicFocusValue(id, focus) > 0) {
+                tags = appendHint(tags, BUILD_FOCUS_NAMES[focus]);
+            }
+        }
+        String hint = tags.length() > 0 ? "契合 " + tags : "";
+        int professionBonus = professionRelicBonus(s, id);
+        if (professionBonus >= 4 || (professionBonus > 0 && isCapstoneRelic(id))) {
+            hint = appendHint(hint, "职业终局");
+        } else if (professionBonus > 0) {
+            hint = appendHint(hint, "职业契合");
+        }
+        if (isSkillRelicForProfession(s, id)) {
+            hint = appendHint(hint, "职业技");
+        }
+        if (r.boss) {
+            hint = appendHint(hint, "Boss");
+        }
+        if (s.relics.contains(id)) {
+            hint = appendHint(hint, "已拥有");
+        }
+        if (hint.length() == 0) {
+            hint = fallbackRelicHint(id);
+        }
+        return hint;
+    }
+
+    private static String appendHint(String hint, String part) {
+        if (part == null || part.length() == 0) {
+            return hint == null ? "" : hint;
+        }
+        if (hint == null || hint.length() == 0) {
+            return part;
+        }
+        return hint + "  " + part;
+    }
+
+    private static int relicFocusValue(String id, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
+                    "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
+                    "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet",
+                    "ability_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_ECHO) {
+            return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
+                    "singularity_orb", "rift_compass", "spirit_bell", "spirit_processional", "void_anchor",
+                    "echo_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_BREW) {
+            return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
+                    "glass_vials", "emberroot_charm", "catalyst_pump", "solar_crucible", "hex_moon") ? 3 : 0;
+        }
+        if (focus == BUILD_GOLD) {
+            return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
+                    "ledger_stamp", "kingmaker_seal", "bloodcoin_broach", "runic_shackle", "golden_throne") ? 3 : 0;
+        }
+        if (focus == BUILD_BLOOD) {
+            return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
+                    "crimson_seal", "blood_crown", "blood_contract", "hex_moon") ? 3 : 0;
+        }
+        if (focus == BUILD_FORGE) {
+            return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
+                    "pattern_spool", "clockwork_loom", "forge_heart", "ability_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_STATUS) {
+            return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
+                    "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
+                    "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
+                    "fallen_crown", "hex_moon") ? 3 : 0;
+        }
+        if (focus == BUILD_CYCLE) {
+            return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
+                    "moon_lantern", "tempo_metronome", "void_abacus", "flash_heel", "pattern_spool",
+                    "finale_rapier", "echo_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_GUARD) {
+            return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
+                    "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach", "mirror_anvil",
+                    "command_banner", "aegis_throne", "forge_heart") ? 3 : 0;
+        }
+        return 0;
+    }
+
+    private static boolean isSkillRelicForProfession(State s, String id) {
+        return (PROF_WARDEN.equals(s.profession) && "command_banner".equals(id))
+                || (PROF_DUELIST.equals(s.profession) && "flash_heel".equals(id))
+                || (PROF_ALCHEMIST.equals(s.profession) && "catalyst_pump".equals(id))
+                || (PROF_RANGER.equals(s.profession) && "hawk_fletching".equals(id))
+                || (PROF_ARCANIST.equals(s.profession) && "echo_prism".equals(id))
+                || (PROF_MERCHANT.equals(s.profession) && "ledger_stamp".equals(id))
+                || (PROF_BLOODBOUND.equals(s.profession) && "crimson_seal".equals(id))
+                || (PROF_WEAVER.equals(s.profession) && "pattern_spool".equals(id))
+                || (PROF_SUMMONER.equals(s.profession) && "spirit_bell".equals(id))
+                || (PROF_HEXER.equals(s.profession) && "hex_tablet".equals(id));
+    }
+
+    private static String fallbackRelicHint(String id) {
+        if (isAny(id, "sapphire_cell", "ink_fountain", "amber_quill", "void_lens", "moon_lantern")) {
+            return "泛用资源";
+        }
+        if (isAny(id, "ruby_branch", "black_bread", "leaf_charm", "cup_of_mist", "iron_tea")) {
+            return "续航补强";
+        }
+        if (isAny(id, "cracked_compass", "scarlet_dice", "night_map", "dawn_pin")) {
+            return "路线收益";
+        }
+        return "泛用补强";
+    }
+
+    private static boolean isAny(String id, String... values) {
+        for (int i = 0; i < values.length; i++) {
+            if (values[i].equals(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean hasSkillRelic(State s) {
         return hasRelic(s, "command_banner") || hasRelic(s, "flash_heel") || hasRelic(s, "catalyst_pump")
                 || hasRelic(s, "hawk_fletching") || hasRelic(s, "echo_prism") || hasRelic(s, "ledger_stamp")
