@@ -352,7 +352,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("tempest_crown".equals(id) || "storm_rod".equals(id)
                     || "stormglass_seal".equals(id) || "charcoal_sigil".equals(id) || "cinder_spoon".equals(id)
                     || "emberroot_charm".equals(id) || "tempo_metronome".equals(id) || "markchain_seal".equals(id)
-                    || "overload_etch".equals(id) || "confluence_map".equals(id) || "tuning_fork".equals(id))) score += 36;
+                    || "pressure_gauge".equals(id) || "overload_etch".equals(id) || "confluence_map".equals(id) || "tuning_fork".equals(id))) score += 36;
             if (GameCore.PROF_SHADOWDANCER.equals(s.profession) && ("eclipse_mask".equals(id) || "shadow_sash".equals(id)
                     || "tempo_metronome".equals(id) || "amber_quill".equals(id) || "void_abacus".equals(id)
                     || "echo_ledger".equals(id) || "tuning_fork".equals(id) || "markchain_seal".equals(id)
@@ -360,44 +360,44 @@ public final class SimulationHarness {
             if (GameCore.PROF_RUNEBLADE.equals(s.profession) && ("grand_rune_blade".equals(id) || "rune_stylus".equals(id)
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "starforge_lens".equals(id)
                     || "overload_etch".equals(id) || "markchain_seal".equals(id) || "stormglass_seal".equals(id)
-                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "discipline_chart".equals(id))) score += 36;
+                    || "pressure_gauge".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id) || "discipline_chart".equals(id))) score += 36;
             if (GameCore.PROF_MEDIUM.equals(s.profession) && ("ancestral_planchette".equals(id) || "spirit_planchette".equals(id)
                     || "void_abacus".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
                     || "markchain_seal".equals(id) || "spirit_bell".equals(id) || "spirit_processional".equals(id)
-                    || "starforge_lens".equals(id) || "overload_etch".equals(id) || "confluence_map".equals(id)
+                    || "pressure_gauge".equals(id) || "starforge_lens".equals(id) || "overload_etch".equals(id) || "confluence_map".equals(id)
                     || "prism_gear".equals(id) || "discipline_chart".equals(id) || "tempo_metronome".equals(id))) score += 36;
             if (GameCore.PROF_TACTICIAN.equals(s.profession) && ("grand_war_room".equals(id) || "war_table".equals(id)
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "starforge_lens".equals(id)
                     || "overload_etch".equals(id) || "markchain_seal".equals(id) || "stormglass_seal".equals(id)
-                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "discipline_chart".equals(id)
+                    || "pressure_gauge".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id) || "discipline_chart".equals(id)
                     || "tempo_metronome".equals(id) || "assembly_frame".equals(id))) score += 36;
             if (GameCore.PROF_PRISMIST.equals(s.profession) && ("spectrum_crown".equals(id) || "refraction_dial".equals(id)
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
                     || "overload_etch".equals(id) || "markchain_seal".equals(id) || "stormglass_seal".equals(id)
-                    || "discipline_chart".equals(id) || "tempo_metronome".equals(id) || "echoflow_charm".equals(id)
+                    || "pressure_gauge".equals(id) || "discipline_chart".equals(id) || "tempo_metronome".equals(id) || "echoflow_charm".equals(id)
                     || "assembly_frame".equals(id))) score += 36;
             if (GameCore.PROF_DREAMWALKER.equals(s.profession) && ("oneiric_crown".equals(id) || "dreamcatcher_charm".equals(id)
                     || "void_abacus".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
                     || "markchain_seal".equals(id) || "curse_censer".equals(id) || "hex_moon".equals(id)
-                    || "starforge_lens".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                    || "pressure_gauge".equals(id) || "starforge_lens".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
                     || "stormglass_seal".equals(id) || "tempo_metronome".equals(id))) score += 36;
             if (GameCore.PROF_GARDENER.equals(s.profession) && ("verdant_crown".equals(id) || "seed_satchel".equals(id)
                     || "vital_sprout".equals(id) || "leaf_charm".equals(id) || "emberroot_charm".equals(id)
                     || "markchain_seal".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
-                    || "stormglass_seal".equals(id) || "tempo_metronome".equals(id) || "tuning_fork".equals(id)
+                    || "pressure_gauge".equals(id) || "stormglass_seal".equals(id) || "tempo_metronome".equals(id) || "tuning_fork".equals(id)
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "starforge_lens".equals(id)
                     || "confluence_map".equals(id) || "prism_gear".equals(id))) score += 36;
             if (GameCore.PROF_CHEF.equals(s.profession) && ("banquet_crown".equals(id) || "recipe_book".equals(id)
                     || "glass_vials".equals(id) || "cinder_spoon".equals(id) || "green_bell".equals(id)
                     || "emberroot_charm".equals(id) || "markchain_seal".equals(id) || "overload_etch".equals(id)
-                    || "discipline_chart".equals(id) || "stormglass_seal".equals(id) || "tempo_metronome".equals(id)
+                    || "pressure_gauge".equals(id) || "discipline_chart".equals(id) || "stormglass_seal".equals(id) || "tempo_metronome".equals(id)
                     || "tuning_fork".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
                     || "starforge_lens".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id))) score += 36;
             if (GameCore.PROF_BARD.equals(s.profession) && ("finale_crown".equals(id) || "songbook".equals(id)
                     || "tempo_metronome".equals(id) || "echo_ledger".equals(id) || "void_abacus".equals(id)
                     || "tuning_fork".equals(id) || "markchain_seal".equals(id) || "overload_etch".equals(id)
-                    || "discipline_chart".equals(id) || "stormglass_seal".equals(id) || "echoflow_charm".equals(id)
+                    || "pressure_gauge".equals(id) || "discipline_chart".equals(id) || "stormglass_seal".equals(id) || "echoflow_charm".equals(id)
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "starforge_lens".equals(id)
                     || "confluence_map".equals(id) || "prism_gear".equals(id))) score += 36;
             if (GameCore.PROF_MIRRORIST.equals(s.profession) && ("mirror_crown".equals(id) || "mirror_lens".equals(id)
@@ -405,12 +405,12 @@ public final class SimulationHarness {
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "tempo_metronome".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
                     || "markchain_seal".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
-                    || "stormglass_seal".equals(id))) score += 36;
+                    || "pressure_gauge".equals(id) || "stormglass_seal".equals(id))) score += 36;
             if (GameCore.PROF_PUPPETEER.equals(s.profession) && ("marionette_crown".equals(id) || "string_spool".equals(id)
                     || "root_drum".equals(id) || "green_bell".equals(id) || "spirit_bell".equals(id)
                     || "spirit_processional".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
                     || "markchain_seal".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
-                    || "stormglass_seal".equals(id) || "tempo_metronome".equals(id) || "confluence_map".equals(id)
+                    || "pressure_gauge".equals(id) || "stormglass_seal".equals(id) || "tempo_metronome".equals(id) || "confluence_map".equals(id)
                     || "prism_gear".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -628,45 +628,54 @@ public final class SimulationHarness {
                     || GameCore.PROF_DREAMWALKER.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
                     || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 33 : 25;
+            else if ("spec_pressure".equals(id)) score += (GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession)
+                    || GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
+                    || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_PACTMAKER.equals(s.profession)
+                    || GameCore.PROF_STORMCALLER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
+                    || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
+                    || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_DREAMWALKER.equals(s.profession)
+                    || GameCore.PROF_GARDENER.equals(s.profession) || GameCore.PROF_CHEF.equals(s.profession)
+                    || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession)
+                    || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 34 : 26;
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && ("spec_sustain".equals(id) || "spec_resonance".equals(id)
-                    || "spec_mastery".equals(id))) score += 6;
+                    || "spec_mastery".equals(id) || "spec_pressure".equals(id))) score += 6;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
-                    || "spec_tempo".equals(id) || "spec_burst".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_burst".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_SHADOWDANCER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_burst".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id))) score += 8;
             if (GameCore.PROF_RUNEBLADE.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_assembly".equals(id) || "spec_control".equals(id)
-                    || "spec_markchain".equals(id))) score += 8;
+                    || "spec_markchain".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_MEDIUM.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id)
-                    || "spec_control".equals(id))) score += 8;
+                    || "spec_control".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_TACTICIAN.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_assembly".equals(id) || "spec_control".equals(id)
-                    || "spec_markchain".equals(id) || "spec_tempo".equals(id))) score += 8;
+                    || "spec_markchain".equals(id) || "spec_tempo".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_PRISMIST.equals(s.profession) && ("spec_resonance".equals(id) || "spec_mastery".equals(id)
                     || "spec_assembly".equals(id) || "spec_markchain".equals(id) || "spec_control".equals(id)
-                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_DREAMWALKER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
-                    || "spec_markchain".equals(id) || "spec_sustain".equals(id))) score += 8;
+                    || "spec_markchain".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_GARDENER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
-                    || "spec_tempo".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_CHEF.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
-                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_BARD.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id)
-                    || "spec_burst".equals(id) || "spec_sustain".equals(id))) score += 8;
+                    || "spec_burst".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_MIRRORIST.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_assembly".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id)
-                    || "spec_tempo".equals(id) || "spec_sustain".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_PUPPETEER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_echoflow".equals(id) || "spec_markchain".equals(id) || "spec_control".equals(id)
-                    || "spec_tempo".equals(id) || "spec_sustain".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
-            if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id))) score += 4;
+            if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id) || "spec_pressure".equals(id))) score += 4;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
