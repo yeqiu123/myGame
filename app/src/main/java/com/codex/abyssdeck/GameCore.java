@@ -1566,6 +1566,13 @@ public final class GameCore {
         return detail.length() == 0 ? "多拿带构筑标签的牌会逐步形成方向。" : detail;
     }
 
+    public static String buildResonanceText(State s) {
+        if (s == null || s.buildResonanceScore < 35 || s.buildResonanceFocus < 0 || s.buildResonanceFocus >= BUILD_FOCUS_NAMES.length) {
+            return "";
+        }
+        return BUILD_FOCUS_NAMES[s.buildResonanceFocus] + "共鸣 " + buildFocusRank(s.buildResonanceScore);
+    }
+
     public static String talentSynergyHint(State s, String id) {
         TalentDef t = talent(id);
         if (s == null || t == null) {
@@ -2785,6 +2792,9 @@ public final class GameCore {
         s.professionUsedThisTurn = 0;
         s.combatQuest = chooseCombatQuest(s, kind);
         s.questTarget = questTargetFor(s, s.combatQuest, kind);
+        int resonance = buildScoutFocus(s);
+        s.buildResonanceFocus = resonance;
+        s.buildResonanceScore = buildScoutFocusScore(s, resonance);
         s.questProgress = 0;
         s.questComplete = false;
         s.playerTurn = true;
@@ -3274,6 +3284,7 @@ public final class GameCore {
             s.energy++;
             gainBlock(s, 10);
         }
+        applyBuildResonanceStart(s);
         if (hasTalent(s, "t_shared_longnight") && s.turn == 4) {
             s.energy++;
             draw(s, 1);
@@ -3501,6 +3512,63 @@ public final class GameCore {
         if (allEnemiesDead(s)) {
             winCombat(s);
         }
+    }
+
+    private static void applyBuildResonanceStart(State s) {
+        if (s.turn != 1 || s.buildResonanceFocus < 0 || s.buildResonanceScore < 35) {
+            return;
+        }
+        int focus = s.buildResonanceFocus;
+        int tier = s.buildResonanceScore >= 80 ? 3 : s.buildResonanceScore >= 55 ? 2 : 1;
+        if (focus == BUILD_OVERLOAD) {
+            addProfessionSkillCharge(s, 2 + tier);
+        } else if (focus == BUILD_ECHO) {
+            Card echo = new Card(PROF_SUMMONER.equals(s.profession) ? "summoner_sprite" : "quick_cut");
+            echo.temp = true;
+            addToHand(s, echo);
+            if (tier >= 2) {
+                s.voidEngine++;
+            }
+        } else if (focus == BUILD_BREW) {
+            if (s.potions.size() < potionLimit(s)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += 1 + tier + s.burnPower / 2;
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+        } else if (focus == BUILD_GOLD) {
+            int income = 4 + tier * 3 + s.act;
+            s.gold += income;
+            gainBlock(s, 2 + tier + Math.min(6, s.gold / 80));
+        } else if (focus == BUILD_BLOOD) {
+            gainBlock(s, 3 + tier * 2);
+            if (s.hp <= s.maxHp / 2) {
+                s.energy++;
+            } else {
+                s.hp = Math.max(1, s.hp - 1);
+            }
+        } else if (focus == BUILD_FORGE) {
+            upgradeRandomHandCard(s);
+            if (tier >= 2) {
+                gainBlock(s, 4 + tier);
+            }
+        } else if (focus == BUILD_STATUS) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.bind += tier;
+            }
+        } else if (focus == BUILD_CYCLE) {
+            draw(s, 1);
+            if (tier >= 2) {
+                s.energy++;
+            }
+        } else if (focus == BUILD_GUARD) {
+            s.steelEngine++;
+            gainBlock(s, 6 + tier * 3);
+        }
+        log(s, "构筑共鸣：" + BUILD_FOCUS_NAMES[focus] + " " + buildFocusRank(s.buildResonanceScore) + "。");
     }
 
     private static void rollEnemyIntents(State s) {
@@ -7296,6 +7364,8 @@ public final class GameCore {
         public int pactForgeCards;
         public int pactGoldCards;
         public int masterySkillCharge;
+        public int buildResonanceFocus = -1;
+        public int buildResonanceScore;
         public int runGuardMilestone;
         public int runComboMilestone;
         public int runHexMilestone;
@@ -7332,6 +7402,9 @@ public final class GameCore {
             }
             if (lastRunSummary == null) {
                 lastRunSummary = "";
+            }
+            if (mode != MODE_COMBAT && buildResonanceScore == 0) {
+                buildResonanceFocus = -1;
             }
             if (meta == null) {
                 meta = new MetaProgress();

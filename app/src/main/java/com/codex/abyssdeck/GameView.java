@@ -576,7 +576,9 @@ public final class GameView extends View {
             skillTip = skillTip.substring(0, 30);
         }
         drawText(c, skillTip, dp(22), dp(140), 12, 0xffaebdc0, false);
-        drawText(c, shortText("构筑 " + GameCore.buildSummaryText(s), 48), dp(22), dp(158), 12, 0xff9fd5c5, true);
+        String resonance = GameCore.buildResonanceText(s);
+        String buildLine = "构筑 " + GameCore.buildSummaryText(s) + (resonance.length() > 0 ? "  " + resonance : "");
+        drawText(c, shortText(buildLine, 56), dp(22), dp(158), 12, 0xff9fd5c5, true);
         String context = "";
         if (s.encounterModifier != GameCore.MOD_NONE) {
             context += "词缀 " + GameCore.modifierName(s.encounterModifier);
