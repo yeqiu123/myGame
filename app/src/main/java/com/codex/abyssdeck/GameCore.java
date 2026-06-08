@@ -2328,6 +2328,10 @@ public final class GameCore {
                 e.doom = 4;
             } else if (e.kind == 27 && e.shieldPulse == 0) {
                 e.shieldPulse = 2;
+            } else if (e.kind == 29 && e.doom == 0) {
+                e.doom = 3;
+            } else if (e.kind == 30 && e.thorns == 0) {
+                e.thorns = 1 + s.act / 2;
             }
         }
     }
@@ -2360,6 +2364,15 @@ public final class GameCore {
                     }
                     e.shieldPulse = 2;
                     log(s, e.name + " 展开雾盾，敌群获得护甲。");
+                }
+            }
+            if (e.kind == 29 && e.doom > 0) {
+                e.doom--;
+                if (e.doom <= 0) {
+                    e.hp = Math.min(e.maxHp, e.hp + 6 + s.act * 2);
+                    e.vulnerable = Math.max(0, e.vulnerable - 1);
+                    e.doom = 3;
+                    log(s, e.name + " 裂疫回流，恢复生命。");
                 }
             }
         }
@@ -2440,7 +2453,7 @@ public final class GameCore {
             return;
         }
         if (kind == 'E') {
-            int elite = s.run.nextInt(6);
+            int elite = s.run.nextInt(8);
             if (elite == 0) {
                 s.enemies.add(enemy("铁脊裁决者", 58 + act * 16 + depth * 2, 1));
             } else if (elite == 1) {
@@ -2454,12 +2467,17 @@ public final class GameCore {
             } else if (elite == 4) {
                 s.enemies.add(enemy("雾钟敲击者", 58 + act * 16 + depth * 2, 13));
                 s.enemies.add(enemy("空面盗", 28 + act * 8 + depth, 23));
-            } else {
+            } else if (elite == 5) {
                 s.enemies.add(enemy("血契巡礼者", 66 + act * 18 + depth * 2, 14));
+            } else if (elite == 6) {
+                s.enemies.add(enemy("回响督军", 62 + act * 17 + depth * 2, 15));
+                s.enemies.add(enemy("雾页抄手", 26 + act * 8 + depth, 28));
+            } else {
+                s.enemies.add(enemy("静印审判官", 70 + act * 18 + depth * 2, 16));
             }
             return;
         }
-        int templateMax = act >= 3 ? 8 : act >= 2 ? 7 : 5;
+        int templateMax = act >= 3 ? 11 : act >= 2 ? 9 : 5;
         int template = s.run.nextInt(templateMax);
         int base = 18 + act * 8 + depth;
         if (template == 0) {
@@ -2483,10 +2501,18 @@ public final class GameCore {
         } else if (template == 6) {
             s.enemies.add(enemy("雾匠", base + 15 + s.run.nextInt(8), 27));
             s.enemies.add(enemy("空面盗", base + 7 + s.run.nextInt(8), 23));
-        } else {
+        } else if (template == 7) {
             s.enemies.add(enemy("锈刃徒", base + 6 + s.run.nextInt(7), 20));
             s.enemies.add(enemy("磷火虫", base + 2 + s.run.nextInt(6), 21));
             s.enemies.add(enemy("空面盗", base + 1 + s.run.nextInt(6), 23));
+        } else if (template == 8) {
+            s.enemies.add(enemy("雾页抄手", base + 10 + s.run.nextInt(8), 28));
+            s.enemies.add(enemy("磷火虫", base + 2 + s.run.nextInt(6), 21));
+        } else if (template == 9) {
+            s.enemies.add(enemy("裂疫汲取者", base + 16 + s.run.nextInt(9), 29));
+            s.enemies.add(enemy("藤壳兽", base + 8 + s.run.nextInt(7), 22));
+        } else {
+            s.enemies.add(enemy("镜壳卫", base + 26 + s.run.nextInt(10), 30));
         }
     }
 
@@ -2820,6 +2846,28 @@ public final class GameCore {
                     e.intent = ENEMY_BUFF;
                     e.intentValue = 2 + s.act;
                 }
+            } else if (e.kind == 15) {
+                if (r < 34) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 10 + s.act * 3;
+                } else if (r < 72) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 10 + s.act * 2;
+                }
+            } else if (e.kind == 16) {
+                if (r < 38) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 11 + s.act * 3;
+                } else if (r < 76) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 1 + s.act / 2;
+                }
             } else if (e.kind == 20) {
                 if (r < 62) {
                     e.intent = ENEMY_ATTACK;
@@ -2907,6 +2955,39 @@ public final class GameCore {
                 } else {
                     e.intent = ENEMY_ATTACK;
                     e.intentValue = 7 + s.act * 2;
+                }
+            } else if (e.kind == 28) {
+                if (r < 36) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 6 + s.act * 2;
+                } else if (r < 76) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 1;
+                }
+            } else if (e.kind == 29) {
+                if (r < 40) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 7 + s.act * 2;
+                } else if (r < 78) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_BUFF;
+                    e.intentValue = 2;
+                }
+            } else if (e.kind == 30) {
+                if (r < 46) {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 11 + s.act * 3;
+                } else if (r < 78) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 8 + s.act * 3;
+                } else {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
                 }
             } else if (r < 68) {
                 e.intent = ENEMY_ATTACK;
@@ -3001,6 +3082,30 @@ public final class GameCore {
                     other.bind += e.intentValue;
                 }
             }
+        } else if (e.kind == 15) {
+            int pressure = Math.max(0, s.cardsPlayedThisTurn - 3);
+            if (pressure > 0) {
+                int taken = dealPlayerDamage(s, pressure * (2 + s.act / 2));
+                log(s, e.name + " 折回连打余波，造成 " + taken + " 点伤害。");
+            } else {
+                e.block += 8 + s.act * 2;
+            }
+            Card echo = new Card("daze");
+            echo.temp = true;
+            addToHand(s, echo);
+        } else if (e.kind == 16) {
+            int drained = 0;
+            for (Enemy other : livingEnemies(s)) {
+                int burn = Math.min(other.burn, 2 + s.act);
+                int bind = Math.min(other.bind, 2 + s.act);
+                other.burn -= burn;
+                other.bind -= bind;
+                drained += burn + bind;
+            }
+            e.block += 10 + drained;
+            e.strength += drained >= 6 ? 1 : 0;
+            addStatusCard(s, "daze");
+            log(s, e.name + " 封存异常并转为护甲。");
         } else if (e.kind == 23) {
             int stolen = Math.min(s.gold, 8 + s.act * 4);
             if (stolen > 0) {
@@ -3028,6 +3133,38 @@ public final class GameCore {
             }
             s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
             log(s, e.name + " 锁住雾线，下回合能量受压。");
+        } else if (e.kind == 28) {
+            int moved = 0;
+            while (!s.draw.isEmpty() && moved < 2) {
+                s.discard.add(s.draw.remove(s.draw.size() - 1));
+                moved++;
+            }
+            if (s.hand.size() >= 5) {
+                addStatusCard(s, "daze");
+            }
+            e.block += 5 + s.act * 2 + moved * 2;
+            log(s, e.name + " 抄乱牌页。");
+        } else if (e.kind == 29) {
+            int drained = 0;
+            for (Enemy other : livingEnemies(s)) {
+                int burn = Math.min(other.burn, 2);
+                int vuln = Math.min(other.vulnerable, 1);
+                other.burn -= burn;
+                other.vulnerable -= vuln;
+                drained += burn + vuln;
+            }
+            e.hp = Math.min(e.maxHp, e.hp + 4 + drained * 2);
+            e.strength += drained >= 3 ? 1 : 0;
+            s.vulnerable += drained >= 3 ? 1 : 0;
+            log(s, e.name + " 汲取裂疫恢复生命。");
+        } else if (e.kind == 30) {
+            int crack = Math.min(s.block, 8 + s.act * 4);
+            s.block -= crack;
+            e.block += 8 + s.act * 3 + crack / 2;
+            if (crack >= 10) {
+                s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
+            }
+            log(s, e.name + " 折射你的护势。");
         } else {
             e.strength += 2;
             e.block += 8;
