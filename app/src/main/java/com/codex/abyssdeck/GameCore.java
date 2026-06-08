@@ -287,6 +287,7 @@ public final class GameCore {
         enemyTurn(s);
         if (s.hp <= 0) {
             s.mode = MODE_GAME_OVER;
+            finishRun(s, false);
             return;
         }
         beginPlayerTurn(s);
@@ -653,6 +654,7 @@ public final class GameCore {
     public static void nextAct(State s) {
         if (s.act >= 3) {
             s.mode = MODE_VICTORY;
+            finishRun(s, true);
             return;
         }
         s.act++;
@@ -942,6 +944,21 @@ public final class GameCore {
         return s.talents.contains(id);
     }
 
+    public static boolean hasAchievement(State s, String id) {
+        return s.meta != null && s.meta.achievements.contains(id);
+    }
+
+    public static String achievementName(String id) {
+        if ("first_run".equals(id)) return "初入深渊";
+        if ("first_win".equals(id)) return "抵达无光尽头";
+        if ("all_professions".equals(id)) return "六职巡礼";
+        if ("collector".equals(id)) return "旧物收藏家";
+        if ("high_depth".equals(id)) return "无光行者";
+        if ("talent_master".equals(id)) return "专精大师";
+        if ("rich".equals(id)) return "裂币盈囊";
+        return id;
+    }
+
     private static void resetRun(State s) {
         long seed = System.currentTimeMillis();
         s.rngSeed = seed;
@@ -953,6 +970,9 @@ public final class GameCore {
         s.combatKind = 'C';
         s.encounterModifier = MOD_NONE;
         s.currentNode = -1;
+        s.runFinished = false;
+        s.lastRunSummary = "";
+        s.newAchievements.clear();
         s.log.clear();
         s.cardRewards.clear();
         s.cardRewardSkipped = false;
@@ -2181,6 +2201,78 @@ public final class GameCore {
         }
     }
 
+    private static void finishRun(State s, boolean victory) {
+        if (s.runFinished) {
+            return;
+        }
+        s.ensureRandom();
+        s.runFinished = true;
+        s.newAchievements.clear();
+        int reached = (Math.max(1, s.act) - 1) * 12 + Math.max(0, s.floor);
+        s.meta.runs++;
+        if (victory) {
+            s.meta.wins++;
+            s.meta.highestDepth = Math.max(s.meta.highestDepth, s.ascension);
+            int p = professionIndex(s.profession);
+            if (p >= 0 && p < s.meta.professionWins.length) {
+                s.meta.professionWins[p]++;
+            }
+        }
+        s.meta.highestFloor = Math.max(s.meta.highestFloor, reached);
+        s.meta.maxGold = Math.max(s.meta.maxGold, s.gold);
+        s.meta.maxDeck = Math.max(s.meta.maxDeck, s.deck.size());
+        s.lastRunSummary = (victory ? "胜利" : "止步") + " / 层数 " + reached + " / 金币 " + s.gold
+                + " / 牌组 " + s.deck.size() + " / 专精 " + s.talents.size();
+        unlockAchievement(s, "first_run");
+        if (victory) {
+            unlockAchievement(s, "first_win");
+        }
+        if (allProfessionWins(s)) {
+            unlockAchievement(s, "all_professions");
+        }
+        if (s.relics.size() >= 10 || s.meta.maxDeck >= 36) {
+            unlockAchievement(s, "collector");
+        }
+        if (victory && s.ascension >= 10) {
+            unlockAchievement(s, "high_depth");
+        }
+        if (s.talents.size() >= 2) {
+            unlockAchievement(s, "talent_master");
+        }
+        if (s.gold >= 300 || s.meta.maxGold >= 500) {
+            unlockAchievement(s, "rich");
+        }
+    }
+
+    private static void unlockAchievement(State s, String id) {
+        if (!s.meta.achievements.contains(id)) {
+            s.meta.achievements.add(id);
+            s.newAchievements.add(id);
+            log(s, "解锁成就：" + achievementName(id));
+        }
+    }
+
+    private static boolean allProfessionWins(State s) {
+        if (s.meta.professionWins.length < PROFESSIONS.length) {
+            return false;
+        }
+        for (int i = 0; i < PROFESSIONS.length; i++) {
+            if (s.meta.professionWins[i] <= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int professionIndex(String profession) {
+        for (int i = 0; i < PROFESSIONS.length; i++) {
+            if (PROFESSIONS[i].equals(profession)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     private static void winCombat(State s) {
         int gold = 18 + s.act * 5 + s.run.nextInt(13);
         if (s.combatKind == 'E') {
@@ -2911,6 +3003,7 @@ public final class GameCore {
         public String pendingAction = "";
         public String origin = "";
         public String profession = "";
+        public String lastRunSummary = "";
         public int ascension;
         public int hp;
         public int maxHp;
@@ -2942,8 +3035,11 @@ public final class GameCore {
         public final Set<String> seenCards = new HashSet<>();
         public final Set<String> seenRelics = new HashSet<>();
         public final ArrayList<String> log = new ArrayList<>();
+        public ArrayList<String> newAchievements = new ArrayList<>();
+        public MetaProgress meta = new MetaProgress();
         public boolean cardRewardSkipped;
         public boolean playerTurn;
+        public boolean runFinished;
         public char combatKind;
         public int encounterModifier;
         public int turn;
@@ -2980,6 +3076,40 @@ public final class GameCore {
             }
             if (talents == null) {
                 talents = new ArrayList<>();
+            }
+            if (newAchievements == null) {
+                newAchievements = new ArrayList<>();
+            }
+            if (lastRunSummary == null) {
+                lastRunSummary = "";
+            }
+            if (meta == null) {
+                meta = new MetaProgress();
+            }
+            meta.ensure();
+        }
+    }
+
+    public static final class MetaProgress implements Serializable {
+        public int runs;
+        public int wins;
+        public int highestFloor;
+        public int highestDepth;
+        public int maxGold;
+        public int maxDeck;
+        public int[] professionWins = new int[PROFESSIONS.length];
+        public ArrayList<String> achievements = new ArrayList<>();
+
+        public void ensure() {
+            if (professionWins == null || professionWins.length < PROFESSIONS.length) {
+                int[] next = new int[PROFESSIONS.length];
+                if (professionWins != null) {
+                    System.arraycopy(professionWins, 0, next, 0, Math.min(professionWins.length, next.length));
+                }
+                professionWins = next;
+            }
+            if (achievements == null) {
+                achievements = new ArrayList<>();
             }
         }
     }

@@ -293,6 +293,7 @@ public final class GameView extends View {
         drawText(c, "深渊牌旅", dp(30), h * 0.18f, 42, 0xfff6d780, true);
         drawText(c, "原创暗潮爬塔卡牌游戏", dp(32), h * 0.18f + dp(38), 17, 0xffd6cdbd, false);
         drawText(c, "四种起源乘六种职业，卡组、遗物、药剂与事件共同塑造每一局。", dp(32), h * 0.18f + dp(72), 15, 0xffb9c7cf, false);
+        drawText(c, "旅程 " + s.meta.runs + "  胜利 " + s.meta.wins + "  最深 " + s.meta.highestFloor + "层  成就 " + s.meta.achievements.size(), dp(32), h * 0.18f + dp(100), 14, 0xffd7c994, true);
         addButton(dp(30), h * 0.38f, w - dp(60), dp(54), "新旅程", "new", 0);
         addButton(dp(30), h * 0.47f, w - dp(60), dp(48), "继续", "continue", 0);
         addButton(dp(30), h * 0.55f, w - dp(60), dp(48), "图鉴", "codex", 0);
@@ -657,10 +658,19 @@ public final class GameView extends View {
         int w = getWidth();
         drawText(c, "图鉴", dp(24), dp(86), 30, 0xfff4d580, true);
         drawText(c, "卡牌 " + GameCore.CARD_LIBRARY.size() + "   遗物 " + GameCore.RELIC_LIBRARY.size() + "   药剂 " + GameCore.POTION_LIBRARY.size() + "   专精 " + GameCore.TALENT_LIBRARY.size(), dp(24), dp(118), 16, 0xffc9d2d2, false);
+        drawText(c, "记录：旅程 " + s.meta.runs + " / 胜利 " + s.meta.wins + " / 最高难度 " + s.meta.highestDepth + " / 最大金币 " + s.meta.maxGold, dp(24), dp(142), 13, 0xffd7c994, true);
         float y = dp(152);
-        for (int i = 0; i < Math.min(16, GameCore.CARD_LIBRARY.size()); i++) {
+        for (int i = 0; i < Math.min(10, GameCore.CARD_LIBRARY.size()); i++) {
             GameCore.CardDef d = GameCore.CARD_LIBRARY.get(i);
-            drawText(c, d.name + " / " + d.origin + " / " + rarity(d.rarity), dp(28), y + i * dp(24), 15, 0xffe8ddc9, false);
+            drawText(c, d.name + " / " + d.origin + " / " + rarity(d.rarity), dp(28), y + dp(24) + i * dp(22), 14, 0xffe8ddc9, false);
+        }
+        float ay = y + dp(260);
+        drawText(c, "成就", dp(24), ay, 17, 0xfff0d486, true);
+        String[] achievements = {"first_run", "first_win", "all_professions", "collector", "high_depth", "talent_master", "rich"};
+        for (int i = 0; i < achievements.length; i++) {
+            String id = achievements[i];
+            String mark = GameCore.hasAchievement(s, id) ? "*" : "-";
+            drawText(c, mark + " " + GameCore.achievementName(id), dp(28), ay + dp(24) + i * dp(20), 13, GameCore.hasAchievement(s, id) ? 0xfff5d276 : 0xff87929a, true);
         }
         addButton(w - dp(94), dp(102), dp(76), dp(34), "返回", "close", 0);
     }
@@ -670,8 +680,19 @@ public final class GameView extends View {
         int h = getHeight();
         drawText(c, victory ? "抵达无光尽头" : "旅程终止", dp(30), h * 0.25f, 34, victory ? 0xfff6d780 : 0xffff8d75, true);
         drawText(c, s.origin + " " + s.profession + " / Act " + s.act + " / 层 " + s.floor + " / 牌组 " + s.deck.size() + " 张 / 遗物 " + s.relics.size(), dp(32), h * 0.25f + dp(44), 16, 0xffd8ded8, false);
-        addButton(dp(30), h * 0.45f, w - dp(60), dp(52), "再来一局", "new", 0);
-        addButton(dp(30), h * 0.54f, w - dp(60), dp(46), "返回标题", "title", 0);
+        drawText(c, s.lastRunSummary, dp(32), h * 0.25f + dp(68), 14, 0xffd7c994, true);
+        drawText(c, "历史：旅程 " + s.meta.runs + "  胜利 " + s.meta.wins + "  最深 " + s.meta.highestFloor + "层  最高难度 " + s.meta.highestDepth, dp(32), h * 0.25f + dp(92), 13, 0xffc3d0cc, false);
+        float ay = h * 0.25f + dp(122);
+        if (!s.newAchievements.isEmpty()) {
+            drawText(c, "新成就", dp(32), ay, 17, 0xfff0d486, true);
+            for (int i = 0; i < Math.min(4, s.newAchievements.size()); i++) {
+                drawText(c, GameCore.achievementName(s.newAchievements.get(i)), dp(44), ay + dp(24) + i * dp(20), 14, 0xfff5d276, true);
+            }
+        } else {
+            drawText(c, "已解锁成就 " + s.meta.achievements.size(), dp(32), ay, 15, 0xffc3d0cc, true);
+        }
+        addButton(dp(30), h * 0.57f, w - dp(60), dp(52), "再来一局", "new", 0);
+        addButton(dp(30), h * 0.66f, w - dp(60), dp(46), "返回标题", "title", 0);
     }
 
     private void drawCard(Canvas c, GameCore.Card card, RectF r, boolean selected) {
