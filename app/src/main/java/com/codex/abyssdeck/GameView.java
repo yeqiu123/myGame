@@ -1050,6 +1050,7 @@ public final class GameView extends View {
         if ("event_upgrade_wound".equals(s.pendingAction)) return "选择升级牌：代价是一张裂伤";
         if ("rest_remove".equals(s.pendingAction) || "shop_remove".equals(s.pendingAction)) return "选择要移除的牌";
         if ("event_remove_hp".equals(s.pendingAction)) return "选择移除牌：失去10生命";
+        if ("event_transform_bonus".equals(s.pendingAction)) return "选择重塑牌：变为升级随机牌";
         if ("rest_transform".equals(s.pendingAction) || "shop_transform".equals(s.pendingAction)) return "选择要转化的牌";
         return "牌组浏览";
     }
@@ -1069,7 +1070,11 @@ public final class GameView extends View {
     }
 
     private String eventTitle() {
-        String[] t = {"黑水圣龛", "裂币喷泉", "会呼吸的书页", "无名旅人", "石刻囚笼", "炼金雨棚", "无灯影市", "旧王雾门"};
+        String[] t = {
+                "黑水圣龛", "裂币喷泉", "会呼吸的书页", "无名旅人",
+                "石刻囚笼", "炼金雨棚", "无灯影市", "旧王雾门",
+                "职业导师", "深渊账本", "药剂实验台", "镜面牌桌"
+        };
         return t[Math.max(0, Math.min(t.length - 1, s.eventId))];
     }
 
@@ -1082,7 +1087,11 @@ public final class GameView extends View {
                 "囚笼内侧刻满战斗姿势。每一道刻痕都能教会你一件事，也会留下血口。",
                 "雨棚下滴落的不是雨，而是未命名的试剂。每瓶都有用，每瓶都不完全干净。",
                 "影市只在没有灯的时候开张。摊主愿意吃掉你牌组里的一张旧牌，也愿意塞给你一张新货。",
-                "雾门后传来旧王的低语。你能提前拿走王座旁的遗物，但门会取走一部分生命。"
+                "雾门后传来旧王的低语。你能提前拿走王座旁的遗物，但门会取走一部分生命。",
+                "一位认得你职业徽记的导师坐在路边。他只教一次，要么给招式，要么给批注。",
+                "账本摊开，数字像活物一样爬动。你可以借深渊的钱，也可以赎回一部分名字。",
+                "实验台上排着无标签药剂。你能装满腰带，也能把所有药剂熔成一张稳定牌。",
+                "牌桌镜面映出另一副牌组。它愿意复制一张强牌，也愿意重塑你的旧牌。"
         };
         return t[Math.max(0, Math.min(t.length - 1, s.eventId))];
     }
@@ -1095,7 +1104,11 @@ public final class GameView extends View {
         if (s.eventId == 4) return new String[]{"升级一张牌，加入1张裂伤", "获得65金币，加入2张眩光"};
         if (s.eventId == 5) return new String[]{"失去6生命，获得随机药剂", "获得45金币"};
         if (s.eventId == 6) return new String[]{"移除一张牌，失去10生命", "获得随机牌和35金币"};
-        return new String[]{"最大生命-8，获得Boss遗物", "升级两张牌，加入1张眩光"};
+        if (s.eventId == 7) return new String[]{"最大生命-8，获得Boss遗物", "升级两张牌，加入1张眩光"};
+        if (s.eventId == 8) return new String[]{"获得升级职业牌", "获得35金币并升级1张牌"};
+        if (s.eventId == 9) return new String[]{"借款：获得金币，加入1张眩光", "支付55金币，最大生命+7并升级"};
+        if (s.eventId == 10) return new String[]{"装满药剂，加入1张裂伤", "清空药剂，获得升级随机牌"};
+        return new String[]{"复制一张升级随机牌，加入1张眩光", "重塑一张牌为升级随机牌，获得25金币"};
     }
 
     private int dp(float v) {

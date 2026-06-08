@@ -79,9 +79,9 @@ public final class SimulationHarness {
                 GameCore.restHeal(s);
             }
         } else if (s.mode == GameCore.MODE_EVENT) {
-            GameCore.eventChoose(s, 0);
+            GameCore.eventChoose(s, s.eventId % 2);
         } else if (s.mode == GameCore.MODE_DECK) {
-            if ("event_remove_hp".equals(s.pendingAction)) {
+            if ("event_remove_hp".equals(s.pendingAction) || "event_transform_bonus".equals(s.pendingAction)) {
                 GameCore.deckPick(s, 0);
             } else {
                 upgradeFirst(s);

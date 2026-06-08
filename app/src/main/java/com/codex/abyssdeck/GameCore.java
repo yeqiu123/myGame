@@ -45,6 +45,7 @@ public final class GameCore {
     public static final int QUEST_GUARD = 4;
     public static final int QUEST_HEX = 5;
     public static final int QUEST_LEAN = 6;
+    public static final int EVENT_COUNT = 12;
 
     public static final String ORIGIN_STEEL = "钢律";
     public static final String ORIGIN_ASH = "烬火";
@@ -558,6 +559,15 @@ public final class GameCore {
             log(s, "影市吞走：" + card(c.id).name + "，你失去10生命。");
             s.pendingAction = "";
             s.mode = MODE_MAP;
+        } else if ("event_transform_bonus".equals(action)) {
+            Card old = s.deck.get(deckIndex);
+            CardDef d = randomCard(s, s.origin, true);
+            old.id = d.id;
+            old.upgraded = true;
+            s.gold += 25;
+            log(s, "镜桌重塑为：" + d.name + "，并返还25金币。");
+            s.pendingAction = "";
+            s.mode = MODE_MAP;
         }
     }
 
@@ -658,7 +668,7 @@ public final class GameCore {
                 s.gold += 35;
                 log(s, "影市赠予：" + d.name + "，外加35金币。");
             }
-        } else {
+        } else if (e == 7) {
             if (choice == 0) {
                 addRelic(s, randomBossRelic(s, Collections.<String>emptySet()).id);
                 s.maxHp = Math.max(30, s.maxHp - 8);
@@ -669,6 +679,60 @@ public final class GameCore {
                 upgradeRandomDeckCard(s);
                 addStatusCard(s, "daze");
                 log(s, "两张牌被雾中力量重铸。");
+            }
+        } else if (e == 8) {
+            if (choice == 0) {
+                CardDef d = randomProfessionCard(s, true);
+                Card c = new Card(d.id);
+                c.upgraded = true;
+                s.deck.add(c);
+                log(s, "职业导师授予：" + d.name);
+            } else {
+                s.gold += 35;
+                upgradeRandomDeckCard(s);
+                log(s, "导师只留下路费和一处关键批注。");
+            }
+        } else if (e == 9) {
+            if (choice == 0) {
+                int payout = Math.min(160, 45 + s.gold / 3);
+                s.gold += payout;
+                addStatusCard(s, "daze");
+                log(s, "深渊账本吐出 " + payout + " 金币，也落下一张眩光。");
+            } else {
+                s.gold = Math.max(0, s.gold - 55);
+                s.maxHp += 7;
+                s.hp += 7;
+                upgradeRandomDeckCard(s);
+                log(s, "你赎回旧名，生命与牌面都更稳。");
+            }
+        } else if (e == 10) {
+            if (choice == 0) {
+                while (s.potions.size() < potionLimit(s)) {
+                    s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+                }
+                addStatusCard(s, "wound");
+                log(s, "实验台灌满药剂腰带，也留下一道裂伤。");
+            } else {
+                s.potions.clear();
+                CardDef d = randomCard(s, s.origin, true);
+                Card c = new Card(d.id);
+                c.upgraded = true;
+                s.deck.add(c);
+                log(s, "你倾空药剂，换来升级牌：" + d.name);
+            }
+        } else {
+            if (choice == 0) {
+                CardDef d = randomCard(s, s.origin, true);
+                Card copy = new Card(d.id);
+                copy.upgraded = true;
+                copy.temp = false;
+                s.deck.add(copy);
+                addStatusCard(s, "daze");
+                log(s, "镜面牌桌复制出升级牌：" + d.name);
+            } else {
+                s.pendingAction = "event_transform_bonus";
+                openDeck(s, MODE_EVENT);
+                return;
             }
         }
         s.mode = MODE_MAP;
@@ -2887,11 +2951,31 @@ public final class GameCore {
 
     private static void openEvent(State s) {
         s.mode = MODE_EVENT;
-        s.eventId = s.run.nextInt(8);
+        s.eventId = s.run.nextInt(EVENT_COUNT);
     }
 
     private static CardDef randomCard(State s, String origin, boolean allowRare) {
         return randomCard(s, origin, allowRare, Collections.<String>emptySet());
+    }
+
+    private static CardDef randomProfessionCard(State s, boolean allowRare) {
+        ArrayList<CardDef> pool = new ArrayList<>();
+        for (CardDef d : CARD_LIBRARY) {
+            if (d.type == 3 || !d.profession.equals(s.profession)) {
+                continue;
+            }
+            if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            int weight = d.rarity == 0 ? 7 : d.rarity == 1 ? 4 : 2;
+            for (int i = 0; i < weight; i++) {
+                pool.add(d);
+            }
+        }
+        if (pool.isEmpty()) {
+            return randomCard(s, s.origin, allowRare);
+        }
+        return pool.get(s.run.nextInt(pool.size()));
     }
 
     private static CardDef randomCard(State s, String origin, boolean allowRare, Set<String> excluded) {
