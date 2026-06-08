@@ -47,6 +47,14 @@ public final class GameCore {
     public static final int QUEST_LEAN = 6;
     public static final int EVENT_COUNT = 12;
 
+    public static final int ROUTE_NONE = 0;
+    public static final int ROUTE_RICH = 1;
+    public static final int ROUTE_DANGER = 2;
+    public static final int ROUTE_SECRET = 3;
+    public static final int ROUTE_SUPPLY = 4;
+    public static final int ROUTE_AMBUSH = 5;
+    public static final int ROUTE_FORGE = 6;
+
     public static final String ORIGIN_STEEL = "钢律";
     public static final String ORIGIN_ASH = "烬火";
     public static final String ORIGIN_WILD = "森息";
@@ -227,6 +235,7 @@ public final class GameCore {
         }
         s.currentNode = nodeIndex;
         s.floor = n.floor;
+        s.currentRoute = n.route;
         for (Integer next : n.next) {
             if (next >= 0 && next < s.map.size()) {
                 s.map.get(next).available = true;
@@ -932,6 +941,46 @@ public final class GameCore {
         return "事";
     }
 
+    public static String routeName(int route) {
+        if (route == ROUTE_RICH) return "富矿";
+        if (route == ROUTE_DANGER) return "险路";
+        if (route == ROUTE_SECRET) return "秘径";
+        if (route == ROUTE_SUPPLY) return "补给";
+        if (route == ROUTE_AMBUSH) return "伏击";
+        if (route == ROUTE_FORGE) return "工坊";
+        return "";
+    }
+
+    public static String routeShort(int route) {
+        if (route == ROUTE_RICH) return "矿";
+        if (route == ROUTE_DANGER) return "险";
+        if (route == ROUTE_SECRET) return "秘";
+        if (route == ROUTE_SUPPLY) return "补";
+        if (route == ROUTE_AMBUSH) return "伏";
+        if (route == ROUTE_FORGE) return "锻";
+        return "";
+    }
+
+    public static String routeText(int route) {
+        if (route == ROUTE_RICH) return "金币更丰厚，精英/首领更容易掉落遗物。";
+        if (route == ROUTE_DANGER) return "敌人更强，但战斗奖励更多，适合强势构筑压榨收益。";
+        if (route == ROUTE_SECRET) return "事件更容易遇到稀有分支，奖励和代价都会更极端。";
+        if (route == ROUTE_SUPPLY) return "进点获得治疗，商店和战后药剂更宽裕。";
+        if (route == ROUTE_AMBUSH) return "首回合承压更高，胜利额外获得金币和卡牌选择。";
+        if (route == ROUTE_FORGE) return "营地锻造更强，战斗后有机会自动升级一张牌。";
+        return "普通路线。";
+    }
+
+    public static int routeColor(int route) {
+        if (route == ROUTE_RICH) return 0xffd7b44a;
+        if (route == ROUTE_DANGER) return 0xffd45a52;
+        if (route == ROUTE_SECRET) return 0xff8b77d9;
+        if (route == ROUTE_SUPPLY) return 0xff67b77c;
+        if (route == ROUTE_AMBUSH) return 0xffd48655;
+        if (route == ROUTE_FORGE) return 0xff77a7c9;
+        return 0xff5b6470;
+    }
+
     public static String modifierName(int modifier) {
         if (modifier == MOD_ARMORED) {
             return "坚甲";
@@ -1121,6 +1170,7 @@ public final class GameCore {
         s.pendingAction = "";
         s.deckView = 0;
         s.combatKind = 'C';
+        s.currentRoute = ROUTE_NONE;
         s.encounterModifier = MOD_NONE;
         s.combatQuest = QUEST_NONE;
         s.questTarget = 0;
@@ -1395,6 +1445,7 @@ public final class GameCore {
                         n.type = 'R';
                     }
                 }
+                n.route = routeForNode(s, n.type, f, floors);
                 n.available = f == 1;
                 s.map.add(n);
             }
@@ -1420,9 +1471,156 @@ public final class GameCore {
         }
     }
 
+    private static int routeForNode(State s, char type, int floor, int floors) {
+        if (type == 'B') {
+            return s.run.nextInt(100) < 38 ? ROUTE_DANGER : ROUTE_NONE;
+        }
+        if (floor <= 1 && s.run.nextInt(100) < 45) {
+            return ROUTE_SUPPLY;
+        }
+        int chance = 34 + Math.min(12, s.act * 4);
+        if (type == 'E') {
+            chance += 12;
+        } else if (type == '?' || type == '$' || type == 'R') {
+            chance += 6;
+        }
+        if (s.run.nextInt(100) >= chance) {
+            return ROUTE_NONE;
+        }
+        if (type == '$') {
+            int[] routes = {ROUTE_RICH, ROUTE_SUPPLY, ROUTE_SECRET};
+            return routes[s.run.nextInt(routes.length)];
+        }
+        if (type == 'R') {
+            int[] routes = {ROUTE_FORGE, ROUTE_SUPPLY, ROUTE_SECRET};
+            return routes[s.run.nextInt(routes.length)];
+        }
+        if (type == '?') {
+            int[] routes = {ROUTE_SECRET, ROUTE_RICH, ROUTE_SUPPLY, ROUTE_FORGE};
+            return routes[s.run.nextInt(routes.length)];
+        }
+        if (type == 'E') {
+            int[] routes = {ROUTE_DANGER, ROUTE_RICH, ROUTE_AMBUSH, ROUTE_FORGE};
+            return routes[s.run.nextInt(routes.length)];
+        }
+        int[] routes = {ROUTE_RICH, ROUTE_DANGER, ROUTE_SECRET, ROUTE_SUPPLY, ROUTE_AMBUSH, ROUTE_FORGE};
+        return routes[s.run.nextInt(routes.length)];
+    }
+
+    private static void applyRouteArrival(State s, char type) {
+        if (s.currentRoute == ROUTE_SUPPLY) {
+            int heal = 3 + s.act;
+            s.hp = Math.min(s.maxHp, s.hp + heal);
+            log(s, "补给路线恢复 " + heal + " 生命。");
+            if (type == '$') {
+                s.gold += 8 + s.act * 3;
+                log(s, "补给商队赠予少量裂币。");
+            }
+        } else if (s.currentRoute == ROUTE_RICH && type != 'C' && type != 'E' && type != 'B') {
+            int gold = 10 + s.act * 4;
+            s.gold += gold;
+            log(s, "富矿路线搜得 " + gold + " 金币。");
+        } else if (s.currentRoute == ROUTE_SECRET && type == '?') {
+            s.gold += 6 + s.act * 2;
+            log(s, "秘径线索让事件前多获得一些筹码。");
+        }
+    }
+
+    private static void applyRouteCombatStart(State s) {
+        if (s.currentRoute == ROUTE_DANGER) {
+            for (Enemy e : s.enemies) {
+                int extra = 4 + s.act * 3;
+                e.maxHp += extra;
+                e.hp += extra;
+                e.strength += 1;
+            }
+            log(s, "险路：敌人生命和力量提升。");
+        } else if (s.currentRoute == ROUTE_AMBUSH) {
+            s.vulnerable += 1;
+            for (Enemy e : s.enemies) {
+                e.block += 5 + s.act * 2;
+            }
+            log(s, "伏击：你开局易伤，敌人带着护甲。");
+        } else if (s.currentRoute == ROUTE_SUPPLY && s.potions.size() < potionLimit(s) && s.run.nextInt(100) < 18) {
+            PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+            s.potions.add(p.id);
+            log(s, "补给箱翻出药剂：" + p.name);
+        }
+    }
+
+    private static void applyRouteFirstTurn(State s) {
+        if (s.turn != 1) {
+            return;
+        }
+        if (s.currentRoute == ROUTE_FORGE) {
+            s.energy++;
+            draw(s, 1);
+            log(s, "工坊路线让首回合能量+1并抽牌。");
+        } else if (s.currentRoute == ROUTE_SECRET && s.run.nextInt(100) < 35) {
+            Card echo = new Card("void_echo");
+            echo.temp = true;
+            addToHand(s, echo);
+            log(s, "秘径回声制造了一张临时回响。");
+        }
+    }
+
+    private static int routeRewardCards(State s) {
+        if (s.currentRoute == ROUTE_DANGER || s.currentRoute == ROUTE_AMBUSH) {
+            return 1;
+        }
+        if (s.currentRoute == ROUTE_SECRET && s.combatKind != 'C') {
+            return 1;
+        }
+        return 0;
+    }
+
+    private static boolean routeAllowsRare(State s) {
+        return s.currentRoute == ROUTE_DANGER || s.currentRoute == ROUTE_SECRET || s.currentRoute == ROUTE_AMBUSH;
+    }
+
+    private static int routeGoldBonus(State s) {
+        if (s.currentRoute == ROUTE_RICH) return 16 + s.act * 7;
+        if (s.currentRoute == ROUTE_DANGER) return 12 + s.act * 5;
+        if (s.currentRoute == ROUTE_AMBUSH) return 10 + s.act * 4;
+        if (s.currentRoute == ROUTE_SECRET && s.combatKind != 'C') return 12 + s.act * 4;
+        return 0;
+    }
+
+    private static int routeRelicChanceBonus(State s) {
+        if (s.currentRoute == ROUTE_RICH) return 12;
+        if (s.currentRoute == ROUTE_DANGER) return 8;
+        if (s.currentRoute == ROUTE_SECRET && s.combatKind != 'C') return 8;
+        return 0;
+    }
+
+    private static void maybeRouteUpgrade(State s) {
+        if (s.currentRoute == ROUTE_FORGE && s.run.nextInt(100) < 28) {
+            Card c = randomUpgradeableCard(s);
+            if (c != null) {
+                c.upgraded = true;
+                log(s, "工坊余火升级了：" + card(c.id).name);
+            }
+        }
+    }
+
+    private static Card randomUpgradeableCard(State s) {
+        ArrayList<Card> pool = new ArrayList<>();
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && d.type != 3 && !c.upgraded) {
+                pool.add(c);
+            }
+        }
+        if (pool.isEmpty()) {
+            return null;
+        }
+        return pool.get(s.run.nextInt(pool.size()));
+    }
+
     private static void startCombat(State s, char kind) {
         s.mode = MODE_COMBAT;
         s.combatKind = kind;
+        applyRouteArrival(s, kind);
         s.encounterModifier = chooseEncounterModifier(s, kind);
         s.turn = 0;
         s.energy = 3;
@@ -1454,6 +1652,7 @@ public final class GameCore {
         }
         Collections.shuffle(s.draw, s.run);
         spawnEnemies(s, kind);
+        applyRouteCombatStart(s);
         applyEncounterStart(s);
         applyEnemyStartMechanics(s);
         if (hasRelic(s, "bone_mask")) {
@@ -1473,7 +1672,8 @@ public final class GameCore {
             glyph.temp = true;
             addToHand(s, glyph);
         }
-        log(s, (kind == 'B' ? "深渊领主现身。" : kind == 'E' ? "精英挡住去路。" : "遭遇敌群。") + " 词缀：" + modifierName(s.encounterModifier));
+        String route = s.currentRoute == ROUTE_NONE ? "" : " 路线：" + routeName(s.currentRoute);
+        log(s, (kind == 'B' ? "深渊领主现身。" : kind == 'E' ? "精英挡住去路。" : "遭遇敌群。") + " 词缀：" + modifierName(s.encounterModifier) + route);
         if (s.combatQuest != QUEST_NONE) {
             log(s, "战斗目标：" + questName(s.combatQuest) + " - " + questText(s));
         }
@@ -1905,6 +2105,7 @@ public final class GameCore {
         if (s.encounterModifier == MOD_POLLUTED && s.turn > 1 && s.turn % 3 == 0) {
             s.discard.add(new Card("daze"));
         }
+        applyRouteFirstTurn(s);
         rollEnemyIntents(s);
         if (s.turn > 18) {
             int fatigue = (s.turn - 18) * 2;
@@ -2933,8 +3134,10 @@ public final class GameCore {
         } else if (s.encounterModifier == MOD_BOUNTY) {
             gold += 32 + s.act * 8;
         }
+        gold += routeGoldBonus(s);
         s.gold += gold;
         awardQuest(s);
+        maybeRouteUpgrade(s);
         if (hasRelic(s, "cup_of_mist")) {
             s.hp = Math.min(s.maxHp, s.hp + 4);
         }
@@ -2954,9 +3157,10 @@ public final class GameCore {
         if (s.encounterModifier == MOD_POLLUTED || s.encounterModifier == MOD_TURBULENT) {
             rewardCount++;
         }
+        rewardCount += routeRewardCards(s);
         HashSet<String> offeredCards = new HashSet<>();
         for (int i = 0; i < rewardCount; i++) {
-            CardDef d = randomCard(s, s.origin, s.combatKind != 'C' || s.encounterModifier == MOD_FRENZY || hasRelic(s, "scarlet_dice"), offeredCards);
+            CardDef d = randomCard(s, s.origin, s.combatKind != 'C' || s.encounterModifier == MOD_FRENZY || hasRelic(s, "scarlet_dice") || routeAllowsRare(s), offeredCards);
             offeredCards.add(d.id);
             RewardCard rc = new RewardCard();
             rc.id = d.id;
@@ -2971,10 +3175,13 @@ public final class GameCore {
                 offered.add(r.id);
                 s.relicRewards.add(r.id);
             }
-        } else if (s.combatKind == 'E' || s.run.nextInt(100) < (s.encounterModifier == MOD_BOUNTY ? 34 : 18)) {
+        } else if (s.combatKind == 'E' || s.run.nextInt(100) < (s.encounterModifier == MOD_BOUNTY ? 34 : 18) + routeRelicChanceBonus(s)) {
             s.relicRewards.add(randomRelic(s).id);
         }
         int potionChance = hasTalent(s, "t_shared_apothecary") ? 54 : 34;
+        if (s.currentRoute == ROUTE_SUPPLY) {
+            potionChance += 18;
+        }
         if (s.potions.size() < potionLimit(s) && s.run.nextInt(100) < potionChance) {
             PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
             s.potions.add(p.id);
@@ -3021,6 +3228,7 @@ public final class GameCore {
 
     private static void openShop(State s) {
         s.mode = MODE_SHOP;
+        applyRouteArrival(s, '$');
         s.shopCards.clear();
         s.shopRelics.clear();
         s.shopPotions.clear();
@@ -3031,31 +3239,50 @@ public final class GameCore {
         }
         HashSet<String> offeredCards = new HashSet<>();
         int shopCardCount = hasTalent(s, "t_merchant_blackmarket") ? 6 : 5;
+        if (s.currentRoute == ROUTE_SECRET) {
+            shopCardCount++;
+        }
         for (int i = 0; i < shopCardCount; i++) {
             CardDef d = randomCard(s, s.origin, true, offeredCards);
             offeredCards.add(d.id);
             s.shopCards.add(d.id);
         }
-        for (int i = 0; i < 3; i++) {
+        int relicCount = s.currentRoute == ROUTE_RICH ? 4 : 3;
+        for (int i = 0; i < relicCount; i++) {
             s.shopRelics.add(randomRelic(s).id);
         }
-        for (int i = 0; i < 3; i++) {
+        int potionCount = s.currentRoute == ROUTE_SUPPLY ? 4 : 3;
+        for (int i = 0; i < potionCount; i++) {
             s.shopPotions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
         }
-        log(s, "抵达裂隙商栈。");
+        log(s, "抵达裂隙商栈。" + (s.currentRoute == ROUTE_NONE ? "" : " 路线：" + routeName(s.currentRoute)));
     }
 
     private static void openRest(State s) {
         s.mode = MODE_REST;
+        applyRouteArrival(s, 'R');
         if (hasRelic(s, "dawn_pin")) {
             s.hp = Math.min(s.maxHp, s.hp + 5);
         }
-        log(s, "找到一处静火营地。");
+        if (s.currentRoute == ROUTE_FORGE) {
+            Card c = randomUpgradeableCard(s);
+            if (c != null) {
+                c.upgraded = true;
+                log(s, "工坊营地预先升级了：" + card(c.id).name);
+            }
+        }
+        log(s, "找到一处静火营地。" + (s.currentRoute == ROUTE_NONE ? "" : " 路线：" + routeName(s.currentRoute)));
     }
 
     private static void openEvent(State s) {
         s.mode = MODE_EVENT;
-        s.eventId = s.run.nextInt(EVENT_COUNT);
+        applyRouteArrival(s, '?');
+        if (s.currentRoute == ROUTE_SECRET && s.run.nextInt(100) < 45) {
+            int[] rareEvents = {2, 4, 7, 10, 11};
+            s.eventId = rareEvents[s.run.nextInt(rareEvents.length)];
+        } else {
+            s.eventId = s.run.nextInt(EVENT_COUNT);
+        }
         if (hasTalent(s, "t_shared_wayfarer")) {
             s.gold += 12 + s.act * 3;
             s.hp = Math.min(s.maxHp, s.hp + 3);
@@ -3756,6 +3983,7 @@ public final class GameCore {
         public int act;
         public int floor;
         public int currentNode;
+        public int currentRoute;
         public int eventId;
         public int deckView;
         public long rngSeed;
@@ -3957,6 +4185,7 @@ public final class GameCore {
         public int floor;
         public int lane;
         public char type;
+        public int route;
         public boolean available;
         public final ArrayList<Integer> next = new ArrayList<>();
     }

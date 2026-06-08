@@ -471,11 +471,47 @@ public final class GameView extends View {
             p.setColor(color);
             c.drawCircle(x, y, dp(17), p);
             drawText(c, GameCore.nodeName(n.type), x - dp(8), y + dp(6), 15, (n.available || nightReachable) ? 0xff17140d : 0xffb8c0c8, true);
+            if (n.route != GameCore.ROUTE_NONE) {
+                p.setColor(GameCore.routeColor(n.route));
+                c.drawCircle(x + dp(15), y - dp(15), dp(9), p);
+                drawText(c, GameCore.routeShort(n.route), x + dp(10), y - dp(11), 10, 0xff111419, true);
+            }
             RectF r = new RectF(x - dp(24), y - dp(24), x + dp(24), y + dp(24));
             mapHits.add(new MapHit(r, i));
         }
         String hint = s.relics.contains("night_map") ? "夜航图生效：下一层任意节点均可选择。" : "可选节点以金色显示。分支路线会改变资源、风险与奖励密度。";
-        drawText(c, hint, dp(24), h - dp(74), 14, 0xffc9d2d2, false);
+        drawText(c, hint, dp(24), h - dp(92), 14, 0xffc9d2d2, false);
+        drawRoutePreview(c, dp(24), h - dp(70), w - dp(48));
+    }
+
+    private void drawRoutePreview(Canvas c, float x, float y, float width) {
+        ArrayList<GameCore.MapNode> choices = new ArrayList<>();
+        for (GameCore.MapNode n : s.map) {
+            boolean nightReachable = s.relics.contains("night_map") && n.floor == s.floor + 1;
+            if (n.available || nightReachable) {
+                choices.add(n);
+            }
+        }
+        if (choices.isEmpty()) {
+            return;
+        }
+        int shown = Math.min(3, choices.size());
+        float gap = dp(6);
+        float itemW = (width - gap * (shown - 1)) / shown;
+        for (int i = 0; i < shown; i++) {
+            GameCore.MapNode n = choices.get(i);
+            float ix = x + i * (itemW + gap);
+            RectF r = new RectF(ix, y, ix + itemW, y + dp(50));
+            p.setColor(0xaa151c24);
+            c.drawRoundRect(r, dp(6), dp(6), p);
+            int route = n.route;
+            p.setColor(GameCore.routeColor(route));
+            c.drawCircle(ix + dp(17), y + dp(17), dp(9), p);
+            String title = GameCore.nodeName(n.type) + " " + (route == GameCore.ROUTE_NONE ? "普通" : GameCore.routeName(route));
+            drawText(c, title, ix + dp(32), y + dp(18), 12, 0xfff0e2c8, true);
+            String text = GameCore.routeText(route);
+            drawText(c, text.length() > 18 ? text.substring(0, 18) : text, ix + dp(10), y + dp(38), 10, 0xffaebdc0, false);
+        }
     }
 
     private void drawCombat(Canvas c) {

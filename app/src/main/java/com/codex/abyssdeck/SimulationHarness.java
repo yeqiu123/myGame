@@ -11,7 +11,8 @@ public final class SimulationHarness {
         for (int depth : depths) {
             Result result = runBatch(depth, 40);
             System.out.println("depth=" + depth + " runs=" + result.runs + " wins=" + result.wins
-                    + " losses=" + result.losses + " stalled=" + result.stalled + " avgFloor=" + (result.floorSum / Math.max(1, result.runs)));
+                    + " losses=" + result.losses + " stalled=" + result.stalled + " avgFloor=" + (result.floorSum / Math.max(1, result.runs))
+                    + " routeNodes=" + result.routeNodes);
         }
         System.out.println("professions=" + GameCore.PROFESSIONS.length + " cards=" + GameCore.CARD_LIBRARY.size()
                 + " relics=" + GameCore.RELIC_LIBRARY.size() + " potions=" + GameCore.POTION_LIBRARY.size()
@@ -28,7 +29,7 @@ public final class SimulationHarness {
             GameCore.chooseProfession(s, GameCore.PROFESSIONS[i % GameCore.PROFESSIONS.length]);
             int guard = 0;
             while (s.mode != GameCore.MODE_GAME_OVER && s.mode != GameCore.MODE_VICTORY && guard++ < 900) {
-                step(s);
+                step(s, r);
             }
             r.runs++;
             r.floorSum += (s.act - 1) * 12 + s.floor;
@@ -39,16 +40,17 @@ public final class SimulationHarness {
         return r;
     }
 
-    private static void step(GameCore.State s) {
+    private static void step(GameCore.State s, Result r) {
         s.ensureRandom();
         if (s.mode == GameCore.MODE_BOON) {
             GameCore.chooseBoon(s, 0);
         } else if (s.mode == GameCore.MODE_MAP) {
-            for (int i = 0; i < s.map.size(); i++) {
-                if (s.map.get(i).available) {
-                    GameCore.mapChoose(s, i);
-                    return;
+            int pick = chooseMapNode(s);
+            if (pick >= 0) {
+                if (s.map.get(pick).route != GameCore.ROUTE_NONE) {
+                    r.routeNodes++;
                 }
+                GameCore.mapChoose(s, pick);
             }
         } else if (s.mode == GameCore.MODE_COMBAT) {
             combat(s);
@@ -108,6 +110,39 @@ public final class SimulationHarness {
             }
         }
         return false;
+    }
+
+    private static int chooseMapNode(GameCore.State s) {
+        int best = -1;
+        int bestScore = -9999;
+        for (int i = 0; i < s.map.size(); i++) {
+            GameCore.MapNode n = s.map.get(i);
+            boolean reachable = n.available || (s.relics.contains("night_map") && n.floor == s.floor + 1);
+            if (!reachable) continue;
+            int score = nodeScore(s, n);
+            if (score > bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private static int nodeScore(GameCore.State s, GameCore.MapNode n) {
+        int score = 0;
+        if (n.type == 'E') score += s.hp > s.maxHp * 0.45f ? 28 : 8;
+        else if (n.type == 'C') score += 16;
+        else if (n.type == '?') score += 10;
+        else if (n.type == '$') score += s.gold >= 90 ? 18 : 6;
+        else if (n.type == 'R') score += s.hp < s.maxHp * 0.65f ? 30 : hasUpgradableCard(s) ? 16 : 4;
+        else if (n.type == 'B') score += 100;
+        if (n.route == GameCore.ROUTE_SUPPLY) score += s.hp < s.maxHp * 0.75f ? 22 : 8;
+        else if (n.route == GameCore.ROUTE_RICH) score += 14;
+        else if (n.route == GameCore.ROUTE_SECRET) score += 12;
+        else if (n.route == GameCore.ROUTE_FORGE) score += hasUpgradableCard(s) ? 16 : 8;
+        else if (n.route == GameCore.ROUTE_DANGER) score += s.hp > s.maxHp * 0.55f ? 14 : -8;
+        else if (n.route == GameCore.ROUTE_AMBUSH) score += s.hp > s.maxHp * 0.6f ? 10 : -12;
+        return score;
     }
 
     private static void combat(GameCore.State s) {
@@ -172,5 +207,6 @@ public final class SimulationHarness {
         int losses;
         int stalled;
         int floorSum;
+        int routeNodes;
     }
 }
