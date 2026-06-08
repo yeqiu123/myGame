@@ -265,6 +265,12 @@ public final class SimulationHarness {
                 if (s.relics.contains("pattern_spool") && (d.upgradeRandom || d.draw > 0)) score += 6;
                 if (s.relics.contains("spirit_bell") && (d.createEcho || c.temp || d.bind > 0)) score += 6;
                 if (s.relics.contains("hex_tablet") && (d.vulnerable > 0 || d.createWound)) score += 6;
+                if (s.relics.contains("emberroot_charm") && (d.burn > 0 || d.bind > 0)) score += 8;
+                if (s.relics.contains("stormglass_seal") && ((d.draw > 0 && d.block > 0) || (d.damage > 0 && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0)))) score += 8;
+                if (s.relics.contains("curse_censer") && (d.exhaust || c.temp || d.type == 3 || d.createWound)) score += 9;
+                if (s.relics.contains("bloodcoin_broach") && (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id))) score += 8;
+                if (s.relics.contains("mirror_anvil") && (c.upgraded || d.upgradeRandom)) score += 8;
+                if (s.relics.contains("rift_compass") && isOffPoolCard(s, d)) score += 10;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -299,6 +305,12 @@ public final class SimulationHarness {
                 || s.relics.contains("echo_prism") || s.relics.contains("ledger_stamp")
                 || s.relics.contains("crimson_seal") || s.relics.contains("pattern_spool")
                 || s.relics.contains("spirit_bell") || s.relics.contains("hex_tablet");
+    }
+
+    private static boolean isOffPoolCard(GameCore.State s, GameCore.CardDef d) {
+        boolean offOrigin = !"通用".equals(d.origin) && !d.origin.equals(s.origin);
+        boolean offProfession = d.profession.length() > 0 && !d.profession.equals(s.profession);
+        return offOrigin || offProfession;
     }
 
     private static int firstEnemy(GameCore.State s) {

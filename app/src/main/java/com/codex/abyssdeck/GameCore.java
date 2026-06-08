@@ -3310,6 +3310,75 @@ public final class GameCore {
                 draw(s, 1);
             }
         }
+        if (hasRelic(s, "emberroot_charm") && (d.burn > 0 || d.bind > 0)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.burn > 0) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+                if (d.bind > 0) {
+                    e.burn += 1 + s.burnPower / 2;
+                }
+            }
+        }
+        if (hasRelic(s, "stormglass_seal")) {
+            if (d.draw > 0 && d.block > 0) {
+                gainBlock(s, 2 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (d.damage > 0 && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy)) {
+                gainBlock(s, 3 + s.act);
+            }
+        }
+        if (hasRelic(s, "curse_censer") && (d.exhaust || c.temp || d.type == 3 || d.createWound)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.vulnerable += 1;
+                damageEnemy(s, e, 4 + s.act * 2, true);
+            }
+            if (d.type == 3) {
+                gainBlock(s, 3 + s.act);
+            }
+        }
+        if (hasRelic(s, "bloodcoin_broach")) {
+            if (d.hpLoss > 0 || "wound".equals(c.id)) {
+                s.gold += 3 + s.act;
+                gainBlock(s, 2 + s.act);
+            }
+            if (d.goldGain > 0 || d.goldDamage || d.goldBlock) {
+                s.hp = Math.min(s.maxHp, s.hp + 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasRelic(s, "mirror_anvil") && c.upgraded) {
+            if (d.type == 0) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    damageEnemy(s, e, 4 + s.act * 2, true);
+                }
+            } else if (d.type == 1) {
+                gainBlock(s, 4 + s.act);
+            } else if (d.type == 2) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasRelic(s, "mirror_anvil") && d.upgradeRandom) {
+            addProfessionSkillCharge(s, 1);
+        }
+        if (hasRelic(s, "rift_compass")) {
+            boolean offOrigin = !"通用".equals(d.origin) && !d.origin.equals(s.origin);
+            boolean offProfession = d.profession.length() > 0 && !d.profession.equals(s.profession);
+            if (offOrigin || offProfession) {
+                gainBlock(s, 3 + s.act);
+                if (offOrigin) {
+                    draw(s, 1);
+                }
+                if (offProfession) {
+                    addProfessionSkillCharge(s, 1);
+                }
+            }
+        }
         if (hasRelic(s, "opal_scar") && s.cardsPlayedThisTurn == 3) {
             gainBlock(s, 7);
         }
@@ -4105,7 +4174,28 @@ public final class GameCore {
         if (PROF_HEXER.equals(s.profession) && ("hex_tablet".equals(id) || "scar_talisman".equals(id) || "hollow_crown".equals(id) || "arcane_ink".equals(id) || "void_abacus".equals(id))) {
             return 2;
         }
+        if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
+                && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
+            return 2;
+        }
+        if ((PROF_ARCANIST.equals(s.profession) || PROF_HEXER.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession))
+                && ("curse_censer".equals(id) || "bloodcoin_broach".equals(id))) {
+            return 2;
+        }
+        if ((PROF_WEAVER.equals(s.profession) || PROF_WARDEN.equals(s.profession) || PROF_DUELIST.equals(s.profession))
+                && "mirror_anvil".equals(id)) {
+            return 2;
+        }
+        if ("rift_compass".equals(id)) {
+            return 1;
+        }
         if (ORIGIN_WILD.equals(s.origin) && "vital_sprout".equals(id)) {
+            return 2;
+        }
+        if ((ORIGIN_ASH.equals(s.origin) || ORIGIN_WILD.equals(s.origin)) && "emberroot_charm".equals(id)) {
+            return 2;
+        }
+        if ((ORIGIN_STEEL.equals(s.origin) || ORIGIN_VOID.equals(s.origin)) && "stormglass_seal".equals(id)) {
             return 2;
         }
         return 0;
@@ -4566,6 +4656,12 @@ public final class GameCore {
         addRelicDef("vital_sprout", "活芽", "治疗牌额外获得格挡，并给首个敌人施加束缚。");
         addRelicDef("tithe_box", "什一匣", "获得时得到金币；金币牌追加穿透伤害。");
         addRelicDef("polished_cog", "抛光齿轮", "获得时升级一张牌；每回合前两张升级牌额外提供格挡。");
+        addRelicDef("emberroot_charm", "烬根符", "燃灼牌追加束缚，束缚牌追加燃灼，连接火焰与控制构筑。");
+        addRelicDef("stormglass_seal", "岚玻印", "抽牌并格挡的牌追加格挡和职业技充能；带异常的攻击追加格挡。");
+        addRelicDef("curse_censer", "咒香炉", "消耗、临时、状态与造伤牌会施加易伤并触发穿透伤害。");
+        addRelicDef("bloodcoin_broach", "血金币针", "自损和裂伤牌提供金币与格挡；金币牌少量治疗并给职业技充能。");
+        addRelicDef("mirror_anvil", "镜砧", "升级牌按类型追加收益；升级手牌的牌也会推动职业技。");
+        addRelicDef("rift_compass", "裂隙罗盘", "打出非本派系或其他职业牌时获得资源，鼓励跨池混搭。");
         addRelicDef("command_banner", "号令战旗", "守卫职业技更快充能；释放后追加格挡与穿透反击。");
         addRelicDef("flash_heel", "闪击鞋钉", "决斗者连打后职业技更快充能；释放后抽牌，连打足够时获得能量。");
         addRelicDef("catalyst_pump", "催化泵", "炼金师持有药剂时职业技更快充能；释放后追加异常。");
