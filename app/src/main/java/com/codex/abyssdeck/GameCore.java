@@ -106,11 +106,13 @@ public final class GameCore {
     public static final String PROF_ASTROLOGER = "星象师";
     public static final String PROF_MACHINIST = "机巧师";
     public static final String PROF_CHRONOMANCER = "时术师";
+    public static final String PROF_PACTMAKER = "契约师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
-            PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER
+            PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
+            PROF_PACTMAKER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -573,6 +575,21 @@ public final class GameCore {
             }
             log(s, "试炼卷宗归档誓约，下场职业技更快启动。");
         }
+        if (PROF_PACTMAKER.equals(s.profession)) {
+            int contractGold = 10 + s.act * 3 + s.pactFulfilled * 6;
+            s.gold += contractGold;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + Math.min(3, s.pactFulfilled));
+            if (s.pactFulfilled == 1) {
+                addUpgradedDeckCard(s, "pactmaker_clause");
+            } else if (s.pactFulfilled == 2) {
+                addUpgradedDeckCard(s, "pactmaker_witness");
+                upgradeRandomDeckCard(s);
+            } else if (s.pactFulfilled >= 3) {
+                addUpgradedDeckCard(s, "pactmaker_overdeal");
+                upgradeRandomDeckCard(s);
+            }
+            log(s, "契约师归档誓约，追加入账 " + contractGold + " 金币。");
+        }
         log(s, "完成誓约：" + (p == null ? s.pact : p.name) + " " + s.pactFulfilled + "/3，获得 " + gold + " 金币。");
         if (s.pactFulfilled == 3) {
             awardPactCompletion(s);
@@ -767,6 +784,7 @@ public final class GameCore {
         if (PROF_ASTROLOGER.equals(profession)) return "星盘";
         if (PROF_MACHINIST.equals(profession)) return "总装";
         if (PROF_CHRONOMANCER.equals(profession)) return "回溯";
+        if (PROF_PACTMAKER.equals(profession)) return "兑现";
         return "职业技";
     }
 
@@ -818,6 +836,7 @@ public final class GameCore {
         if (PROF_ASTROLOGER.equals(profession)) return "满充能：观测星轨，按检视、临时牌与汇流链抽牌、加固并标记敌人。";
         if (PROF_MACHINIST.equals(profession)) return "满充能：消耗装配，对目标穿透轰击，获得格挡、抽牌并制造临时机巧牌。";
         if (PROF_CHRONOMANCER.equals(profession)) return "满充能：消耗时砂回溯资源，抽牌返能，制造临时刻秒并按节奏标记敌人。";
+        if (PROF_PACTMAKER.equals(profession)) return "满充能：兑现战斗目标、誓约与金币，把进度转成格挡、印记、抽牌和返能。";
         return "选择职业后可用。";
     }
 
@@ -1090,6 +1109,54 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(0, sand / 2);
+        } else if (PROF_PACTMAKER.equals(s.profession)) {
+            int progress = pactmakerQuestProgress(s);
+            int targetGoal = Math.max(1, s.questTarget);
+            int progressBonus = s.combatQuest == QUEST_NONE ? Math.min(14, s.cardsPlayedThisTurn * 2)
+                    : Math.min(24, progress * 24 / targetGoal);
+            int fulfilled = Math.min(3, Math.max(0, s.pactFulfilled));
+            int pressure = Math.min(18, bestEnemyPressure(s) / 2);
+            int goldPulse = Math.min(18, s.gold / 24);
+            boolean completed = pactmakerQuestReady(s);
+            int damage = 10 + s.act * 3 + progressBonus + fulfilled * 5 + goldPulse + pressure + overload * 4;
+            if (completed) {
+                damage += 7 + s.act * 2;
+            }
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 1 + fulfilled + overload / 2;
+                target.vulnerable += 1 + overload / 4 + (completed ? 1 : 0);
+                if (completed || fulfilled >= 2) {
+                    target.bind += 1 + s.bindPower / 2;
+                }
+            }
+            gainBlock(s, 7 + s.act * 2 + progressBonus / 2 + fulfilled * 4 + Math.min(12, s.gold / 45) + overload * 3);
+            int income = 6 + s.act * 2 + fulfilled * 4 + overload * 2 + (completed ? 8 : 0);
+            s.gold += income;
+            addQuestProgress(s, QUEST_TREASURE, 1 + fulfilled);
+            addQuestProgress(s, QUEST_BLOODCOIN, 1 + (income >= 14 ? 1 : 0));
+            addQuestProgress(s, QUEST_MARK, 1 + fulfilled + overload / 3);
+            if (completed || fulfilled > 0) {
+                draw(s, 1 + overload / 4);
+                addProfessionSkillCharge(s, 1 + fulfilled / 2);
+            }
+            if (completed || fulfilled >= 2 || overload >= 3) {
+                s.energy++;
+            }
+            Card clause = new Card(overload >= 4 || hasTalent(s, "t_pactmaker_grand") ? "pactmaker_overdeal" : "pactmaker_clause");
+            clause.temp = true;
+            clause.upgraded = completed || hasTalent(s, "t_pactmaker_notary");
+            addToHand(s, clause);
+            if (hasTalent(s, "t_pactmaker_grand")) {
+                Enemy e = target != null && target.hp > 0 ? target : firstLiving(s);
+                if (e != null) {
+                    e.mark += 1;
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(16, e.mark * 2 + progressBonus), true);
+                }
+                if (completed || overload >= 3) {
+                    draw(s, 1);
+                }
+            }
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2338,6 +2405,9 @@ public final class GameCore {
         if (PROF_CHRONOMANCER.equals(profession)) {
             return "积累时砂，在低费、抽牌、返能和临时牌之间回溯节奏。适合循环、回声、过载和精准爆发构筑。";
         }
+        if (PROF_PACTMAKER.equals(profession)) {
+            return "围绕战斗目标、誓约、金币与异常证词滚动收益，把兑现进度转成格挡、印记、抽牌、返能和终局合约爆发。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2389,6 +2459,9 @@ public final class GameCore {
         }
         if (PROF_CHRONOMANCER.equals(profession)) {
             return 0xffb7a7ff;
+        }
+        if (PROF_PACTMAKER.equals(profession)) {
+            return 0xffd8b067;
         }
         return 0xffd6c07a;
     }
@@ -2633,6 +2706,13 @@ public final class GameCore {
             s.maxHp += 1;
             s.hp += 1;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_PACTMAKER.equals(profession)) {
+            s.deck.add(new Card("pactmaker_clause"));
+            s.deck.add(new Card("pactmaker_collection"));
+            s.gold += 20;
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -2670,6 +2750,7 @@ public final class GameCore {
         else if (PROF_ASTROLOGER.equals(profession)) upgradeDeckCard(s, "astrologer_chart");
         else if (PROF_MACHINIST.equals(profession)) upgradeDeckCard(s, "machinist_spanner");
         else if (PROF_CHRONOMANCER.equals(profession)) upgradeDeckCard(s, "chronomancer_tick");
+        else if (PROF_PACTMAKER.equals(profession)) upgradeDeckCard(s, "pactmaker_clause");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -2722,6 +2803,10 @@ public final class GameCore {
         } else if (PROF_CHRONOMANCER.equals(profession)) {
             addUpgradedDeckCard(s, "chronomancer_loop");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_PACTMAKER.equals(profession)) {
+            addUpgradedDeckCard(s, "pactmaker_witness");
+            s.gold += 35;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -2742,6 +2827,7 @@ public final class GameCore {
         if (PROF_ASTROLOGER.equals(profession)) return "astrologer_overstar";
         if (PROF_MACHINIST.equals(profession)) return "machinist_overdrive";
         if (PROF_CHRONOMANCER.equals(profession)) return "chronomancer_overloop";
+        if (PROF_PACTMAKER.equals(profession)) return "pactmaker_overdeal";
         return "forge_signal";
     }
 
@@ -2987,6 +3073,20 @@ public final class GameCore {
         } else if ("t_chronomancer_grand".equals(id)) {
             addUpgradedDeckCard(s, "chronomancer_time_engine");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_pactmaker_notary".equals(id)) {
+            addUpgradedDeckCard(s, "pactmaker_witness");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_pactmaker_collector".equals(id)) {
+            addUpgradedDeckCard(s, "pactmaker_collection");
+            s.gold += 70;
+        } else if ("t_pactmaker_bloodseal".equals(id)) {
+            addUpgradedDeckCard(s, "pactmaker_bloodnote");
+            s.maxHp += 4;
+            s.hp += 4;
+            addStatusCard(s, "wound");
+        } else if ("t_pactmaker_grand".equals(id)) {
+            addUpgradedDeckCard(s, "pactmaker_grand_contract");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -3004,7 +3104,8 @@ public final class GameCore {
                 || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id)
                 || "t_inscriber_grandcodex".equals(id) || "t_tuner_grand".equals(id)
                 || "t_adjudicator_grand".equals(id) || "t_astrologer_grand".equals(id)
-                || "t_machinist_grand".equals(id) || "t_chronomancer_grand".equals(id);
+                || "t_machinist_grand".equals(id) || "t_chronomancer_grand".equals(id)
+                || "t_pactmaker_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -3015,7 +3116,8 @@ public final class GameCore {
                 || "summoner_procession".equals(id) || "hexer_crownfall".equals(id)
                 || "inscriber_codex".equals(id) || "tuner_grand_cadence".equals(id)
                 || "adjudicator_final_decree".equals(id) || "astrologer_grand_orrery".equals(id)
-                || "machinist_grand_engine".equals(id) || "chronomancer_time_engine".equals(id);
+                || "machinist_grand_engine".equals(id) || "chronomancer_time_engine".equals(id)
+                || "pactmaker_grand_contract".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -3026,7 +3128,8 @@ public final class GameCore {
                 || "spirit_processional".equals(id) || "fallen_crown".equals(id)
                 || "living_codex".equals(id) || "conductor_baton".equals(id)
                 || "judgment_codex".equals(id) || "celestial_orrery".equals(id)
-                || "clockwork_core".equals(id) || "time_engine".equals(id);
+                || "clockwork_core".equals(id) || "time_engine".equals(id)
+                || "grand_ledger".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -3432,6 +3535,9 @@ public final class GameCore {
                 || d.skillChargeGain > 0 || d.energyGain > 0 || d.block > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MACHINIST))) amount++;
         else if (PROF_CHRONOMANCER.equals(s.profession) && d != null && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
                 || d.skillChargeGain > 0 || d.createEcho || d.exhaust || d.profession.equals(PROF_CHRONOMANCER))) amount++;
+        else if (PROF_PACTMAKER.equals(s.profession) && d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.createWound || d.draw > 0
+                || d.type == 1 || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_PACTMAKER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -3934,6 +4040,22 @@ public final class GameCore {
             if (level >= 3 || s.cardsPlayedThisTurn >= 4 || overload >= 3) {
                 s.energy++;
             }
+        } else if (PROF_PACTMAKER.equals(s.profession)) {
+            int progress = Math.min(20, pactmakerQuestProgress(s));
+            int fulfilled = Math.min(3, Math.max(0, s.pactFulfilled));
+            int income = 5 + level * 4 + s.act * 2 + fulfilled * 3 + overload * 2;
+            s.gold += income;
+            gainBlock(s, 4 + level * 3 + progress / 2 + fulfilled * 3 + overload);
+            addProfessionSkillCharge(s, level + overload / 2);
+            if (target != null) {
+                target.mark += level + fulfilled + overload / 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(18, progress + fulfilled * 4), true);
+            }
+            if (pactmakerQuestReady(s) || fulfilled >= 2 || level >= 3) {
+                draw(s, 1);
+                s.energy += overload >= 3 ? 1 : 0;
+            }
         }
     }
 
@@ -4084,6 +4206,30 @@ public final class GameCore {
             }
             draw(s, 1);
         }
+        if (hasRelic(s, "contract_stamp") && PROF_PACTMAKER.equals(s.profession)) {
+            int progress = Math.min(14, pactmakerQuestProgress(s));
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.pactFulfilled));
+            gainBlock(s, 4 + s.act + progress / 2);
+            if (target != null) {
+                target.mark += 1 + Math.min(2, s.pactFulfilled);
+                damageEnemy(s, target, 5 + s.act * 2 + progress, true);
+            }
+            s.gold += 8 + s.act * 2;
+        }
+        if (hasRelic(s, "grand_ledger") && PROF_PACTMAKER.equals(s.profession)) {
+            draw(s, 1);
+            Card clause = new Card("pactmaker_clause");
+            clause.temp = true;
+            clause.upgraded = true;
+            addToHand(s, clause);
+            if (target != null) {
+                target.vulnerable += 1;
+                target.mark += 2;
+            }
+            if (pactmakerQuestReady(s) || s.pactFulfilled >= 2) {
+                s.energy++;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -4112,6 +4258,8 @@ public final class GameCore {
                 && (s.professionCharge >= 3 || s.confluenceChain >= 2 || upgradedCardCount(s) >= 5)) amount++;
         if (hasRelic(s, "hourglass_charm") && PROF_CHRONOMANCER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.cardsPlayedThisTurn >= 3 || s.hand.size() >= 5)) amount++;
+        if (hasRelic(s, "contract_stamp") && PROF_PACTMAKER.equals(s.profession) && amount > 0
+                && (s.questComplete || s.pactFulfilled > 0 || s.gold >= 120)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -4283,6 +4431,7 @@ public final class GameCore {
         }
         if (quest == QUEST_BLOODCOIN && (PROF_MERCHANT.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
                 || PROF_HEXER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession) || PROF_ADJUDICATOR.equals(s.profession)
+                || PROF_PACTMAKER.equals(s.profession)
                 || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
                 || hasTalent(s, "t_hexer_darkdeal") || hasRelic(s, "bloodcoin_broach") || hasRelic(s, "kingmaker_seal"))) {
             return true;
@@ -4293,8 +4442,9 @@ public final class GameCore {
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
         }
-        if (quest == QUEST_TREASURE && (PROF_MERCHANT.equals(s.profession) || hasTalent(s, "t_merchant_interest")
-                || hasTalent(s, "t_merchant_monopoly") || hasRelic(s, "tithe_box") || hasRelic(s, "kingmaker_seal"))) {
+        if (quest == QUEST_TREASURE && (PROF_MERCHANT.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
+                || hasTalent(s, "t_merchant_interest") || hasTalent(s, "t_merchant_monopoly")
+                || hasRelic(s, "tithe_box") || hasRelic(s, "kingmaker_seal"))) {
             return true;
         }
         if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession)
@@ -4305,7 +4455,7 @@ public final class GameCore {
         }
         if (quest == QUEST_MARK && (PROF_RANGER.equals(s.profession) || PROF_TUNER.equals(s.profession)
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
-                || PROF_CHRONOMANCER.equals(s.profession)
+                || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
                 || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
@@ -4317,7 +4467,7 @@ public final class GameCore {
                 && (hasSkillRelic(s) || PROF_TUNER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
                 || PROF_ARCANIST.equals(s.profession) || PROF_WEAVER.equals(s.profession)
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
-                || PROF_CHRONOMANCER.equals(s.profession))) {
+                || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -4339,7 +4489,9 @@ public final class GameCore {
                     || "adjudicator_final_decree".equals(d.id) || "machinist_turret".equals(d.id)
                     || "machinist_overdrive".equals(d.id) || "machinist_grand_engine".equals(d.id)
                     || "chronomancer_tick".equals(d.id) || "chronomancer_anchor".equals(d.id)
-                    || "chronomancer_overloop".equals(d.id) || "chronomancer_time_engine".equals(d.id))) return true;
+                    || "chronomancer_overloop".equals(d.id) || "chronomancer_time_engine".equals(d.id)
+                    || "pactmaker_clause".equals(d.id) || "pactmaker_witness".equals(d.id)
+                    || "pactmaker_overdeal".equals(d.id) || "pactmaker_grand_contract".equals(d.id))) return true;
             if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
@@ -5045,6 +5197,29 @@ public final class GameCore {
                 tick.temp = true;
                 tick.upgraded = true;
                 addToHand(s, tick);
+            }
+        }
+        if (PROF_PACTMAKER.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 1 + Math.min(2, s.pactFulfilled));
+            s.gold += 4 + s.act * 2;
+            gainBlock(s, 3 + s.act + Math.min(6, s.gold / 70));
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+                firstLiving(s).vulnerable += s.pactFulfilled > 0 ? 1 : 0;
+            }
+            if (hasTalent(s, "t_pactmaker_notary")) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_pactmaker_collector")) {
+                s.gold += 8 + s.act * 3;
+            }
+            if (hasTalent(s, "t_pactmaker_grand")) {
+                Card clause = new Card("pactmaker_clause");
+                clause.temp = true;
+                clause.upgraded = true;
+                addToHand(s, clause);
+                addProfessionSkillCharge(s, 1);
             }
         }
         if (hasRelic(s, "steel_oath") && s.turn == 1) {
@@ -6189,6 +6364,58 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("pactmaker_clause".equals(d.id) && target != null) {
+            int progress = pactmakerQuestProgress(s);
+            damage += Math.min(c.upgraded ? 18 : 12, progress / 2 + Math.min(8, s.gold / 45) + s.pactFulfilled * 3);
+            target.mark += c.upgraded ? 2 : 1;
+            if (s.questComplete || s.pactFulfilled > 0) {
+                target.vulnerable += 1;
+            }
+        }
+        if ("pactmaker_collection".equals(d.id)) {
+            block += Math.min(c.upgraded ? 18 : 12, Math.max(0, s.gold / (c.upgraded ? 18 : 24)) + s.pactFulfilled * 3);
+            if (s.gold >= 120 || s.questComplete) {
+                draw += 1;
+            }
+        }
+        if ("pactmaker_bloodnote".equals(d.id)) {
+            block += Math.min(c.upgraded ? 16 : 10, statusDeckCards(s) * 3 + Math.max(0, s.maxHp - s.hp) / 5);
+            if (s.hp <= s.maxHp * 2 / 3 || s.pactFulfilled > 0) {
+                draw += 1;
+            }
+        }
+        if ("pactmaker_witness".equals(d.id) && target != null) {
+            int pressure = bestEnemyPressure(s);
+            damage += Math.min(c.upgraded ? 30 : 21, pressure / 2 + pactmakerQuestProgress(s) + s.pactFulfilled * 4);
+            target.mark += c.upgraded ? 2 : 1;
+            if (pressure >= 8 || s.questComplete) {
+                draw += 1;
+            }
+        }
+        if ("pactmaker_overdeal".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            block += Math.min(c.upgraded ? 24 : 16, pactmakerQuestProgress(s) / 2 + overloadNow * 5 + s.pactFulfilled * 4);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                damage += Math.min(c.upgraded ? 26 : 18, overloadNow * 5 + Math.min(12, s.gold / 25));
+            }
+            if (overloadNow >= 2 || s.questComplete) {
+                draw += 1;
+            }
+        }
+        if ("pactmaker_grand_contract".equals(d.id)) {
+            int progress = pactmakerQuestProgress(s);
+            int fulfilled = Math.min(3, Math.max(0, s.pactFulfilled));
+            damage += Math.min(c.upgraded ? 46 : 34, progress * 2 + fulfilled * 8 + Math.min(16, s.gold / 20) + bestEnemyPressure(s) / 2);
+            block += Math.min(c.upgraded ? 34 : 24, progress + fulfilled * 6 + Math.min(16, s.gold / 32));
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.vulnerable += 1 + (fulfilled >= 2 ? 1 : 0);
+            }
+            if (s.questComplete || fulfilled >= 2 || c.upgraded) {
+                draw += 1;
+            }
+        }
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -6577,6 +6804,56 @@ public final class GameCore {
             }
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_ECHO, 1);
+        }
+        if ("pactmaker_clause".equals(d.id)) {
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+            if (target != null && target.mark >= 3) {
+                damageEnemy(s, target, 4 + s.act * 2 + Math.min(12, target.mark * 2), true);
+            }
+        }
+        if ("pactmaker_collection".equals(d.id)) {
+            s.gold += c.upgraded ? 12 : 8;
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 2 : 1);
+            if (s.questComplete || s.pactFulfilled > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("pactmaker_bloodnote".equals(d.id)) {
+            s.gold += c.upgraded ? 16 : 11;
+            addQuestProgress(s, QUEST_BLOODCOIN, c.upgraded ? 2 : 1);
+            if (s.hp <= s.maxHp * 2 / 3 || statusDeckCards(s) >= 2) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("pactmaker_witness".equals(d.id)) {
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            if (target != null) {
+                target.bind += 1 + s.bindPower / 2;
+            }
+            if (s.questComplete || bestEnemyPressure(s) >= 10) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("pactmaker_overdeal".equals(d.id)) {
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+            if (pactmakerQuestReady(s) || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+        }
+        if ("pactmaker_grand_contract".equals(d.id)) {
+            s.gold += c.upgraded ? 18 : 12;
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            Card clause = new Card("pactmaker_clause");
+            clause.temp = true;
+            clause.upgraded = c.upgraded || s.questComplete;
+            addToHand(s, clause);
+            if (s.questComplete || s.pactFulfilled >= 2) {
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
+            }
         }
         if ("hybrid_coinwall".equals(d.id)) {
             s.gold += c.upgraded ? 12 : 8;
@@ -7543,6 +7820,86 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_PACTMAKER.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.createWound
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_PACTMAKER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.goldGain > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_PACTMAKER)) {
+                    e.mark += 1;
+                }
+                if (s.questComplete || s.pactFulfilled > 0 || s.professionCharge >= 3) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(14, pactmakerQuestProgress(s) / 2 + e.mark * 2), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 4 + s.act + Math.min(10, s.pactFulfilled * 3 + s.gold / 55));
+                if (hasTalent(s, "t_pactmaker_notary") || s.questComplete) {
+                    draw(s, 1);
+                }
+                if (hasTalent(s, "t_pactmaker_collector")) {
+                    s.gold += 5 + s.act * 2;
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_pactmaker_notary") && (d.skillChargeGain > 0 || d.draw > 0 || d.vulnerable > 0 || d.bind > 0)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_pactmaker_collector") && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) {
+            s.gold += 3 + s.act;
+            gainBlock(s, 2 + s.act);
+        }
+        if (hasTalent(s, "t_pactmaker_bloodseal") && (d.hpLoss > 0 || d.createWound || "wound".equals(c.id) || "daze".equals(c.id))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.vulnerable += 1;
+                e.mark += 1;
+            }
+            s.gold += 2 + s.act;
+            if (s.hp <= s.maxHp * 2 / 3) {
+                gainBlock(s, 3 + s.act);
+            }
+        }
+        if (hasTalent(s, "t_pactmaker_grand") && (d.skillChargeGain > 0 || d.goldGain > 0 || d.vulnerable > 0 || d.bind > 0 || c.upgraded)) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.questComplete)) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(18, e.mark * 2 + pactmakerQuestProgress(s) / 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
+                gainBlock(s, 3 + s.act);
+                s.relicTriggersThisTurn++;
+            }
+        }
+        if (hasRelic(s, "grand_ledger") && (d.goldGain > 0 || d.hpLoss > 0 || d.createWound || d.vulnerable > 0
+                || d.bind > 0 || d.skillChargeGain > 0 || c.upgraded)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 4 || s.questComplete) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(18, e.mark * 2 + s.pactFulfilled * 4), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+            }
+        }
         if (hasRelic(s, "hourglass_charm") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || c.temp)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && s.cardsPlayedThisTurn >= 3) {
@@ -7959,6 +8316,27 @@ public final class GameCore {
             }
             log(s, "试炼卷宗记录目标达成，返还职业技资源。");
         }
+        if (PROF_PACTMAKER.equals(s.profession)) {
+            int progress = Math.max(1, pactmakerQuestProgress(s));
+            int fulfilled = Math.min(3, Math.max(0, s.pactFulfilled));
+            int income = 8 + s.act * 3 + fulfilled * 4;
+            s.gold += income;
+            gainBlock(s, 5 + s.act * 2 + Math.min(12, progress / 2 + fulfilled * 3));
+            addProfessionSkillCharge(s, 2 + Math.min(2, fulfilled));
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1 + fulfilled;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(14, progress), true);
+            }
+            if (hasTalent(s, "t_pactmaker_notary") || hasRelic(s, "contract_stamp")) {
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_pactmaker_grand") || hasRelic(s, "grand_ledger")) {
+                s.energy++;
+            }
+            log(s, "契约师登记目标达成，入账 " + income + " 金币。");
+        }
         if (!PROF_ADJUDICATOR.equals(s.profession)) {
             return;
         }
@@ -8021,6 +8399,29 @@ public final class GameCore {
         return s.questTarget > 0 && adjudicatorQuestProgress(s) >= s.questTarget;
     }
 
+    private static int pactmakerQuestProgress(State s) {
+        if (s == null) {
+            return 0;
+        }
+        if (s.combatQuest == QUEST_NONE) {
+            return Math.max(0, s.cardsPlayedThisTurn + s.pactFulfilled * 3 + Math.min(8, s.gold / 55));
+        }
+        return adjudicatorQuestProgress(s);
+    }
+
+    private static boolean pactmakerQuestReady(State s) {
+        if (s == null || s.combatQuest == QUEST_NONE) {
+            return false;
+        }
+        if (s.combatQuest == QUEST_SWIFT || s.combatQuest == QUEST_UNHURT || s.combatQuest == QUEST_LEAN) {
+            return false;
+        }
+        if (s.questComplete) {
+            return true;
+        }
+        return s.questTarget > 0 && pactmakerQuestProgress(s) >= s.questTarget;
+    }
+
     private static boolean questSucceeded(State s) {
         if (s.combatQuest == QUEST_NONE) {
             return false;
@@ -8045,6 +8446,16 @@ public final class GameCore {
             s.masterySkillCharge = Math.min(PROF_SKILL_MAX, Math.max(s.masterySkillCharge, charge + Math.min(2, s.pactFulfilled)));
             if (s.run.nextInt(100) < (hasTalent(s, "t_adjudicator_docket") ? 55 : 28)) {
                 upgradeRandomDeckCard(s);
+            }
+        }
+        if (PROF_PACTMAKER.equals(s.profession)) {
+            s.masterySkillCharge = Math.min(PROF_SKILL_MAX, Math.max(s.masterySkillCharge, 2 + Math.min(3, s.pactFulfilled)));
+            s.gold += 10 + s.act * 3 + Math.min(18, pactmakerQuestProgress(s));
+            if (hasTalent(s, "t_pactmaker_notary") || hasRelic(s, "contract_stamp") || s.run.nextInt(100) < 35) {
+                upgradeRandomDeckCard(s);
+            }
+            if ((s.combatKind == 'E' || s.combatKind == 'B') && !hasRelic(s, "grand_ledger")) {
+                addUpgradedDeckCard(s, s.pactFulfilled >= 2 ? "pactmaker_overdeal" : "pactmaker_witness");
             }
         }
         if (s.meta.questCompletions >= 10) {
@@ -8668,6 +9079,10 @@ public final class GameCore {
         if (PROF_CHRONOMANCER.equals(s.profession)) {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_ECHO ? 14 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 7 : focus == BUILD_STATUS ? 6 : 0;
         }
+        if (PROF_PACTMAKER.equals(s.profession)) {
+            return focus == BUILD_GOLD ? 20 : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_STATUS ? 12
+                    : focus == BUILD_BLOOD ? 8 : focus == BUILD_CYCLE || focus == BUILD_GUARD ? 6 : 0;
+        }
         return 0;
     }
 
@@ -8726,7 +9141,10 @@ public final class GameCore {
                     + ("machinist_blueprint".equals(d.id) ? 8 : 0) + ("machinist_cogcall".equals(d.id) ? 8 : 0)
                     + ("machinist_overdrive".equals(d.id) ? 12 : 0) + ("machinist_grand_engine".equals(d.id) ? 10 : 0)
                     + ("chronomancer_tick".equals(d.id) ? 6 : 0) + ("chronomancer_loop".equals(d.id) ? 8 : 0)
-                    + ("chronomancer_overloop".equals(d.id) ? 12 : 0) + ("chronomancer_time_engine".equals(d.id) ? 10 : 0);
+                    + ("chronomancer_overloop".equals(d.id) ? 12 : 0) + ("chronomancer_time_engine".equals(d.id) ? 10 : 0)
+                    + ("pactmaker_clause".equals(d.id) ? 6 : 0) + ("pactmaker_collection".equals(d.id) ? 7 : 0)
+                    + ("pactmaker_witness".equals(d.id) ? 6 : 0) + ("pactmaker_overdeal".equals(d.id) ? 12 : 0)
+                    + ("pactmaker_grand_contract".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_ECHO) {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
@@ -8750,12 +9168,16 @@ public final class GameCore {
         if (focus == BUILD_GOLD) {
             return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0)
                     + ("golden_engine".equals(d.id) ? 10 : 0) + ("hybrid_blood_tithe".equals(d.id) ? 12 : 0)
-                    + ("hybrid_rift_engine".equals(d.id) ? 3 : 0) + ("hybrid_coinwall".equals(d.id) ? 12 : 0);
+                    + ("hybrid_rift_engine".equals(d.id) ? 3 : 0) + ("hybrid_coinwall".equals(d.id) ? 12 : 0)
+                    + ("pactmaker_collection".equals(d.id) ? 12 : 0) + ("pactmaker_bloodnote".equals(d.id) ? 10 : 0)
+                    + ("pactmaker_clause".equals(d.id) ? 5 : 0) + ("pactmaker_overdeal".equals(d.id) ? 6 : 0)
+                    + ("pactmaker_grand_contract".equals(d.id) ? 14 : 0);
         }
         if (focus == BUILD_BLOOD) {
             return d.hpLoss * 4 + d.heal * 2 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0)
                     + ("crimson_loop".equals(d.id) ? 10 : 0) + ("hybrid_blood_tithe".equals(d.id) ? 12 : 0)
-                    + ("hybrid_bloodcharge".equals(d.id) ? 12 : 0);
+                    + ("hybrid_bloodcharge".equals(d.id) ? 12 : 0) + ("pactmaker_bloodnote".equals(d.id) ? 14 : 0)
+                    + ("pactmaker_grand_contract".equals(d.id) ? 6 : 0);
         }
         if (focus == BUILD_FORGE) {
             return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0)
@@ -8780,7 +9202,9 @@ public final class GameCore {
                     + ("machinist_turret".equals(d.id) ? 8 : 0) + ("machinist_overdrive".equals(d.id) ? 6 : 0)
                     + ("machinist_grand_engine".equals(d.id) ? 8 : 0)
                     + ("chronomancer_tick".equals(d.id) ? 6 : 0) + ("chronomancer_anchor".equals(d.id) ? 5 : 0)
-                    + ("chronomancer_overloop".equals(d.id) ? 6 : 0) + ("chronomancer_time_engine".equals(d.id) ? 8 : 0);
+                    + ("chronomancer_overloop".equals(d.id) ? 6 : 0) + ("chronomancer_time_engine".equals(d.id) ? 8 : 0)
+                    + ("pactmaker_clause".equals(d.id) ? 8 : 0) + ("pactmaker_witness".equals(d.id) ? 12 : 0)
+                    + ("pactmaker_overdeal".equals(d.id) ? 8 : 0) + ("pactmaker_grand_contract".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_CYCLE) {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
@@ -8800,7 +9224,9 @@ public final class GameCore {
                     + ("machinist_grand_engine".equals(d.id) ? 8 : 0)
                     + ("chronomancer_tick".equals(d.id) ? 12 : 0) + ("chronomancer_rewind".equals(d.id) ? 10 : 0)
                     + ("chronomancer_loop".equals(d.id) ? 14 : 0) + ("chronomancer_overloop".equals(d.id) ? 10 : 0)
-                    + ("chronomancer_time_engine".equals(d.id) ? 10 : 0);
+                    + ("chronomancer_time_engine".equals(d.id) ? 10 : 0) + ("pactmaker_clause".equals(d.id) ? 8 : 0)
+                    + ("pactmaker_collection".equals(d.id) ? 10 : 0) + ("pactmaker_overdeal".equals(d.id) ? 10 : 0)
+                    + ("pactmaker_grand_contract".equals(d.id) ? 6 : 0);
         }
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
@@ -8813,7 +9239,9 @@ public final class GameCore {
                     + ("machinist_cogcall".equals(d.id) ? 8 : 0) + ("machinist_overdrive".equals(d.id) ? 12 : 0)
                     + ("machinist_grand_engine".equals(d.id) ? 10 : 0)
                     + ("chronomancer_rewind".equals(d.id) ? 8 : 0) + ("chronomancer_anchor".equals(d.id) ? 12 : 0)
-                    + ("chronomancer_overloop".equals(d.id) ? 8 : 0) + ("chronomancer_time_engine".equals(d.id) ? 10 : 0);
+                    + ("chronomancer_overloop".equals(d.id) ? 8 : 0) + ("chronomancer_time_engine".equals(d.id) ? 10 : 0)
+                    + ("pactmaker_collection".equals(d.id) ? 12 : 0) + ("pactmaker_overdeal".equals(d.id) ? 12 : 0)
+                    + ("pactmaker_grand_contract".equals(d.id) ? 10 : 0);
         }
         return 0;
     }
@@ -9027,6 +9455,10 @@ public final class GameCore {
         else if ("t_chronomancer_moment".equals(id)) bonus += zeroCost * 3 + buildFocusDeckCards(s, BUILD_CYCLE) * 2;
         else if ("t_chronomancer_clockwork".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_ECHO) * 2 + tempOrEchoDeckCards(s);
         else if ("t_chronomancer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_pactmaker_notary".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_pactmaker_collector".equals(id)) bonus += Math.min(16, s.gold / 25) + buildFocusDeckCards(s, BUILD_GOLD) * 2;
+        else if ("t_pactmaker_bloodseal".equals(id)) bonus += status * 3 + buildFocusDeckCards(s, BUILD_BLOOD) * 2 + (s.hp < s.maxHp * 0.75f ? 5 : 2);
+        else if ("t_pactmaker_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GOLD) + buildFocusDeckCards(s, BUILD_OVERLOAD) * 2 + buildFocusDeckCards(s, BUILD_STATUS);
         return Math.min(36, bonus);
     }
 
@@ -9037,7 +9469,8 @@ public final class GameCore {
                     "t_inscriber_grandcodex", "t_tuner_resonance", "t_tuner_grand", "t_adjudicator_docket",
                     "t_adjudicator_grand", "t_astrologer_ephemeris", "t_astrologer_grand",
                     "t_machinist_turret", "t_machinist_foundry", "t_machinist_grand",
-                    "t_chronomancer_clockwork", "t_chronomancer_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_chronomancer_clockwork", "t_chronomancer_grand", "t_pactmaker_notary",
+                    "t_pactmaker_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -9054,11 +9487,12 @@ public final class GameCore {
         if (focus == BUILD_GOLD) {
             return isAny(id, "t_shared_hunter", "t_shared_wayfarer", "t_merchant_interest",
                     "t_merchant_contract", "t_merchant_blackmarket", "t_merchant_monopoly",
-                    "t_hexer_darkdeal") ? 3 : 0;
+                    "t_hexer_darkdeal", "t_pactmaker_collector", "t_pactmaker_grand") ? 3 : 0;
         }
         if (focus == BUILD_BLOOD) {
             return isAny(id, "t_bloodbound_scar", "t_bloodbound_feast", "t_bloodbound_crimson",
-                    "t_bloodbound_hemocraft", "t_hexer_darkdeal", "t_hexer_abysscurse") ? 3 : 0;
+                    "t_bloodbound_hemocraft", "t_hexer_darkdeal", "t_hexer_abysscurse",
+                    "t_pactmaker_bloodseal") ? 3 : 0;
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "t_shared_masterwork", "t_warden_armory", "t_weaver_setup",
@@ -9074,7 +9508,8 @@ public final class GameCore {
                     "t_hexer_abysscurse", "t_inscriber_etching", "t_inscriber_archive",
                     "t_inscriber_grandcodex", "t_tuner_counterpoint", "t_tuner_grand", "t_adjudicator_clause",
                     "t_adjudicator_grand", "t_astrologer_constellation", "t_astrologer_grand",
-                    "t_machinist_turret", "t_machinist_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_machinist_turret", "t_machinist_grand", "t_pactmaker_notary",
+                    "t_pactmaker_bloodseal", "t_pactmaker_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -9083,13 +9518,15 @@ public final class GameCore {
                     "t_adjudicator_docket", "t_astrologer_chart", "t_astrologer_ephemeris",
                     "t_astrologer_grand", "t_machinist_blueprint", "t_machinist_foundry",
                     "t_machinist_grand", "t_chronomancer_anchor", "t_chronomancer_moment",
-                    "t_chronomancer_clockwork", "t_chronomancer_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_chronomancer_clockwork", "t_chronomancer_grand", "t_pactmaker_notary",
+                    "t_pactmaker_collector", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
                     "t_warden_vanguard", "t_ranger_net", "t_bloodbound_scar",
                     "t_summoner_bond", "t_weaver_grandpattern", "t_adjudicator_oath",
-                    "t_machinist_blueprint", "t_machinist_foundry", "t_chronomancer_anchor") ? 3 : 0;
+                    "t_machinist_blueprint", "t_machinist_foundry", "t_chronomancer_anchor",
+                    "t_pactmaker_collector", "t_pactmaker_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -9113,6 +9550,18 @@ public final class GameCore {
         if (isAny(id, "t_merchant_interest", "t_merchant_contract", "t_merchant_blackmarket", "t_merchant_monopoly")
                 && s.gold >= 120) {
             return "金币充足";
+        }
+        if (isAny(id, "t_pactmaker_collector", "t_pactmaker_grand")
+                && (s.gold >= 120 || buildFocusDeckCards(s, BUILD_GOLD) >= 2)) {
+            return "兑约入账";
+        }
+        if (isAny(id, "t_pactmaker_notary", "t_pactmaker_grand")
+                && (buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
+            return "目标见证";
+        }
+        if (isAny(id, "t_pactmaker_bloodseal")
+                && (statusDeckCards(s) > 0 || buildFocusDeckCards(s, BUILD_BLOOD) >= 2)) {
+            return "血署条款";
         }
         if (isAny(id, "t_bloodbound_scar", "t_bloodbound_feast", "t_summoner_bond", "t_shared_wayfarer")
                 && s.hp < s.maxHp * 0.75f) {
@@ -9370,7 +9819,7 @@ public final class GameCore {
                     "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
                     "warden_brand", "assembly_frame", "echoflow_charm", "markchain_seal", "discipline_chart", "overload_etch", "trial_ledger",
                     "tuning_fork", "conductor_baton", "verdict_seal", "judgment_codex", "gyro_wrench",
-                    "clockwork_core", "hourglass_charm", "time_engine", "split_anvil",
+                    "clockwork_core", "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "split_anvil",
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -9384,11 +9833,13 @@ public final class GameCore {
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
-                    "ledger_stamp", "kingmaker_seal", "bloodcoin_broach", "echo_ledger", "bloodspark_contract", "mosaic_core", "runic_shackle", "golden_throne") ? 3 : 0;
+                    "ledger_stamp", "kingmaker_seal", "bloodcoin_broach", "echo_ledger", "bloodspark_contract",
+                    "contract_stamp", "grand_ledger", "mosaic_core", "runic_shackle", "golden_throne") ? 3 : 0;
         }
         if (focus == BUILD_BLOOD) {
             return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
-                    "bloodspark_contract", "crimson_seal", "blood_crown", "blood_contract", "mosaic_core", "hex_moon") ? 3 : 0;
+                    "bloodspark_contract", "crimson_seal", "blood_crown", "contract_stamp", "grand_ledger",
+                    "blood_contract", "mosaic_core", "hex_moon") ? 3 : 0;
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
@@ -9399,18 +9850,21 @@ public final class GameCore {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
                     "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
                     "split_anvil", "bloodspark_contract", "tuning_fork", "conductor_baton", "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
-                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "warden_brand", "markchain_seal", "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger") ? 3 : 0;
+                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine",
+                    "contract_stamp", "grand_ledger", "warden_brand", "markchain_seal", "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
                 "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "conductor_baton", "gyro_wrench", "clockwork_core", "assembly_frame", "flash_heel", "pattern_spool",
-                    "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "echoflow_charm", "discipline_chart", "trial_ledger", "hourglass_charm", "time_engine") ? 3 : 0;
+                    "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "echoflow_charm", "discipline_chart", "trial_ledger",
+                    "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
                     "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach", "mirror_anvil",
                 "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "vigil_bloom", "command_banner", "aegis_throne", "gyro_wrench", "clockwork_core", "assembly_frame",
-                    "verdict_seal", "judgment_codex", "forge_heart", "discipline_chart", "trial_ledger", "hourglass_charm", "time_engine") ? 3 : 0;
+                    "verdict_seal", "judgment_codex", "forge_heart", "discipline_chart", "trial_ledger",
+                    "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger") ? 3 : 0;
         }
         return 0;
     }
@@ -9431,7 +9885,8 @@ public final class GameCore {
                 || (PROF_ADJUDICATOR.equals(s.profession) && "verdict_seal".equals(id))
                 || (PROF_ASTROLOGER.equals(s.profession) && "star_compass".equals(id))
                 || (PROF_MACHINIST.equals(s.profession) && "gyro_wrench".equals(id))
-                || (PROF_CHRONOMANCER.equals(s.profession) && "hourglass_charm".equals(id));
+                || (PROF_CHRONOMANCER.equals(s.profession) && "hourglass_charm".equals(id))
+                || (PROF_PACTMAKER.equals(s.profession) && "contract_stamp".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -9462,7 +9917,8 @@ public final class GameCore {
                 || hasRelic(s, "crimson_seal") || hasRelic(s, "pattern_spool") || hasRelic(s, "spirit_bell")
                 || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus") || hasRelic(s, "tuning_fork")
                 || hasRelic(s, "verdict_seal") || hasRelic(s, "star_compass") || hasRelic(s, "gyro_wrench")
-                || hasRelic(s, "hourglass_charm") || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
+                || hasRelic(s, "hourglass_charm") || hasRelic(s, "contract_stamp") || hasRelic(s, "grand_ledger")
+                || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
 
@@ -9578,6 +10034,12 @@ public final class GameCore {
                 || d.skillChargeGain > 0 || d.createEcho || d.exhaust || d.profession.equals(PROF_CHRONOMANCER))) {
             return 4;
         }
+        if (PROF_PACTMAKER.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.createWound
+                || d.draw > 0 || d.type == 1 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_PACTMAKER))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -9607,7 +10069,8 @@ public final class GameCore {
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
-            if ("focus_breath".equals(d.id) || "last_light".equals(d.id) || "blood_suture".equals(d.id)) bonus += 4;
+            if ("focus_breath".equals(d.id) || "last_light".equals(d.id) || "blood_suture".equals(d.id)
+                    || "pactmaker_collection".equals(d.id) || "pactmaker_bloodnote".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -9620,6 +10083,8 @@ public final class GameCore {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || "plague_vector".equals(d.id) || "status_spill".equals(d.id)) bonus += 3;
             if (d.skillChargeGain > 0 || d.draw > 0) bonus += 2;
+            if ("pactmaker_clause".equals(d.id) || "pactmaker_witness".equals(d.id)
+                    || "pactmaker_overdeal".equals(d.id) || "pactmaker_grand_contract".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -9636,7 +10101,9 @@ public final class GameCore {
             if ("clean_arc".equals(d.id) || "status_spill".equals(d.id) || "plague_vector".equals(d.id)
                     || "apex_confluence".equals(d.id) || "hybrid_hexdance".equals(d.id)
                     || "tuner_harmonic".equals(d.id) || "adjudicator_clause".equals(d.id)
-                    || "ranger_overmark".equals(d.id) || "inscriber_codex".equals(d.id)) bonus += 4;
+                    || "ranger_overmark".equals(d.id) || "inscriber_codex".equals(d.id)
+                    || "pactmaker_clause".equals(d.id) || "pactmaker_witness".equals(d.id)
+                    || "pactmaker_grand_contract".equals(d.id)) bonus += 4;
         }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
@@ -9648,7 +10115,9 @@ public final class GameCore {
         return "battle_trance".equals(id) || "double_step".equals(id) || "golden_focus".equals(id)
                 || "glass_sprint".equals(id) || "tuner_note".equals(id) || "tuner_loop".equals(id)
                 || "astrologer_chart".equals(id) || "astrologer_ephemeris".equals(id)
-                || "chronomancer_tick".equals(id) || "chronomancer_loop".equals(id);
+                || "chronomancer_tick".equals(id) || "chronomancer_loop".equals(id)
+                || "pactmaker_clause".equals(id) || "pactmaker_collection".equals(id)
+                || "pactmaker_overdeal".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -9737,6 +10206,14 @@ public final class GameCore {
         if (hasRelic(s, "time_engine") && (d.skillChargeGain > 0 || d.createEcho || d.energyGain > 0 || d.draw > 0 || d.rarity == 2)) {
             bonus += 4;
         }
+        if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || d.type == 1 || d.profession.equals(PROF_PACTMAKER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "grand_ledger") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.hpLoss > 0
+                || d.createWound || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || d.rarity == 2)) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -9770,7 +10247,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -9787,6 +10264,7 @@ public final class GameCore {
         if (PROF_ASTROLOGER.equals(s.profession)) return "star_compass";
         if (PROF_MACHINIST.equals(s.profession)) return "gyro_wrench";
         if (PROF_CHRONOMANCER.equals(s.profession)) return "hourglass_charm";
+        if (PROF_PACTMAKER.equals(s.profession)) return "contract_stamp";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -9896,6 +10374,15 @@ public final class GameCore {
         if (PROF_CHRONOMANCER.equals(s.profession) && "time_engine".equals(id)) {
             return 4;
         }
+        if (PROF_PACTMAKER.equals(s.profession) && ("contract_stamp".equals(id) || "trial_ledger".equals(id)
+                || "bloodcoin_broach".equals(id) || "curse_censer".equals(id) || "ledger_stamp".equals(id)
+                || "judgment_codex".equals(id) || "golden_throne".equals(id) || "kingmaker_seal".equals(id)
+                || "confluence_map".equals(id) || "tempo_metronome".equals(id))) {
+            return 2;
+        }
+        if (PROF_PACTMAKER.equals(s.profession) && "grand_ledger".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -9995,10 +10482,10 @@ public final class GameCore {
         if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown", "confluence_map", "split_anvil", "conductor_baton", "prism_gear")) return 1;
         if ("spec_resonance".equals(spec.id) && isAny(id, "mosaic_core", "starforge_lens")) return 1;
         if ("spec_mastery".equals(spec.id) && isSkillRelicForProfession(s, id)) return 2;
-        if ("spec_control".equals(spec.id) && isAny(id, "curse_censer", "stormglass_seal", "apex_compass", "fallen_crown", "judgment_codex", "hex_moon")) return 1;
+        if ("spec_control".equals(spec.id) && isAny(id, "curse_censer", "stormglass_seal", "apex_compass", "fallen_crown", "judgment_codex", "hex_moon", "contract_stamp", "grand_ledger")) return 1;
         if ("spec_assembly".equals(spec.id) && isAny(id, "mirror_anvil", "polished_cog", "confluence_map", "prism_gear", "starforge_lens", "clockwork_core")) return 1;
         if ("spec_echoflow".equals(spec.id) && isAny(id, "void_abacus", "echo_ledger", "echo_crown", "tempo_spindle", "moon_lantern", "tuning_fork", "hourglass_charm", "time_engine")) return 1;
-        if ("spec_markchain".equals(spec.id) && isAny(id, "hunter_mark", "root_drum", "stormglass_seal", "curse_censer", "apex_compass", "hex_moon", "conductor_baton", "judgment_codex", "warden_brand")) return 1;
+        if ("spec_markchain".equals(spec.id) && isAny(id, "hunter_mark", "root_drum", "stormglass_seal", "curse_censer", "apex_compass", "hex_moon", "conductor_baton", "judgment_codex", "warden_brand", "contract_stamp", "grand_ledger")) return 1;
         if (isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
         if ("spec_burst".equals(spec.id) && "overload_etch".equals(id)) return 2;
         if ("spec_tempo".equals(spec.id) && "discipline_chart".equals(id)) return 2;
@@ -10189,6 +10676,17 @@ public final class GameCore {
             upgradeRandomDeckCard(s);
             s.maxHp += 3;
             s.hp += 3;
+        } else if ("contract_stamp".equals(id)) {
+            addUpgradedDeckCard(s, "pactmaker_collection");
+            s.gold += 35;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("grand_ledger".equals(id)) {
+            addUpgradedDeckCard(s, "pactmaker_grand_contract");
+            upgradeRandomDeckCard(s);
+            s.gold += 55;
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
@@ -10696,6 +11194,19 @@ public final class GameCore {
         c = addCard("chronomancer_time_engine", "时轴引擎", "通用", 2, 2, 0, 9, 13, 8, 12, "造成伤害并获得格挡；按时砂、临时牌和连打追加终局收益，制造临时回环。", "更高伤害、格挡和时轴返还。");
         c.profession = PROF_CHRONOMANCER; c.draw = c.drawUp = 1; c.energyGain = 1; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("pactmaker_clause", "契约条款", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害并登记印记；金币、誓约和目标进度会提高条款伤害。", "更高伤害、更多印记，职业技充能更快。");
+        c.profession = PROF_PACTMAKER; c.vulnerable = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("pactmaker_collection", "收账步", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、金币和抽牌；富裕或目标完成时额外滚动资源。", "更多格挡和金币。");
+        c.profession = PROF_PACTMAKER; c.goldGain = 8; c.goldBlock = true; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("pactmaker_bloodnote", "血署契", "通用", 1, 1, 2, 0, 0, 4, 7, "失去生命，获得金币、治疗、抽牌并加入裂伤；低血线会转为更多格挡。", "损耗更低，金币、治疗和格挡更强。");
+        c.profession = PROF_PACTMAKER; c.hpLoss = 2; c.goldGain = 12; c.heal = 2; c.healUp = 4; c.draw = c.drawUp = 1; c.createWound = true; c.skillChargeGain = 1; c.exhaust = true;
+        c = addCard("pactmaker_witness", "见证印", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加易伤与束缚；敌方压力、目标进度和誓约兑现会追加爆发。", "更高伤害和控制。");
+        c.profession = PROF_PACTMAKER; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("pactmaker_overdeal", "过载兑约", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和职业技充能；过载、金币与目标完成会兑现额外伤害和返能。", "更多格挡，职业技充能+4。");
+        c.profession = PROF_PACTMAKER; c.draw = c.drawUp = 1; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("pactmaker_grand_contract", "终局契约", "通用", 2, 2, 0, 10, 15, 10, 14, "造成伤害并获得格挡；按目标、誓约、金币和异常压力追加终局收益，制造临时条款。", "更高伤害、格挡和终局返还。");
+        c.profession = PROF_PACTMAKER; c.goldGain = 12; c.goldBlock = true; c.vulnerable = 1; c.bind = 2; c.bindUp = 3; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -10921,6 +11432,7 @@ public final class GameCore {
         addRelicDef("star_compass", "星盘罗盘", "星象师观测、临时和充能牌更快推动职业技；释放后抽牌、标记并按星轨追击。");
         addRelicDef("gyro_wrench", "陀轮扳手", "机巧师升级、检视、充能和混搭牌更快推动职业技；释放后升级手牌、加固并按装配追击。");
         addRelicDef("hourglass_charm", "沙漏坠", "时术师低费、抽牌、返能和临时牌更快推动职业技；释放后抽牌、追加印记并回收时砂。");
+        addRelicDef("contract_stamp", "契印章", "契约师兑现目标、金币和誓约时职业技更快充能；释放后登记印记、格挡并入账金币。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -10937,6 +11449,7 @@ public final class GameCore {
         addRelicDef("celestial_orrery", "天体仪", "获得升级天体大仪；星象师检视、临时和升级牌会积累印记并定期升级手牌。");
         addRelicDef("clockwork_core", "机巧核心", "获得升级终局引擎；机巧师升级、临时、充能和汇流牌会积累印记并定期升级手牌。");
         addRelicDef("time_engine", "时轴机芯", "获得升级时轴引擎；时术师临时、返能、充能和循环牌会积累印记并定期续接回环。");
+        addRelicDef("grand_ledger", "总契账", "获得升级终局契约；目标、誓约、金币、自损和控制牌会滚动印记、抽牌与职业技资源。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -11113,6 +11626,9 @@ public final class GameCore {
         addTalent("t_chronomancer_anchor", PROF_CHRONOMANCER, "定格锚点", "获得生命和升级定格锚；首回合加固，技能、防御和第二张牌会追加格挡与充能。");
         addTalent("t_chronomancer_moment", PROF_CHRONOMANCER, "瞬刻裂隙", "获得升级回拨；低费、抽牌和返能节奏会在第3/5张牌制造临时刻秒。");
         addTalent("t_chronomancer_clockwork", PROF_CHRONOMANCER, "钟工回环", "获得升级回环术；充能、临时和回声牌每3张续抽，并把印记转为穿透追击。");
+        addTalent("t_pactmaker_notary", PROF_PACTMAKER, "公证人", "获得升级见证印；抽牌、充能和控制牌会追加印记，并在关键节奏补职业技。");
+        addTalent("t_pactmaker_collector", PROF_PACTMAKER, "收账专员", "获得金币和升级收账步；金币牌额外入账并提供格挡。");
+        addTalent("t_pactmaker_bloodseal", PROF_PACTMAKER, "血署封蜡", "获得生命和升级血署契；自损、裂伤和状态牌会登记印记、易伤和金币。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -11129,6 +11645,7 @@ public final class GameCore {
         addTalent("t_astrologer_grand", PROF_ASTROLOGER, "天穹仪式", "获得升级天体大仪；观测、临时、汇流与过载牌持续抽牌、升级并把印记转为星轨裁切。");
         addTalent("t_machinist_grand", PROF_MACHINIST, "总装核心", "获得升级终局引擎；装配、临时、汇流与过载牌持续抽牌、升级并把印记转为炮台裁切。");
         addTalent("t_chronomancer_grand", PROF_CHRONOMANCER, "终局回溯", "获得升级时轴引擎；低费、临时、循环与过载牌持续抽牌、充能并把印记转为时轴裁切。");
+        addTalent("t_pactmaker_grand", PROF_PACTMAKER, "总契终局", "获得升级终局契约；目标、誓约、金币与控制牌持续抽牌、返能并把印记转为兑约裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

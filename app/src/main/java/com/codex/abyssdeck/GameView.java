@@ -1193,6 +1193,17 @@ public final class GameView extends View {
             c.drawLine(cx, cy - size * 0.95f, cx, cy + size * 0.95f, p);
             c.drawLine(cx - size * 0.65f, cy - size * 0.65f, cx + size * 0.65f, cy + size * 0.65f, p);
             c.drawCircle(cx + size * 0.62f, cy - size * 0.42f, size * 0.18f, p);
+        } else if (GameCore.PROF_MACHINIST.equals(profession)) {
+            c.drawCircle(cx, cy, size * 0.92f, p);
+            c.drawCircle(cx, cy, size * 0.38f, p);
+            for (int i = 0; i < 8; i++) {
+                double a = Math.PI * 2 * i / 8.0;
+                float x1 = cx + (float) Math.cos(a) * size * 0.62f;
+                float y1 = cy + (float) Math.sin(a) * size * 0.62f;
+                float x2 = cx + (float) Math.cos(a) * size * 1.05f;
+                float y2 = cy + (float) Math.sin(a) * size * 1.05f;
+                c.drawLine(x1, y1, x2, y2, p);
+            }
         } else if (GameCore.PROF_CHRONOMANCER.equals(profession)) {
             c.drawLine(cx - size * 0.65f, cy - size, cx + size * 0.65f, cy - size, p);
             c.drawLine(cx - size * 0.65f, cy + size, cx + size * 0.65f, cy + size, p);
@@ -1200,6 +1211,13 @@ public final class GameView extends View {
             c.drawLine(cx + size * 0.65f, cy - size, cx - size * 0.65f, cy + size, p);
             c.drawLine(cx - size * 0.32f, cy, cx + size * 0.32f, cy, p);
             c.drawCircle(cx, cy, size * 0.18f, p);
+        } else if (GameCore.PROF_PACTMAKER.equals(profession)) {
+            c.drawRect(cx - size * 0.62f, cy - size * 0.82f, cx + size * 0.62f, cy + size * 0.82f, p);
+            c.drawLine(cx - size * 0.42f, cy - size * 0.35f, cx + size * 0.42f, cy - size * 0.35f, p);
+            c.drawLine(cx - size * 0.42f, cy, cx + size * 0.42f, cy, p);
+            c.drawLine(cx - size * 0.42f, cy + size * 0.35f, cx + size * 0.42f, cy + size * 0.35f, p);
+            c.drawCircle(cx + size * 0.46f, cy + size * 0.46f, size * 0.25f, p);
+            c.drawLine(cx + size * 0.28f, cy + size * 0.28f, cx + size * 0.62f, cy + size * 0.62f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
