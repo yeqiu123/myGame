@@ -113,6 +113,7 @@ public final class SimulationHarness {
         if (s.eventId == 12) return s.gold >= 70 ? 0 : 1;
         if (s.eventId == 13) return s.maxHp >= 58 && s.relics.contains("rift_compass") ? 0 : 1;
         if (s.eventId == 14) return hasUpgradableCard(s) ? 0 : 1;
+        if (s.eventId == 15) return s.hp > s.maxHp * 0.55f && s.deck.size() >= 22 ? 1 : 0;
         return s.eventId % 2;
     }
 

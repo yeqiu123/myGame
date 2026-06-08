@@ -57,7 +57,7 @@ public final class GameCore {
     public static final int QUEST_CONFLUENCE = 13;
     public static final int QUEST_MARK = 14;
     public static final int QUEST_OVERLOAD = 15;
-    public static final int EVENT_COUNT = 15;
+    public static final int EVENT_COUNT = 16;
     private static final int MILESTONE_GUARD = 1;
     private static final int MILESTONE_COMBO = 1 << 1;
     private static final int MILESTONE_HEX = 1 << 2;
@@ -1565,7 +1565,7 @@ public final class GameCore {
                 addStatusCard(s, "daze");
                 log(s, "你接过裂隙罗盘，混搭路线被打开。");
             }
-        } else {
+        } else if (e == 14) {
             if (choice == 0) {
                 upgradeRandomDeckCard(s);
                 upgradeRandomDeckCard(s);
@@ -1582,6 +1582,25 @@ public final class GameCore {
                     s.deck.add(c);
                     log(s, "你拿走合约金与升级能力牌：" + d.name);
                 }
+            }
+        } else {
+            if (choice == 0) {
+                String[] ids = {"hybrid_coinwall", "hybrid_bloodcharge", "hybrid_echo_vial", "hybrid_hexdance", "hybrid_spirit_anvil"};
+                String id = ids[s.run.nextInt(ids.length)];
+                addUpgradedDeckCard(s, id);
+                upgradeRandomDeckCard(s);
+                s.gold += 20 + s.act * 5;
+                log(s, "棱庭拼合出升级混搭牌：" + card(id).name);
+            } else {
+                String id = hasRelic(s, "mosaic_core") || (!hasRelic(s, "starforge_lens") && s.run.nextBoolean())
+                        ? "starforge_lens" : "mosaic_core";
+                if (hasRelic(s, id)) {
+                    id = "confluence_map";
+                }
+                addRelic(s, id);
+                addStatusCard(s, "daze");
+                addStatusCard(s, "wound");
+                log(s, "棱庭把构筑碎片压成遗物，也留下裂隙杂质。");
             }
         }
         s.mode = MODE_MAP;
@@ -7155,7 +7174,7 @@ public final class GameCore {
         s.mode = MODE_EVENT;
         applyRouteArrival(s, '?');
         if (s.currentRoute == ROUTE_SECRET && s.run.nextInt(100) < 45) {
-            int[] rareEvents = {2, 4, 7, 10, 11};
+            int[] rareEvents = {2, 4, 7, 10, 11, 15};
             s.eventId = rareEvents[s.run.nextInt(rareEvents.length)];
         } else {
             s.eventId = s.run.nextInt(EVENT_COUNT);
