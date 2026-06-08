@@ -2120,6 +2120,9 @@ public final class GameCore {
         if (e.doom > 0) text += "厄" + e.doom + " ";
         if (e.mark > 0) text += "印" + e.mark + " ";
         if (e.stolenGold > 0) text += "赃" + e.stolenGold + " ";
+        if (e.kind == 34) text += "链压 ";
+        if (e.kind == 35) text += "尘捕 ";
+        if (e.kind == 36) text += "校验 ";
         return text.trim();
     }
 
@@ -3948,6 +3951,12 @@ public final class GameCore {
                 e.doom = 3;
             } else if (e.kind == 33 && e.shieldPulse == 0) {
                 e.shieldPulse = 3;
+            } else if (e.kind == 34 && e.shieldPulse == 0) {
+                e.shieldPulse = 2;
+            } else if (e.kind == 35 && e.doom == 0) {
+                e.doom = 3;
+            } else if (e.kind == 36 && e.shieldPulse == 0) {
+                e.shieldPulse = 2;
             }
         }
     }
@@ -3999,6 +4008,47 @@ public final class GameCore {
                     e.block += 6 + drained * 3;
                     e.doom = 3;
                     log(s, e.name + " 锁蚀职业技充能，化作护甲。");
+                }
+            }
+            if (e.kind == 34 && e.shieldPulse > 0) {
+                e.shieldPulse--;
+                if (e.shieldPulse <= 0) {
+                    int chain = Math.min(s.confluenceChain, 2 + s.act);
+                    if (chain > 0) {
+                        s.confluenceChain = Math.max(0, s.confluenceChain - chain);
+                        e.block += 8 + chain * 4;
+                        e.mark += 1;
+                        log(s, e.name + " 折散汇流链，凝成棱盾。");
+                    } else {
+                        e.block += 5 + s.act * 2;
+                    }
+                    e.shieldPulse = 3;
+                }
+            }
+            if (e.kind == 35 && e.doom > 0) {
+                e.doom--;
+                if (e.doom <= 0) {
+                    int temps = tempOrEchoHandCount(s);
+                    if (temps > 0) {
+                        e.block += 5 + s.act * 2 + temps * 3;
+                        e.strength += temps >= 3 ? 1 : 0;
+                        addStatusCard(s, "daze");
+                        log(s, e.name + " 捕食临时牌势并撒下星尘。");
+                    }
+                    e.doom = 3;
+                }
+            }
+            if (e.kind == 36 && e.shieldPulse > 0) {
+                e.shieldPulse--;
+                if (e.shieldPulse <= 0) {
+                    int pressure = Math.min(4, Math.max(0, focusMaskCount(s.confluenceMask)));
+                    e.block += 8 + s.act * 3 + pressure * 4;
+                    if (pressure >= 3) {
+                        s.vulnerable += 1;
+                        addStatusCard(s, "daze");
+                    }
+                    e.shieldPulse = 2;
+                    log(s, e.name + " 校验构筑标签，折成护甲。");
                 }
             }
         }
@@ -4079,7 +4129,7 @@ public final class GameCore {
             return;
         }
         if (kind == 'E') {
-            int elite = s.run.nextInt(9);
+            int elite = s.run.nextInt(10);
             if (elite == 0) {
                 s.enemies.add(enemy("铁脊裁决者", 58 + act * 16 + depth * 2, 1));
             } else if (elite == 1) {
@@ -4100,13 +4150,16 @@ public final class GameCore {
                 s.enemies.add(enemy("雾页抄手", 26 + act * 8 + depth, 28));
             } else if (elite == 7) {
                 s.enemies.add(enemy("静印审判官", 70 + act * 18 + depth * 2, 16));
-            } else {
+            } else if (elite == 8) {
                 s.enemies.add(enemy("过载缄默者", 72 + act * 18 + depth * 2, 31));
                 s.enemies.add(enemy("雾页抄手", 24 + act * 8 + depth, 28));
+            } else {
+                s.enemies.add(enemy("万花校验者", 76 + act * 19 + depth * 2, 36));
+                s.enemies.add(enemy("汇流棱卫", 28 + act * 8 + depth, 34));
             }
             return;
         }
-        int templateMax = act >= 3 ? 14 : act >= 2 ? 11 : 6;
+        int templateMax = act >= 3 ? 16 : act >= 2 ? 12 : 6;
         int template = s.run.nextInt(templateMax);
         int base = 18 + act * 8 + depth;
         if (template == 0) {
@@ -4148,9 +4201,15 @@ public final class GameCore {
         } else if (template == 12) {
             s.enemies.add(enemy("裂币蛀客", base + 14 + s.run.nextInt(8), 32));
             s.enemies.add(enemy("空面盗", base + 5 + s.run.nextInt(7), 23));
-        } else {
+        } else if (template == 13) {
             s.enemies.add(enemy("铸雾整备师", base + 22 + s.run.nextInt(9), 33));
             s.enemies.add(enemy("镜壳卫", base + 10 + s.run.nextInt(7), 30));
+        } else if (template == 14) {
+            s.enemies.add(enemy("汇流棱卫", base + 20 + s.run.nextInt(9), 34));
+            s.enemies.add(enemy("星尘剽客", base + 6 + s.run.nextInt(7), 35));
+        } else {
+            s.enemies.add(enemy("星尘剽客", base + 16 + s.run.nextInt(8), 35));
+            s.enemies.add(enemy("雾页抄手", base + 5 + s.run.nextInt(7), 28));
         }
     }
 
@@ -4860,6 +4919,39 @@ public final class GameCore {
                     e.intent = ENEMY_ATTACK;
                     e.intentValue = 9 + s.act * 3;
                 }
+            } else if (e.kind == 34) {
+                if (r < 38) {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 9 + s.act * 3 + Math.min(8, s.confluenceChain * 2);
+                } else if (r < 72) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 7 + s.act * 3 + Math.min(8, s.confluenceChain);
+                }
+            } else if (e.kind == 35) {
+                if (r < 42) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 7 + s.act * 2 + tempOrEchoHandCount(s);
+                } else if (r < 78) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 1;
+                }
+            } else if (e.kind == 36) {
+                if (r < 34) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 10 + s.act * 3 + focusMaskCount(s.confluenceMask);
+                } else if (r < 72) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 2;
+                } else {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 12 + s.act * 3;
+                }
             } else if (r < 68) {
                 e.intent = ENEMY_ATTACK;
                 e.intentValue = 5 + s.act * 2 + s.ascension / 4 + e.strength;
@@ -5070,6 +5162,40 @@ public final class GameCore {
                 e.strength += 1;
             }
             log(s, e.name + " 整备铸雾，折走护甲并借用你的升级牌势。");
+        } else if (e.kind == 34) {
+            int chain = Math.min(s.confluenceChain, 3 + s.act);
+            s.confluenceChain = Math.max(0, s.confluenceChain - chain);
+            e.block += 8 + s.act * 2 + chain * 5;
+            if (chain >= 2) {
+                s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
+            }
+            log(s, e.name + " 把汇流链折成棱盾。");
+        } else if (e.kind == 35) {
+            int temps = tempOrEchoHandCount(s);
+            if (temps > 0) {
+                int taken = dealPlayerDamage(s, temps * (2 + s.act));
+                e.block += 4 + temps * 3;
+                addStatusCard(s, "daze");
+                log(s, e.name + " 抽走临时牌势，造成 " + taken + " 点星尘伤害。");
+            } else {
+                e.mark += 2;
+                e.block += 7 + s.act * 2;
+                log(s, e.name + " 搜寻未定星尘。");
+            }
+        } else if (e.kind == 36) {
+            int labels = focusMaskCount(s.confluenceMask);
+            int hybridPressure = Math.max(labels, Math.min(5, s.confluenceChain));
+            int drained = Math.min(s.professionSkillCharge, hybridPressure + s.act);
+            s.professionSkillCharge -= drained;
+            e.block += 10 + s.act * 3 + drained * 2 + hybridPressure * 3;
+            if (hybridPressure >= 3) {
+                s.vulnerable += 1;
+                addStatusCard(s, "daze");
+            }
+            if (drained >= 3) {
+                e.strength += 1;
+            }
+            log(s, e.name + " 校验混搭线路，抽走 " + drained + " 点充能。");
         } else {
             e.strength += 2;
             e.block += 8;
