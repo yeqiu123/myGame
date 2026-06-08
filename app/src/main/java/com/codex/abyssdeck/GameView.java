@@ -1231,6 +1231,17 @@ public final class GameView extends View {
             c.drawPath(bolt, p);
             c.drawLine(cx - size * 0.82f, cy + size * 0.52f, cx - size * 0.24f, cy + size * 0.52f, p);
             c.drawLine(cx + size * 0.34f, cy + size * 0.52f, cx + size * 0.82f, cy + size * 0.52f, p);
+        } else if (GameCore.PROF_SHADOWDANCER.equals(profession)) {
+            c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 35, 290, false, p);
+            Path blade = new Path();
+            blade.moveTo(cx - size * 0.18f, cy - size * 0.88f);
+            blade.lineTo(cx + size * 0.38f, cy - size * 0.12f);
+            blade.lineTo(cx + size * 0.1f, cy + size * 0.92f);
+            blade.lineTo(cx - size * 0.28f, cy + size * 0.08f);
+            blade.close();
+            c.drawPath(blade, p);
+            c.drawCircle(cx - size * 0.45f, cy - size * 0.1f, size * 0.22f, p);
+            c.drawLine(cx - size * 0.72f, cy + size * 0.55f, cx + size * 0.48f, cy + size * 0.55f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

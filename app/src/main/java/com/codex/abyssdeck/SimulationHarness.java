@@ -189,6 +189,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock
                     || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.createWound || d.draw > 0 || d.type == 1)) score += 14;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && isStormcallerSignal(d)) score += 14;
+            if (GameCore.PROF_SHADOWDANCER.equals(s.profession) && isShadowdancerSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -203,6 +204,7 @@ public final class SimulationHarness {
             if ("pactmaker_grand_contract".equals(d.id) || "pactmaker_overdeal".equals(d.id)
                     || "pactmaker_witness".equals(d.id) || "pactmaker_collection".equals(d.id)) score += 14;
             if (isStormcallerCard(d)) score += 14;
+            if (isShadowdancerCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -212,6 +214,8 @@ public final class SimulationHarness {
             if (s.relics.contains("grand_ledger") && (d.goldGain > 0 || d.hpLoss > 0 || d.createWound || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || d.rarity == 2)) score += 18;
             if (s.relics.contains("storm_rod") && (isStormcallerSignal(d) || d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("tempest_crown") && (isStormcallerSignal(d) || d.aoe || d.rarity == 2)) score += 20;
+            if (s.relics.contains("shadow_sash") && (isShadowdancerSignal(d) || d.comboDamage > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("eclipse_mask") && (isShadowdancerSignal(d) || d.createEcho || d.exhaust || d.rarity == 2)) score += 20;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
@@ -266,15 +270,21 @@ public final class SimulationHarness {
                     || "stormglass_seal".equals(id) || "charcoal_sigil".equals(id) || "cinder_spoon".equals(id)
                     || "emberroot_charm".equals(id) || "tempo_metronome".equals(id) || "markchain_seal".equals(id)
                     || "overload_etch".equals(id) || "confluence_map".equals(id) || "tuning_fork".equals(id))) score += 36;
+            if (GameCore.PROF_SHADOWDANCER.equals(s.profession) && ("eclipse_mask".equals(id) || "shadow_sash".equals(id)
+                    || "tempo_metronome".equals(id) || "amber_quill".equals(id) || "void_abacus".equals(id)
+                    || "echo_ledger".equals(id) || "tuning_fork".equals(id) || "markchain_seal".equals(id)
+                    || "overload_etch".equals(id) || "confluence_map".equals(id) || "echoflow_charm".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession))) score += 28;
             if ("echo_ledger".equals(id) && (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
-                    || GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession))) score += 28;
+                    || GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
+                    || GameCore.PROF_SHADOWDANCER.equals(s.profession))) score += 28;
             if ("bloodspark_contract".equals(id) && (GameCore.PROF_BLOODBOUND.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
                     || GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_ALCHEMIST.equals(s.profession))) score += 28;
             if ("contract_stamp".equals(id) || "grand_ledger".equals(id)) score += 18;
             if ("storm_rod".equals(id) || "tempest_crown".equals(id)) score += 20;
+            if ("shadow_sash".equals(id) || "eclipse_mask".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
@@ -371,6 +381,8 @@ public final class SimulationHarness {
                     || "pact_hunter".equals(id))) score += 24;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("pact_sprinter".equals(id) || "pact_hunter".equals(id)
                     || "pact_brewer".equals(id) || "pact_suppression".equals(id) || "pact_confluence".equals(id))) score += 24;
+            if (GameCore.PROF_SHADOWDANCER.equals(s.profession) && ("pact_sprinter".equals(id) || "pact_void".equals(id)
+                    || "pact_hunter".equals(id) || "pact_suppression".equals(id) || "pact_confluence".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -402,22 +414,26 @@ public final class SimulationHarness {
             if ("spec_mastery".equals(id)) score += 34;
             else if ("spec_resonance".equals(id)) score += 30;
             else if ("spec_tempo".equals(id)) score += 28;
-            else if ("spec_burst".equals(id)) score += GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession) ? 32 : 22;
-            else if ("spec_sustain".equals(id)) score += GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession) ? 32 : 20;
-            else if ("spec_control".equals(id)) score += GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
+            else if ("spec_burst".equals(id)) score += (GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession)
+                    || GameCore.PROF_SHADOWDANCER.equals(s.profession)) ? 32 : 22;
+            else if ("spec_sustain".equals(id)) score += (GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession)) ? 32 : 20;
+            else if ("spec_control".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_INSCRIBER.equals(s.profession) || GameCore.PROF_PACTMAKER.equals(s.profession)
-                    || GameCore.PROF_STORMCALLER.equals(s.profession) ? 31 : 24;
-            else if ("spec_assembly".equals(id)) score += GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_MACHINIST.equals(s.profession)
-                    || GameCore.PROF_ASTROLOGER.equals(s.profession) ? 31 : 24;
-            else if ("spec_echoflow".equals(id)) score += GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
-                    || GameCore.PROF_CHRONOMANCER.equals(s.profession) ? 33 : 26;
-            else if ("spec_markchain".equals(id)) score += GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
+                    || GameCore.PROF_STORMCALLER.equals(s.profession)) ? 31 : 24;
+            else if ("spec_assembly".equals(id)) score += (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_MACHINIST.equals(s.profession)
+                    || GameCore.PROF_ASTROLOGER.equals(s.profession)) ? 31 : 24;
+            else if ("spec_echoflow".equals(id)) score += (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
+                    || GameCore.PROF_CHRONOMANCER.equals(s.profession) || GameCore.PROF_SHADOWDANCER.equals(s.profession)) ? 33 : 26;
+            else if ("spec_markchain".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
                     || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
-                    || GameCore.PROF_PACTMAKER.equals(s.profession) || GameCore.PROF_STORMCALLER.equals(s.profession) ? 33 : 25;
+                    || GameCore.PROF_PACTMAKER.equals(s.profession) || GameCore.PROF_STORMCALLER.equals(s.profession)
+                    || GameCore.PROF_SHADOWDANCER.equals(s.profession)) ? 33 : 25;
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && ("spec_sustain".equals(id) || "spec_resonance".equals(id)
                     || "spec_mastery".equals(id))) score += 6;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_burst".equals(id))) score += 8;
+            if (GameCore.PROF_SHADOWDANCER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_tempo".equals(id) || "spec_burst".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id))) score += 4;
@@ -485,7 +501,7 @@ public final class SimulationHarness {
                 if (s.combatQuest == GameCore.QUEST_CONFLUENCE && (isHybridCore(d) || isConfluenceCore(d))) score += 24;
                 if (s.combatQuest == GameCore.QUEST_MARK && (d.bind > 0 || d.vulnerable > 0 || d.comboDamage > 0
                         || "tuner_note".equals(c.id) || "tuner_harmonic".equals(c.id) || "tuner_grand_cadence".equals(c.id)
-                        || isStormcallerCard(d))) score += 20;
+                        || isStormcallerCard(d) || isShadowdancerCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -535,6 +551,13 @@ public final class SimulationHarness {
                     if (stormcallerEnemyPressure(s) >= 8 && (d.aoe || "stormcaller_chain".equals(c.id)
                             || "stormcaller_tempest_crown".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_SHADOWDANCER.equals(s.profession) && (isShadowdancerSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.cost == 0 || d.comboDamage > 0 || d.vulnerable > 0) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || d.cost == 0 || isShadowdancerCard(d))) score += 6;
+                    if (shadowdancerEnemyPressure(s) >= 8 && ("shadowdancer_mark".equals(c.id)
+                            || "shadowdancer_overstrike".equals(c.id) || "shadowdancer_eclipse".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -554,6 +577,10 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_stormcaller_pressure") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0)) score += 12;
                 if (s.talents.contains("t_stormcaller_front") && (d.aoe || d.burn > 0 || d.vulnerable > 0)) score += 12;
                 if (s.talents.contains("t_stormcaller_grand") && (d.skillChargeGain > 0 || d.burn > 0 || d.draw > 0 || d.energyGain > 0 || c.upgraded)) score += 14;
+                if (s.talents.contains("t_shadowdancer_mask") && (d.cost == 0 || d.skillChargeGain > 0 || isShadowdancerCard(d))) score += 12;
+                if (s.talents.contains("t_shadowdancer_vanish") && (d.exhaust || d.createEcho || c.temp || d.draw > 0)) score += 12;
+                if (s.talents.contains("t_shadowdancer_execution") && (d.vulnerable > 0 || d.comboDamage > 0 || d.damage > 0)) score += 12;
+                if (s.talents.contains("t_shadowdancer_grand") && (d.skillChargeGain > 0 || d.draw > 0 || d.energyGain > 0 || c.temp || c.upgraded)) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -581,6 +608,9 @@ public final class SimulationHarness {
                 if ("stormcaller_tempest_crown".equals(c.id) || "stormcaller_overstorm".equals(c.id)) score += 18;
                 if ("stormcaller_chain".equals(c.id) || "stormcaller_sparkline".equals(c.id)
                         || "stormcaller_barrier".equals(c.id) || "stormcaller_gust".equals(c.id)) score += 14;
+                if ("shadowdancer_eclipse".equals(c.id) || "shadowdancer_overstrike".equals(c.id)) score += 18;
+                if ("shadowdancer_blade".equals(c.id) || "shadowdancer_veil".equals(c.id)
+                        || "shadowdancer_step".equals(c.id) || "shadowdancer_mark".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -642,6 +672,8 @@ public final class SimulationHarness {
                 if (s.relics.contains("grand_ledger") && (d.goldGain > 0 || d.hpLoss > 0 || d.createWound || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || c.upgraded)) score += 14;
                 if (s.relics.contains("storm_rod") && (d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0 || isStormcallerCard(d))) score += 14;
                 if (s.relics.contains("tempest_crown") && (d.aoe || d.burn > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isStormcallerCard(d))) score += 16;
+                if (s.relics.contains("shadow_sash") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || isShadowdancerCard(d))) score += 14;
+                if (s.relics.contains("eclipse_mask") && (d.cost == 0 || d.createEcho || c.temp || d.skillChargeGain > 0 || d.rarity == 2 || isShadowdancerCard(d))) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -683,6 +715,14 @@ public final class SimulationHarness {
                 || stormcallerEnemyPressure(s) >= 6 || s.combatKind == 'E' || s.combatKind == 'B')) {
             return true;
         }
+        if (GameCore.PROF_SHADOWDANCER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean executionWindow = target >= 0 && (s.enemies.get(target).mark >= 3 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || executionWindow || s.cardsPlayedThisTurn >= 3
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -710,7 +750,8 @@ public final class SimulationHarness {
                 || s.relics.contains("gyro_wrench") || s.relics.contains("clockwork_core")
                 || s.relics.contains("hourglass_charm") || s.relics.contains("time_engine")
                 || s.relics.contains("contract_stamp") || s.relics.contains("grand_ledger")
-                || s.relics.contains("storm_rod") || s.relics.contains("tempest_crown");
+                || s.relics.contains("storm_rod") || s.relics.contains("tempest_crown")
+                || s.relics.contains("shadow_sash") || s.relics.contains("eclipse_mask");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
@@ -725,11 +766,33 @@ public final class SimulationHarness {
                 || "stormcaller_overstorm".equals(d.id) || "stormcaller_tempest_crown".equals(d.id));
     }
 
+    private static boolean isShadowdancerSignal(GameCore.CardDef d) {
+        return d != null && (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || d.createEcho
+                || d.exhaust || d.skillChargeGain > 0 || d.comboDamage > 0 || d.vulnerable > 0
+                || GameCore.PROF_SHADOWDANCER.equals(d.profession));
+    }
+
+    private static boolean isShadowdancerCard(GameCore.CardDef d) {
+        return d != null && ("shadowdancer_blade".equals(d.id) || "shadowdancer_veil".equals(d.id)
+                || "shadowdancer_step".equals(d.id) || "shadowdancer_mark".equals(d.id)
+                || "shadowdancer_overstrike".equals(d.id) || "shadowdancer_eclipse".equals(d.id));
+    }
+
     private static int stormcallerEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
             if (e.hp > 0) {
                 pressure += e.burn + e.vulnerable + e.bind + e.mark * 2;
+            }
+        }
+        return pressure;
+    }
+
+    private static int shadowdancerEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 2 + e.vulnerable * 2 + e.bind + e.burn;
             }
         }
         return pressure;
