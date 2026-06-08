@@ -47,6 +47,12 @@ public final class GameCore {
     public static final int QUEST_HEX = 5;
     public static final int QUEST_LEAN = 6;
     public static final int EVENT_COUNT = 12;
+    private static final int MILESTONE_GUARD = 1;
+    private static final int MILESTONE_COMBO = 1 << 1;
+    private static final int MILESTONE_HEX = 1 << 2;
+    private static final int MILESTONE_ECHO = 1 << 3;
+    private static final int MILESTONE_BLOODCOIN = 1 << 4;
+    private static final int MILESTONE_FORGE = 1 << 5;
 
     public static final int ROUTE_NONE = 0;
     public static final int ROUTE_RICH = 1;
@@ -480,6 +486,7 @@ public final class GameCore {
         applyCard(s, c, d, target);
         triggerAfterPlay(s, c, d);
         trackPactAfterPlay(s, c, d, exhaust);
+        trackRunMilestones(s, c, d, exhaust);
         if (exhaust) {
             s.exhaust.add(c);
         } else {
@@ -1552,6 +1559,13 @@ public final class GameCore {
         s.pactChoices.clear();
         s.pact = "";
         s.pactFulfilled = 0;
+        s.runGuardMilestone = 0;
+        s.runComboMilestone = 0;
+        s.runHexMilestone = 0;
+        s.runEchoMilestone = 0;
+        s.runBloodcoinMilestone = 0;
+        s.runForgeMilestone = 0;
+        s.runMilestoneFlags = 0;
         s.talentChoices.clear();
         s.shopCards.clear();
         s.shopRelics.clear();
@@ -3580,6 +3594,85 @@ public final class GameCore {
         }
     }
 
+    private static void trackRunMilestones(State s, Card c, CardDef d, boolean exhausted) {
+        if (s.mode != MODE_COMBAT) {
+            return;
+        }
+        if (s.block >= 24 + s.act * 8) {
+            s.runGuardMilestone++;
+            if (s.runGuardMilestone >= 2) {
+                grantRunMilestone(s, MILESTONE_GUARD, "铁壁成型");
+            }
+        }
+        if (s.cardsPlayedThisTurn >= 6) {
+            s.runComboMilestone++;
+            if (s.runComboMilestone >= 2) {
+                grantRunMilestone(s, MILESTONE_COMBO, "连打成型");
+            }
+        }
+        int bestStatus = 0;
+        for (Enemy e : livingEnemies(s)) {
+            bestStatus = Math.max(bestStatus, e.burn + e.bind + e.vulnerable);
+        }
+        if (bestStatus >= 10 + s.act * 3) {
+            s.runHexMilestone++;
+            if (s.runHexMilestone >= 2) {
+                grantRunMilestone(s, MILESTONE_HEX, "异常成型");
+            }
+        }
+        if (exhausted || c.temp || d.createEcho) {
+            s.runEchoMilestone++;
+            if (s.runEchoMilestone >= 12) {
+                grantRunMilestone(s, MILESTONE_ECHO, "回声成型");
+            }
+        }
+        if (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id)) {
+            s.runBloodcoinMilestone++;
+            if (s.runBloodcoinMilestone >= 10) {
+                grantRunMilestone(s, MILESTONE_BLOODCOIN, "血币成型");
+            }
+        }
+        if (c.upgraded || d.upgradeRandom || d.scry > 0) {
+            s.runForgeMilestone++;
+            if (s.runForgeMilestone >= 11) {
+                grantRunMilestone(s, MILESTONE_FORGE, "工坊成型");
+            }
+        }
+    }
+
+    private static void grantRunMilestone(State s, int flag, String name) {
+        if ((s.runMilestoneFlags & flag) != 0) {
+            return;
+        }
+        s.runMilestoneFlags |= flag;
+        int gold = 12 + s.act * 4;
+        s.gold += gold;
+        if (flag == MILESTONE_GUARD) {
+            gainBlock(s, 8 + s.act * 3);
+        } else if (flag == MILESTONE_COMBO) {
+            s.energy++;
+            draw(s, 1);
+        } else if (flag == MILESTONE_HEX) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.vulnerable += 1;
+                e.bind += 2 + s.bindPower / 2;
+            }
+        } else if (flag == MILESTONE_ECHO) {
+            Card echo = new Card(PROF_SUMMONER.equals(s.profession) ? "summoner_sprite" : "quick_cut");
+            echo.temp = true;
+            addToHand(s, echo);
+            addProfessionSkillCharge(s, 2);
+        } else if (flag == MILESTONE_BLOODCOIN) {
+            s.hp = Math.min(s.maxHp, s.hp + 5 + s.act);
+            addProfessionSkillCharge(s, 2);
+        } else if (flag == MILESTONE_FORGE) {
+            upgradeRandomHandCard(s);
+            upgradeRandomDeckCard(s);
+        }
+        log(s, "构筑里程碑：" + name + "，获得 " + gold + " 金币。");
+    }
+
     private static void damageEnemy(State s, Enemy e, int raw, boolean piercing) {
         if (e == null || e.hp <= 0 || raw <= 0) {
             return;
@@ -4930,6 +5023,13 @@ public final class GameCore {
         public int pactKills;
         public int pactExhaustedCards;
         public int pactSelfDamage;
+        public int runGuardMilestone;
+        public int runComboMilestone;
+        public int runHexMilestone;
+        public int runEchoMilestone;
+        public int runBloodcoinMilestone;
+        public int runForgeMilestone;
+        public int runMilestoneFlags;
         public boolean professionSkillUsedThisTurn;
 
         public void ensureRandom() {
