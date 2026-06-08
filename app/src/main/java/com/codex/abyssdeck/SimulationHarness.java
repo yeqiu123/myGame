@@ -13,8 +13,8 @@ public final class SimulationHarness {
             System.out.println("depth=" + depth + " runs=" + result.runs + " wins=" + result.wins
                     + " losses=" + result.losses + " stalled=" + result.stalled + " avgFloor=" + (result.floorSum / Math.max(1, result.runs)));
         }
-        System.out.println("cards=" + GameCore.CARD_LIBRARY.size() + " relics=" + GameCore.RELIC_LIBRARY.size()
-                + " potions=" + GameCore.POTION_LIBRARY.size());
+        System.out.println("professions=" + GameCore.PROFESSIONS.length + " cards=" + GameCore.CARD_LIBRARY.size()
+                + " relics=" + GameCore.RELIC_LIBRARY.size() + " potions=" + GameCore.POTION_LIBRARY.size());
     }
 
     private static Result runBatch(int depth, int count) {
@@ -121,7 +121,14 @@ public final class SimulationHarness {
                 if (d == null || GameCore.costOf(s, c, d) > s.energy) continue;
                 int score = GameCore.cardDamage(c) * 3 + GameCore.cardBlock(c) * 2 + d.draw * 4 + d.energyGain * 7
                         + d.burn * 4 + d.bind * 3 + d.gainSteelEngine * 12 + d.gainAshEngine * 12
-                        + d.gainWildEngine * 12 + d.gainVoidEngine * 12;
+                        + d.gainWildEngine * 12 + d.gainVoidEngine * 12 + d.heal * 4 + d.scry * 2
+                        + (d.upgradeRandom ? 8 : 0) + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0);
+                if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
+                    score += 14;
+                }
+                if (GameCore.PROF_WEAVER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0)) {
+                    score += 10;
+                }
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;

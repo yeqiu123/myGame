@@ -57,8 +57,11 @@ public final class GameCore {
     public static final String PROF_RANGER = "游侠";
     public static final String PROF_ARCANIST = "秘术师";
     public static final String PROF_MERCHANT = "行商";
+    public static final String PROF_BLOODBOUND = "血契者";
+    public static final String PROF_WEAVER = "织牌师";
     public static final String[] PROFESSIONS = {
-            PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER, PROF_ARCANIST, PROF_MERCHANT
+            PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
+            PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -723,6 +726,9 @@ public final class GameCore {
 
     public static int costOf(State s, Card c, CardDef d) {
         int cost = c.upgraded ? Math.max(0, d.cost - d.upgradeCostDrop) : d.cost;
+        if (PROF_BLOODBOUND.equals(s.profession) && "wound".equals(c.id)) {
+            cost = 1;
+        }
         if (hasRelic(s, "amber_quill") && s.cardsPlayedThisTurn == 0) {
             cost = Math.max(0, cost - 1);
         }
@@ -960,6 +966,12 @@ public final class GameCore {
         if (PROF_MERCHANT.equals(profession)) {
             return "金币更多，商店更便宜，金币牌能把经济转成伤害或防御。适合长线运营。";
         }
+        if (PROF_BLOODBOUND.equals(profession)) {
+            return "把生命与裂伤转成爆发，受伤后获得反击窗口。适合高风险压血、治疗和状态牌构筑。";
+        }
+        if (PROF_WEAVER.equals(profession)) {
+            return "预视牌序并升级手牌，第三张技能牌会重织资源。适合抽牌、临时牌和精密循环。";
+        }
         return "尚未选择职业。";
     }
 
@@ -981,6 +993,12 @@ public final class GameCore {
         }
         if (PROF_MERCHANT.equals(profession)) {
             return 0xffffcf66;
+        }
+        if (PROF_BLOODBOUND.equals(profession)) {
+            return 0xffd66b7a;
+        }
+        if (PROF_WEAVER.equals(profession)) {
+            return 0xff7ed1d6;
         }
         return 0xffd6c07a;
     }
@@ -1005,7 +1023,7 @@ public final class GameCore {
     public static String achievementName(String id) {
         if ("first_run".equals(id)) return "初入深渊";
         if ("first_win".equals(id)) return "抵达无光尽头";
-        if ("all_professions".equals(id)) return "六职巡礼";
+        if ("all_professions".equals(id)) return PROFESSIONS.length + "职巡礼";
         if ("collector".equals(id)) return "旧物收藏家";
         if ("high_depth".equals(id)) return "无光行者";
         if ("talent_master".equals(id)) return "专精大师";
@@ -1099,6 +1117,15 @@ public final class GameCore {
             s.hp = Math.min(s.hp, s.maxHp);
             s.gold += 70;
             s.deck.add(new Card("merchant_haggle"));
+        } else if (PROF_BLOODBOUND.equals(profession)) {
+            s.maxHp += 6;
+            s.hp += 6;
+            s.deck.add(new Card("blood_pact"));
+            s.deck.add(new Card("wound"));
+        } else if (PROF_WEAVER.equals(profession)) {
+            s.deck.add(new Card("weaver_thread"));
+            s.deck.add(new Card("void_glimpse"));
+            upgradeRandomDeckCard(s);
         }
     }
 
@@ -1155,6 +1182,26 @@ public final class GameCore {
         } else if ("t_merchant_contract".equals(id)) {
             s.gold += 120;
             Card c = new Card("merchant_liquidate");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_bloodbound_scar".equals(id)) {
+            s.maxHp += 10;
+            s.hp += 10;
+            Card c = new Card("blood_rite");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_bloodbound_feast".equals(id)) {
+            Card c = new Card("blood_feast");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_weaver_setup".equals(id)) {
+            Card c = new Card("weaver_lattice");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_weaver_mastery".equals(id)) {
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+            Card c = new Card("weaver_pattern");
             c.upgraded = true;
             s.deck.add(c);
         }
@@ -1622,6 +1669,18 @@ public final class GameCore {
         if (PROF_MERCHANT.equals(s.profession) && s.turn == 1) {
             gainBlock(s, Math.min(16, Math.max(3, s.gold / 35)));
         }
+        if (PROF_BLOODBOUND.equals(s.profession) && s.turn == 1) {
+            s.professionCharge = 0;
+            if (s.hp <= s.maxHp / 2) {
+                s.energy++;
+                gainBlock(s, 6 + s.act * 2);
+                log(s, "血契低鸣，压低血线换来资源。");
+            }
+        }
+        if (PROF_WEAVER.equals(s.profession) && s.turn == 1) {
+            s.professionCharge = 0;
+            s.energy += hasTalent(s, "t_weaver_setup") ? 1 : 0;
+        }
         if (hasRelic(s, "steel_oath") && s.turn == 1) {
             gainBlock(s, 6);
         }
@@ -2069,6 +2128,24 @@ public final class GameCore {
             damage += c.upgraded ? 8 : 5;
             block += c.upgraded ? 4 : 3;
         }
+        if (PROF_BLOODBOUND.equals(s.profession) && d.hpLoss > 0) {
+            damage += 3 + s.act + Math.max(0, s.maxHp - s.hp) / 12;
+            block += hasTalent(s, "t_bloodbound_scar") ? 4 + s.act : 0;
+        }
+        if (PROF_BLOODBOUND.equals(s.profession) && "wound".equals(c.id)) {
+            draw += 1;
+            s.professionCharge++;
+        }
+        if (hasTalent(s, "t_bloodbound_feast") && target != null && damage > 0 && s.hp <= s.maxHp / 2) {
+            heal += 1;
+        }
+        if (PROF_WEAVER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0)) {
+            block += 1 + Math.min(5, s.professionCharge);
+        }
+        if (hasTalent(s, "t_weaver_mastery") && c.upgraded && (d.type == 1 || d.type == 2)) {
+            draw += s.professionUsedThisTurn == 0 ? 1 : 0;
+            s.professionUsedThisTurn++;
+        }
         if (d.comboDamage > 0) {
             damage += d.comboDamage * Math.max(0, s.cardsPlayedThisTurn - 1);
         }
@@ -2151,7 +2228,8 @@ public final class GameCore {
             s.hp = Math.min(s.maxHp, s.hp + heal);
         }
         if (d.hpLoss > 0) {
-            s.hp = Math.max(1, s.hp - d.hpLoss);
+            int loss = c.upgraded && d.hpLoss > 1 ? d.hpLoss - 1 : d.hpLoss;
+            s.hp = Math.max(1, s.hp - loss);
         }
         if (d.gainBurnPower > 0) {
             s.burnPower += c.upgraded ? d.gainBurnPower + 1 : d.gainBurnPower;
@@ -2198,6 +2276,9 @@ public final class GameCore {
             PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
             s.potions.add(p.id);
             log(s, "调制药剂：" + p.name);
+        }
+        if (d.createWound) {
+            addStatusCard(s, "wound");
         }
         if (d.goldGain > 0) {
             int gain = c.upgraded ? d.goldGain + 5 : d.goldGain;
@@ -2346,6 +2427,29 @@ public final class GameCore {
         }
         if (PROF_MERCHANT.equals(s.profession) && d.goldGain > 0) {
             gainBlock(s, 4 + Math.min(8, s.gold / 80));
+        }
+        if (PROF_BLOODBOUND.equals(s.profession)) {
+            if (d.hpLoss > 0 || "wound".equals(c.id)) {
+                s.professionCharge++;
+            }
+            if (s.professionCharge >= 3) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    damageEnemy(s, e, 9 + s.act * 2 + Math.max(0, s.maxHp - s.hp) / 8, true);
+                    e.vulnerable += hasTalent(s, "t_bloodbound_scar") ? 1 : 0;
+                }
+                s.hp = Math.min(s.maxHp, s.hp + (hasTalent(s, "t_bloodbound_feast") ? 5 : 2));
+                s.professionCharge = 0;
+            }
+        }
+        if (PROF_WEAVER.equals(s.profession) && d.type == 1) {
+            s.professionCharge++;
+            if (s.professionCharge >= 3) {
+                draw(s, hasTalent(s, "t_weaver_mastery") ? 2 : 1);
+                s.energy += 1;
+                upgradeRandomHandCard(s);
+                s.professionCharge = 0;
+            }
         }
         if (s.steelEngine > 0 && d.type == 1) {
             Enemy e = firstLiving(s);
@@ -2811,6 +2915,12 @@ public final class GameCore {
         if (PROF_MERCHANT.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) {
             return 4;
         }
+        if (PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || d.heal > 0 || "wound".equals(d.id))) {
+            return 4;
+        }
+        if (PROF_WEAVER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.createEcho)) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -2857,6 +2967,12 @@ public final class GameCore {
             return 2;
         }
         if (PROF_MERCHANT.equals(s.profession) && ("merchant_scale".equals(id) || "merchant_key".equals(id) || "cracked_compass".equals(id))) {
+            return 2;
+        }
+        if (PROF_BLOODBOUND.equals(s.profession) && ("blood_contract".equals(id) || "silver_suture".equals(id) || "cup_of_mist".equals(id))) {
+            return 2;
+        }
+        if (PROF_WEAVER.equals(s.profession) && ("ink_fountain".equals(id) || "glass_anvil".equals(id) || "amber_quill".equals(id))) {
             return 2;
         }
         return 0;
@@ -2910,6 +3026,19 @@ public final class GameCore {
     private static void upgradeRandomDeckCard(State s) {
         ArrayList<Card> pool = new ArrayList<>();
         for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && d.type != 3 && !c.upgraded) {
+                pool.add(c);
+            }
+        }
+        if (!pool.isEmpty()) {
+            pool.get(s.run.nextInt(pool.size())).upgraded = true;
+        }
+    }
+
+    private static void upgradeRandomHandCard(State s) {
+        ArrayList<Card> pool = new ArrayList<>();
+        for (Card c : s.hand) {
             CardDef d = card(c.id);
             if (d != null && d.type != 3 && !c.upgraded) {
                 pool.add(c);
@@ -3059,6 +3188,20 @@ public final class GameCore {
         c.profession = PROF_MERCHANT; c.goldGain = 8; c.goldBlock = true;
         c = addCard("merchant_liquidate", "清算", "通用", 2, 2, 0, 10, 15, 0, 0, "造成伤害，金币越多伤害越高。获得金币。", "更高伤害与金币收益。");
         c.profession = PROF_MERCHANT; c.goldDamage = true; c.goldGain = 10;
+
+        c = addCard("blood_pact", "血契刻印", "通用", 0, 1, 0, 9, 13, 0, 0, "失去生命造成伤害。血契者会把失去生命转为额外爆发。", "失去更少生命，造成更高伤害。");
+        c.profession = PROF_BLOODBOUND; c.hpLoss = 2; c.vulnerable = 1;
+        c = addCard("blood_rite", "裂伤仪式", "通用", 1, 1, 2, 0, 0, 6, 9, "抽牌并加入裂伤；裂伤可推动血契者反击。", "更多格挡与抽牌。");
+        c.profession = PROF_BLOODBOUND; c.draw = 2; c.drawUp = 3; c.createWound = true; c.exhaust = true;
+        c = addCard("blood_feast", "赤宴", "通用", 2, 2, 0, 12, 18, 0, 0, "造成伤害并治疗，低血线构筑收益更高。", "更高伤害和治疗。");
+        c.profession = PROF_BLOODBOUND; c.heal = 4; c.healUp = 7;
+
+        c = addCard("weaver_thread", "织线", "通用", 0, 0, 1, 0, 0, 4, 6, "获得格挡，检视牌库并抽1张。织牌师偏好牌序工程。", "更多格挡，抽2张。");
+        c.profession = PROF_WEAVER; c.scry = 3; c.draw = 1; c.drawUp = 2;
+        c = addCard("weaver_lattice", "格纹阵", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡，升级手中一张牌并抽牌。", "更多格挡与抽牌。");
+        c.profession = PROF_WEAVER; c.upgradeRandom = true; c.draw = c.drawUp = 1;
+        c = addCard("weaver_pattern", "定式改写", "通用", 2, 1, 2, 0, 0, 0, 0, "制造临时疾切，检视牌库，获得能量，消耗。", "额外抽牌并获得能量。");
+        c.profession = PROF_WEAVER; c.createEcho = true; c.echoCardId = "quick_cut"; c.scry = 4; c.energyGain = 1; c.draw = 1; c.drawUp = 2; c.exhaust = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -3318,6 +3461,10 @@ public final class GameCore {
         addTalent("t_arcanist_overflow", PROF_ARCANIST, "回声溢出", "触发秘术职业回流时额外制造临时疾切。");
         addTalent("t_merchant_interest", PROF_MERCHANT, "复利账本", "进入商店获得金币；金币牌奖励更多金币。");
         addTalent("t_merchant_contract", PROF_MERCHANT, "深渊契据", "Boss后额外获得金币和一张升级的金币牌。");
+        addTalent("t_bloodbound_scar", PROF_BLOODBOUND, "猩红旧疤", "获得最大生命；血契自损牌提供格挡，血契反击施加易伤。");
+        addTalent("t_bloodbound_feast", PROF_BLOODBOUND, "饥渴回响", "低血线伤害会少量治疗，血契反击治疗更多。");
+        addTalent("t_weaver_setup", PROF_WEAVER, "先手织局", "每场战斗首回合额外能量，并获得升级格纹阵。");
+        addTalent("t_weaver_mastery", PROF_WEAVER, "定式大师", "升级技能会额外抽牌；织牌师重织触发抽更多牌。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
@@ -3504,6 +3651,7 @@ public final class GameCore {
         public boolean exhaustTopDiscard;
         public boolean createEcho;
         public boolean createPotion;
+        public boolean createWound;
         public boolean goldDamage;
         public boolean goldBlock;
         public boolean burnToBlock;

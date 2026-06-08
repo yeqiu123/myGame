@@ -320,7 +320,7 @@ public final class GameView extends View {
         int h = getHeight();
         drawText(c, "深渊牌旅", dp(30), h * 0.18f, 42, 0xfff6d780, true);
         drawText(c, "原创暗潮爬塔卡牌游戏", dp(32), h * 0.18f + dp(38), 17, 0xffd6cdbd, false);
-        drawText(c, "四种起源乘六种职业，卡组、遗物、药剂与事件共同塑造每一局。", dp(32), h * 0.18f + dp(72), 15, 0xffb9c7cf, false);
+        drawText(c, "四种起源乘" + GameCore.PROFESSIONS.length + "种职业，卡组、遗物、药剂与事件共同塑造每一局。", dp(32), h * 0.18f + dp(72), 15, 0xffb9c7cf, false);
         drawText(c, "旅程 " + s.meta.runs + "  胜利 " + s.meta.wins + "  最深 " + s.meta.highestFloor + "层  成就 " + s.meta.achievements.size(), dp(32), h * 0.18f + dp(100), 14, 0xffd7c994, true);
         addButton(dp(30), h * 0.38f, w - dp(60), dp(54), "新旅程", "new", 0);
         addButton(dp(30), h * 0.47f, w - dp(60), dp(48), "继续", "continue", 0);
@@ -371,13 +371,15 @@ public final class GameView extends View {
                 "药剂扩散 / 异常爆发",
                 "束缚控制 / 群体压制",
                 "消耗回流 / 临时牌循环",
-                "金币运营 / 商店折扣"
+                "金币运营 / 商店折扣",
+                "自损裂伤 / 压血爆发",
+                "预视升级 / 牌序重织"
         };
         for (int i = 0; i < GameCore.PROFESSIONS.length; i++) {
             int row = i / cols;
             int col = i % cols;
             float x = dp(24) + col * (cardW + gap);
-            float y = dp(126) + row * dp(118);
+            float y = dp(126) + row * dp(106);
             String name = GameCore.PROFESSIONS[i];
             p.setColor(0xcc121923);
             c.drawRoundRect(new RectF(x, y, x + cardW, y + cardH), dp(8), dp(8), p);
@@ -928,10 +930,21 @@ public final class GameView extends View {
             c.drawCircle(cx, cy, size, p);
             c.drawCircle(cx, cy, size * 0.45f, p);
             c.drawLine(cx - size, cy, cx + size, cy, p);
-        } else {
+        } else if (GameCore.PROF_MERCHANT.equals(profession)) {
             c.drawCircle(cx, cy, size * 0.9f, p);
             c.drawLine(cx - size * 0.55f, cy - size * 0.2f, cx + size * 0.55f, cy - size * 0.2f, p);
             c.drawLine(cx - size * 0.55f, cy + size * 0.25f, cx + size * 0.55f, cy + size * 0.25f, p);
+        } else if (GameCore.PROF_BLOODBOUND.equals(profession)) {
+            Path drop = new Path();
+            drop.moveTo(cx, cy - size);
+            drop.cubicTo(cx + size * 0.8f, cy - size * 0.15f, cx + size * 0.45f, cy + size, cx, cy + size);
+            drop.cubicTo(cx - size * 0.45f, cy + size, cx - size * 0.8f, cy - size * 0.15f, cx, cy - size);
+            c.drawPath(drop, p);
+            c.drawLine(cx - size * 0.45f, cy + size * 0.15f, cx + size * 0.45f, cy - size * 0.15f, p);
+        } else {
+            c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
+            c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
+            c.drawLine(cx - size * 0.7f, cy + size * 0.25f, cx + size * 0.7f, cy + size * 0.25f, p);
         }
         p.setStyle(Paint.Style.FILL);
     }
