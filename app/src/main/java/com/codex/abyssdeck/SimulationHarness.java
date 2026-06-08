@@ -175,6 +175,13 @@ public final class SimulationHarness {
             if (GameCore.PROF_HEXER.equals(s.profession) && (d.vulnerable > 0 || d.createWound || d.addStatusToEnemy || d.spreadStatus)) score += 12;
             if (GameCore.PROF_INSCRIBER.equals(s.profession) && (d.upgradeRandom || d.scry > 0 || d.vulnerable > 0 || d.bind > 0
                     || d.addStatusToEnemy || d.createWound || d.exhaustTopDiscard || d.skillChargeGain > 0)) score += 12;
+            if (isHybridCore(d)) score += 14;
+            if ("hybrid_rift_engine".equals(d.id)) score += 10;
+            if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
+                    && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
+            if (s.relics.contains("echo_ledger") && (d.exhaust || d.createEcho || d.draw > 0 || d.goldGain > 0)) score += 12;
+            if (s.relics.contains("bloodspark_contract") && (d.hpLoss > 0 || d.createWound || d.goldGain > 0 || d.burn > 0 || d.vulnerable > 0)) score += 14;
+            if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
             if (s.deck.size() > 34 && d.cost >= 2 && d.draw == 0) score -= 6;
             if (score > bestScore) {
                 bestScore = score;
@@ -205,6 +212,13 @@ public final class SimulationHarness {
             if (GameCore.PROF_HEXER.equals(s.profession) && ("fallen_crown".equals(id) || "hex_tablet".equals(id) || "curse_censer".equals(id))) score += 34;
             if (GameCore.PROF_INSCRIBER.equals(s.profession) && ("living_codex".equals(id) || "engraver_stylus".equals(id)
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "curse_censer".equals(id) || "stormglass_seal".equals(id))) score += 34;
+            if ("confluence_map".equals(id)) score += 28;
+            if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
+                    || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession))) score += 28;
+            if ("echo_ledger".equals(id) && (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
+                    || GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession))) score += 28;
+            if ("bloodspark_contract".equals(id) && (GameCore.PROF_BLOODBOUND.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
+                    || GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_ALCHEMIST.equals(s.profession))) score += 28;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
@@ -426,6 +440,8 @@ public final class SimulationHarness {
                 if ("summoner_procession".equals(c.id)) score += 14;
                 if ("hexer_crownfall".equals(c.id)) score += 14;
                 if ("inscriber_codex".equals(c.id)) score += 14;
+                if (isHybridCore(d)) score += 14;
+                if ("hybrid_rift_engine".equals(c.id)) score += 10;
                 if (s.relics.contains("loom_shuttle") && d.scry > 0) score += 6;
                 if (s.relics.contains("void_abacus") && d.exhaust) score += 6;
                 if (s.relics.contains("tempo_metronome") && s.cardsPlayedThisTurn == 3) score += 12;
@@ -453,6 +469,11 @@ public final class SimulationHarness {
                 if (s.relics.contains("bloodcoin_broach") && (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id))) score += 8;
                 if (s.relics.contains("mirror_anvil") && (c.upgraded || d.upgradeRandom)) score += 8;
                 if (s.relics.contains("rift_compass") && isOffPoolCard(s, d)) score += 10;
+                if (s.relics.contains("split_anvil") && (c.upgraded || d.upgradeRandom)
+                        && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 12;
+                if (s.relics.contains("echo_ledger") && (d.exhaust || d.createEcho || c.temp || d.goldGain > 0)) score += 11;
+                if (s.relics.contains("bloodspark_contract") && (d.hpLoss > 0 || d.createWound || d.goldGain > 0 || d.burn > 0 || d.vulnerable > 0 || "wound".equals(c.id))) score += 12;
+                if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 14;
                 if (s.relics.contains("aegis_throne") && d.type == 1) score += 9;
                 if (s.relics.contains("finale_rapier") && d.type == 0 && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.relics.contains("solar_crucible") && (d.createPotion || d.burn > 0 || d.bind > 0)) score += 10;
@@ -510,13 +531,21 @@ public final class SimulationHarness {
                 || s.relics.contains("singularity_orb") || s.relics.contains("kingmaker_seal")
                 || s.relics.contains("blood_crown") || s.relics.contains("clockwork_loom")
                 || s.relics.contains("spirit_processional") || s.relics.contains("fallen_crown")
-                || s.relics.contains("engraver_stylus") || s.relics.contains("living_codex");
+                || s.relics.contains("engraver_stylus") || s.relics.contains("living_codex")
+                || s.relics.contains("split_anvil") || s.relics.contains("echo_ledger")
+                || s.relics.contains("bloodspark_contract") || s.relics.contains("confluence_map");
     }
 
     private static boolean isOffPoolCard(GameCore.State s, GameCore.CardDef d) {
         boolean offOrigin = !"通用".equals(d.origin) && !d.origin.equals(s.origin);
         boolean offProfession = d.profession.length() > 0 && !d.profession.equals(s.profession);
         return offOrigin || offProfession;
+    }
+
+    private static boolean isHybridCore(GameCore.CardDef d) {
+        return d != null && ("hybrid_forgebrand".equals(d.id) || "hybrid_echo_step".equals(d.id)
+                || "hybrid_blood_tithe".equals(d.id) || "hybrid_guard_conduit".equals(d.id)
+                || "hybrid_plague_brew".equals(d.id) || "hybrid_rift_engine".equals(d.id));
     }
 
     private static int firstEnemy(GameCore.State s) {
