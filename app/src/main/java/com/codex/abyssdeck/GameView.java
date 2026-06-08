@@ -572,6 +572,7 @@ public final class GameView extends View {
             skillTip = skillTip.substring(0, 30);
         }
         drawText(c, skillTip, dp(22), dp(140), 12, 0xffaebdc0, false);
+        drawText(c, shortText("构筑 " + GameCore.buildSummaryText(s), 48), dp(22), dp(158), 12, 0xff9fd5c5, true);
         String context = "";
         if (s.encounterModifier != GameCore.MOD_NONE) {
             context += "词缀 " + GameCore.modifierName(s.encounterModifier);
@@ -590,12 +591,12 @@ public final class GameView extends View {
             context += (context.length() > 0 ? "  " : "") + milestone;
         }
         if (context.length() > 0) {
-            drawText(c, shortText(context, 52), dp(22), dp(158), 12, s.questComplete ? 0xfff5d276 : 0xffc9d7d3, true);
+            drawText(c, shortText(context, 52), dp(22), dp(176), 12, s.questComplete ? 0xfff5d276 : 0xffc9d7d3, true);
         }
         if (s.vulnerable > 0) {
-            drawText(c, "易伤 " + s.vulnerable, dp(22), dp(176), 15, 0xffff8d75, true);
+            drawText(c, "易伤 " + s.vulnerable, dp(22), dp(194), 15, 0xffff8d75, true);
         }
-        float enemyTop = dp(154);
+        float enemyTop = dp(172);
         float gap = w / (s.enemies.size() + 1f);
         for (int i = 0; i < s.enemies.size(); i++) {
             GameCore.Enemy e = s.enemies.get(i);
@@ -730,16 +731,17 @@ public final class GameView extends View {
             drawText(c, "行商折扣生效", dp(24), dp(106), 13, 0xffffdf86, true);
         }
         drawText(c, "药剂 " + s.potions.size() + "/" + GameCore.potionLimit(s), dp(132), dp(106), 13, 0xffc9d2d2, true);
+        drawText(c, shortText("当前构筑 " + GameCore.buildSummaryText(s), 46), dp(24), dp(124), 12, 0xff9fd5c5, true);
         float cardW = Math.min(dp(104), (w - dp(34)) / 5f - dp(6));
         float cardH = cardW * 1.42f;
         for (int i = 0; i < s.shopCards.size(); i++) {
             GameCore.Card card = new GameCore.Card(s.shopCards.get(i));
-            RectF r = new RectF(dp(18) + i * (cardW + dp(6)), dp(112), dp(18) + i * (cardW + dp(6)) + cardW, dp(112) + cardH);
+            RectF r = new RectF(dp(18) + i * (cardW + dp(6)), dp(134), dp(18) + i * (cardW + dp(6)) + cardW, dp(134) + cardH);
             drawCard(c, card, r, false);
             int price = GameCore.shopCardPrice(s, GameCore.card(card.id));
             addButton(r.left, r.bottom + dp(6), r.width(), dp(30), price + "金", "shop_card", i);
         }
-        float y = dp(112) + cardH + dp(50);
+        float y = dp(134) + cardH + dp(50);
         drawText(c, "遗物", dp(24), y, 18, 0xffe9d7a1, true);
         for (int i = 0; i < s.shopRelics.size(); i++) {
             GameCore.RelicDef r = GameCore.relic(s.shopRelics.get(i));
@@ -796,19 +798,23 @@ public final class GameView extends View {
         float cardW = Math.min(dp(104), (w - dp(34)) / 3f - dp(8));
         float cardH = cardW * 1.42f;
         int cols = 3;
-        int rows = Math.max(1, (int) ((getHeight() - dp(210)) / Math.max(1, cardH + dp(12))));
+        int rows = Math.max(1, (int) ((getHeight() - dp(238)) / Math.max(1, cardH + dp(12))));
         int perPage = Math.max(3, cols * rows);
         int maxPage = Math.max(0, (list.size() - 1) / perPage);
         deckPage = Math.max(0, Math.min(deckPage, maxPage));
         int startIndex = deckPage * perPage;
         int end = Math.min(list.size(), startIndex + perPage);
         drawText(c, "第 " + (deckPage + 1) + "/" + (maxPage + 1) + " 页  共 " + list.size() + " 张", dp(24), dp(144), 13, 0xffc9d2d2, true);
+        if (s.deckView == 0) {
+            drawText(c, shortText("构筑 " + GameCore.buildSummaryText(s), 54), dp(24), dp(162), 13, 0xff9fd5c5, true);
+            drawText(c, shortText(GameCore.buildSummaryDetail(s), 58), dp(24), dp(180), 11, 0xffaebdc0, false);
+        }
         for (int i = startIndex; i < end; i++) {
             int local = i - startIndex;
             int row = local / cols;
             int col = local % cols;
             float x = dp(18) + col * (cardW + dp(8));
-            float y = dp(162) + row * (cardH + dp(12));
+            float y = dp(s.deckView == 0 ? 198 : 162) + row * (cardH + dp(12));
             RectF r = new RectF(x, y, x + cardW, y + cardH);
             drawCard(c, list.get(i), r, false);
             cardHits.add(new CardHit(r, i));

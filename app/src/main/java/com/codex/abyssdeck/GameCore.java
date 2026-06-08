@@ -1488,6 +1488,42 @@ public final class GameCore {
         return "寻路偏向：" + BUILD_FOCUS_NAMES[focus] + "，付费后从定向补强牌中三选一。";
     }
 
+    public static String buildSummaryText(State s) {
+        if (s == null || s.deck.isEmpty()) {
+            return "";
+        }
+        int[] top = topBuildFocuses(s, 3);
+        String summary = "";
+        for (int i = 0; i < top.length; i++) {
+            int focus = top[i];
+            int score = buildScoutFocusScore(s, focus);
+            if (score <= 0) {
+                continue;
+            }
+            String part = BUILD_FOCUS_NAMES[focus] + " " + buildFocusRank(score);
+            summary += (summary.length() == 0 ? "" : "  ") + part;
+        }
+        return summary.length() == 0 ? "构筑尚未成型" : summary;
+    }
+
+    public static String buildSummaryDetail(State s) {
+        if (s == null || s.deck.isEmpty()) {
+            return "";
+        }
+        int[] top = topBuildFocuses(s, 3);
+        String detail = "";
+        for (int i = 0; i < top.length; i++) {
+            int focus = top[i];
+            int cards = buildFocusDeckCards(s, focus);
+            if (cards <= 0 && buildScoutFocusScore(s, focus) <= 0) {
+                continue;
+            }
+            String part = BUILD_FOCUS_NAMES[focus] + "牌" + cards + "张";
+            detail += (detail.length() == 0 ? "" : " / ") + part;
+        }
+        return detail.length() == 0 ? "多拿带构筑标签的牌会逐步形成方向。" : detail;
+    }
+
     private static int depthShopSurcharge(State s, int basePrice) {
         if (s == null || s.ascension < 6 || basePrice <= 0) {
             return 0;
@@ -5476,16 +5512,32 @@ public final class GameCore {
         if (s == null) {
             return BUILD_CYCLE;
         }
-        int best = BUILD_CYCLE;
-        int bestScore = -9999;
+        return topBuildFocuses(s, 1)[0];
+    }
+
+    private static int[] topBuildFocuses(State s, int count) {
+        int size = Math.max(1, Math.min(count, BUILD_FOCUS_NAMES.length));
+        int[] top = new int[size];
+        int[] scores = new int[size];
+        for (int i = 0; i < size; i++) {
+            top[i] = BUILD_CYCLE;
+            scores[i] = -9999;
+        }
         for (int focus = 0; focus < BUILD_FOCUS_NAMES.length; focus++) {
             int score = buildScoutFocusScore(s, focus);
-            if (score > bestScore) {
-                bestScore = score;
-                best = focus;
+            for (int slot = 0; slot < size; slot++) {
+                if (score > scores[slot]) {
+                    for (int move = size - 1; move > slot; move--) {
+                        scores[move] = scores[move - 1];
+                        top[move] = top[move - 1];
+                    }
+                    scores[slot] = score;
+                    top[slot] = focus;
+                    break;
+                }
             }
         }
-        return best;
+        return top;
     }
 
     private static int buildScoutFocusScore(State s, int focus) {
@@ -5518,6 +5570,24 @@ public final class GameCore {
             score += Math.min(8, s.runBloodcoinMilestone);
         }
         return score;
+    }
+
+    private static String buildFocusRank(int score) {
+        if (score >= 80) return "S";
+        if (score >= 55) return "A";
+        if (score >= 35) return "B";
+        return "C";
+    }
+
+    private static int buildFocusDeckCards(State s, int focus) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (buildFocusCardValue(d, focus) > 0) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static int professionFocusBonus(State s, int focus) {
