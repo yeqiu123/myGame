@@ -22,6 +22,7 @@ public final class GameCore {
     public static final int MODE_VICTORY = 10;
     public static final int MODE_CODEX = 11;
     public static final int MODE_BOON = 12;
+    public static final int MODE_CLASS = 13;
 
     public static final int ENEMY_ATTACK = 0;
     public static final int ENEMY_BUFF = 1;
@@ -40,6 +41,16 @@ public final class GameCore {
     public static final String ORIGIN_ASH = "烬火";
     public static final String ORIGIN_WILD = "森息";
     public static final String ORIGIN_VOID = "虚空";
+
+    public static final String PROF_WARDEN = "守卫";
+    public static final String PROF_DUELIST = "决斗者";
+    public static final String PROF_ALCHEMIST = "炼金师";
+    public static final String PROF_RANGER = "游侠";
+    public static final String PROF_ARCANIST = "秘术师";
+    public static final String PROF_MERCHANT = "行商";
+    public static final String[] PROFESSIONS = {
+            PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER, PROF_ARCANIST, PROF_MERCHANT
+    };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
     public static final ArrayList<RelicDef> RELIC_LIBRARY = new ArrayList<>();
@@ -73,6 +84,7 @@ public final class GameCore {
         int chosenDepth = s.ascension;
         resetRun(s);
         s.origin = origin;
+        s.profession = "";
         s.maxHp = 76;
         s.hp = s.maxHp;
         s.gold = 68;
@@ -86,10 +98,20 @@ public final class GameCore {
         s.seenRelics.clear();
         addStarterDeck(s, origin);
         addRelic(s, starterRelic(origin));
+        s.mode = MODE_CLASS;
+        log(s, "你带着" + origin + "印记进入深渊，选择这局的职业。");
+    }
+
+    public static void chooseProfession(State s, String profession) {
+        if (s.mode != MODE_CLASS || s.origin.length() == 0 || !isProfession(profession)) {
+            return;
+        }
+        s.profession = profession;
+        addProfessionStarter(s, profession);
         generateMap(s);
         rollBoons(s);
         s.mode = MODE_BOON;
-        log(s, "你带着" + origin + "印记进入深渊，等待赐印。");
+        log(s, s.origin + " " + profession + "整备完成，等待赐印。");
     }
 
     public static void chooseBoon(State s, int index) {
@@ -350,6 +372,18 @@ public final class GameCore {
             damageEnemy(s, target, 12 + Math.min(30, s.gold / 10), false);
             s.gold += 20;
         }
+        if (PROF_ALCHEMIST.equals(s.profession)) {
+            draw(s, 1);
+            s.energy += s.professionUsedThisTurn == 0 ? 1 : 0;
+            s.professionUsedThisTurn++;
+            if (target != null) {
+                target.burn += 2 + s.burnPower;
+                target.bind += 2 + s.bindPower;
+            }
+        }
+        if (hasRelic(s, "alchemist_case") && target != null) {
+            target.vulnerable += 1;
+        }
         log(s, "使用药剂：" + p.name);
         if (allEnemiesDead(s)) {
             winCombat(s);
@@ -361,7 +395,7 @@ public final class GameCore {
             return;
         }
         CardDef d = card(s.shopCards.get(index));
-        int price = cardPrice(d);
+        int price = shopCardPrice(s, d);
         if (d == null || s.gold < price) {
             return;
         }
@@ -377,7 +411,7 @@ public final class GameCore {
             return;
         }
         RelicDef r = relic(s.shopRelics.get(index));
-        int price = 165;
+        int price = shopRelicPrice(s);
         if (r == null || s.gold < price) {
             return;
         }
@@ -387,11 +421,11 @@ public final class GameCore {
     }
 
     public static void shopBuyPotion(State s, int index) {
-        if (s.mode != MODE_SHOP || index < 0 || index >= s.shopPotions.size() || s.potions.size() >= 3) {
+        if (s.mode != MODE_SHOP || index < 0 || index >= s.shopPotions.size() || s.potions.size() >= potionLimit(s)) {
             return;
         }
         PotionDef p = potion(s.shopPotions.get(index));
-        int price = 42;
+        int price = shopPotionPrice(s);
         if (p == null || s.gold < price) {
             return;
         }
@@ -438,27 +472,27 @@ public final class GameCore {
             log(s, "转化为：" + d.name);
             s.pendingAction = "";
             s.mode = MODE_REST;
-        } else if ("shop_remove".equals(action) && s.gold >= 85) {
+        } else if ("shop_remove".equals(action) && s.gold >= shopServicePrice(s, action)) {
             Card c = s.deck.remove(deckIndex);
-            s.gold -= 85;
+            s.gold -= shopServicePrice(s, action);
             log(s, "商店移除：" + card(c.id).name);
             s.pendingAction = "";
             s.mode = MODE_SHOP;
-        } else if ("shop_upgrade".equals(action) && s.gold >= 75) {
+        } else if ("shop_upgrade".equals(action) && s.gold >= shopServicePrice(s, action)) {
             Card c = s.deck.get(deckIndex);
             if (!c.upgraded) {
                 c.upgraded = true;
-                s.gold -= 75;
+                s.gold -= shopServicePrice(s, action);
                 log(s, "商店升级：" + card(c.id).name);
                 s.pendingAction = "";
                 s.mode = MODE_SHOP;
             }
-        } else if ("shop_transform".equals(action) && s.gold >= 105) {
+        } else if ("shop_transform".equals(action) && s.gold >= shopServicePrice(s, action)) {
             Card old = s.deck.get(deckIndex);
             CardDef d = randomCard(s, s.origin, false);
             old.id = d.id;
             old.upgraded = false;
-            s.gold -= 105;
+            s.gold -= shopServicePrice(s, action);
             log(s, "商店转化为：" + d.name);
             s.pendingAction = "";
             s.mode = MODE_SHOP;
@@ -558,7 +592,7 @@ public final class GameCore {
                 log(s, "你拿走石匣中的金币，眩光随之扩散。");
             }
         } else if (e == 5) {
-            if (choice == 0 && s.potions.size() < 3) {
+            if (choice == 0 && s.potions.size() < potionLimit(s)) {
                 PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
                 s.potions.add(p.id);
                 s.hp = Math.max(1, s.hp - 6);
@@ -679,6 +713,61 @@ public final class GameCore {
         return 48;
     }
 
+    public static int shopCardPrice(State s, CardDef d) {
+        int price = cardPrice(d);
+        if (PROF_MERCHANT.equals(s.profession)) {
+            price -= 12;
+        }
+        if (hasRelic(s, "merchant_scale")) {
+            price -= 10;
+        }
+        return Math.max(18, price);
+    }
+
+    public static int shopRelicPrice(State s) {
+        int price = 165;
+        if (PROF_MERCHANT.equals(s.profession)) {
+            price -= 22;
+        }
+        if (hasRelic(s, "merchant_scale")) {
+            price -= 18;
+        }
+        return Math.max(90, price);
+    }
+
+    public static int shopPotionPrice(State s) {
+        int price = 42;
+        if (PROF_MERCHANT.equals(s.profession)) {
+            price -= 7;
+        }
+        if (hasRelic(s, "merchant_scale")) {
+            price -= 5;
+        }
+        return Math.max(18, price);
+    }
+
+    public static int shopServicePrice(State s, String action) {
+        int price = "shop_remove".equals(action) ? 85 : "shop_upgrade".equals(action) ? 75 : 105;
+        if (PROF_MERCHANT.equals(s.profession)) {
+            price -= 12;
+        }
+        if (hasRelic(s, "merchant_scale")) {
+            price -= 8;
+        }
+        return Math.max(35, price);
+    }
+
+    public static int potionLimit(State s) {
+        int limit = 3;
+        if (PROF_ALCHEMIST.equals(s.profession)) {
+            limit++;
+        }
+        if (hasRelic(s, "alchemist_case")) {
+            limit++;
+        }
+        return limit;
+    }
+
     public static String nodeName(char type) {
         if (type == 'C') {
             return "战";
@@ -752,6 +841,59 @@ public final class GameCore {
         return 0xffd6c07a;
     }
 
+    public static String professionText(String profession) {
+        if (PROF_WARDEN.equals(profession)) {
+            return "高生命与格挡节奏，技能牌会触发额外护甲。适合钢律、森息的稳健构筑。";
+        }
+        if (PROF_DUELIST.equals(profession)) {
+            return "连打越多越锋利，每三张攻击触发穿透追击。适合低费、抽牌和回声套牌。";
+        }
+        if (PROF_ALCHEMIST.equals(profession)) {
+            return "药剂上限提高，使用药剂会抽牌并扩散异常。适合燃灼、束缚和资源爆发。";
+        }
+        if (PROF_RANGER.equals(profession)) {
+            return "攻击会追加束缚，对受束缚敌人更高效。适合控制、群攻和多敌路线。";
+        }
+        if (PROF_ARCANIST.equals(profession)) {
+            return "消耗与临时牌会返还资源，首回合牌序更稳定。适合虚空、过牌和高技巧构筑。";
+        }
+        if (PROF_MERCHANT.equals(profession)) {
+            return "金币更多，商店更便宜，金币牌能把经济转成伤害或防御。适合长线运营。";
+        }
+        return "尚未选择职业。";
+    }
+
+    public static int professionColor(String profession) {
+        if (PROF_WARDEN.equals(profession)) {
+            return 0xffa8c2d0;
+        }
+        if (PROF_DUELIST.equals(profession)) {
+            return 0xfff19968;
+        }
+        if (PROF_ALCHEMIST.equals(profession)) {
+            return 0xff83d39b;
+        }
+        if (PROF_RANGER.equals(profession)) {
+            return 0xffd4b85f;
+        }
+        if (PROF_ARCANIST.equals(profession)) {
+            return 0xffb095ff;
+        }
+        if (PROF_MERCHANT.equals(profession)) {
+            return 0xffffcf66;
+        }
+        return 0xffd6c07a;
+    }
+
+    public static boolean isProfession(String profession) {
+        for (String p : PROFESSIONS) {
+            if (p.equals(profession)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void resetRun(State s) {
         long seed = System.currentTimeMillis();
         s.rngSeed = seed;
@@ -798,6 +940,37 @@ public final class GameCore {
         } else {
             s.deck.add(new Card("void_draw"));
             s.deck.add(new Card("void_echo"));
+        }
+    }
+
+    private static void addProfessionStarter(State s, String profession) {
+        if (PROF_WARDEN.equals(profession)) {
+            s.maxHp += 8;
+            s.hp += 8;
+            s.deck.add(new Card("warden_oath"));
+        } else if (PROF_DUELIST.equals(profession)) {
+            s.maxHp = Math.max(40, s.maxHp - 4);
+            s.hp = Math.min(s.hp, s.maxHp);
+            s.deck.add(new Card("duelist_flurry"));
+            s.deck.add(new Card("quick_cut"));
+        } else if (PROF_ALCHEMIST.equals(profession)) {
+            s.deck.add(new Card("alchemist_mix"));
+            while (s.potions.size() < 2) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if (PROF_RANGER.equals(profession)) {
+            s.maxHp += 2;
+            s.hp += 2;
+            s.deck.add(new Card("ranger_trap"));
+            s.gold += 15;
+        } else if (PROF_ARCANIST.equals(profession)) {
+            s.deck.add(new Card("arcanist_glyph"));
+            s.deck.add(new Card("void_glimpse"));
+        } else if (PROF_MERCHANT.equals(profession)) {
+            s.maxHp = Math.max(40, s.maxHp - 6);
+            s.hp = Math.min(s.hp, s.maxHp);
+            s.gold += 70;
+            s.deck.add(new Card("merchant_haggle"));
         }
     }
 
@@ -908,6 +1081,9 @@ public final class GameCore {
         s.wildEngine = 0;
         s.voidEngine = 0;
         s.vulnerable = 0;
+        s.nextEnergyPenalty = 0;
+        s.professionCharge = 0;
+        s.professionUsedThisTurn = 0;
         s.playerTurn = true;
         s.cardsPlayedThisTurn = 0;
         s.totalCardsPlayed = 0;
@@ -922,19 +1098,11 @@ public final class GameCore {
         Collections.shuffle(s.draw, s.run);
         spawnEnemies(s, kind);
         applyEncounterStart(s);
-        if (hasRelic(s, "amber_quill")) {
-            s.energy++;
-        }
         if (hasRelic(s, "bone_mask")) {
             gainBlock(s, 8);
         }
         if (hasRelic(s, "storm_shell") && s.enemies.size() > 1) {
             gainBlock(s, 5 + s.act * 2);
-        }
-        if (hasRelic(s, "deep_totem") && kind == 'B') {
-            s.energy++;
-            draw(s, 2);
-            gainBlock(s, 10);
         }
         beginPlayerTurn(s);
         log(s, (kind == 'B' ? "深渊领主现身。" : kind == 'E' ? "精英挡住去路。" : "遭遇敌群。") + " 词缀：" + modifierName(s.encounterModifier));
@@ -1008,7 +1176,7 @@ public final class GameCore {
             return;
         }
         if (kind == 'E') {
-            int elite = s.run.nextInt(4);
+            int elite = s.run.nextInt(6);
             if (elite == 0) {
                 s.enemies.add(enemy("铁脊裁决者", 58 + act * 16 + depth * 2, 1));
             } else if (elite == 1) {
@@ -1016,17 +1184,45 @@ public final class GameCore {
                 s.enemies.add(enemy("暗潮侍从", 28 + act * 8 + depth, 4));
             } else if (elite == 2) {
                 s.enemies.add(enemy("烬鳞术士", 54 + act * 15 + depth * 2, 5));
-                s.enemies.add(enemy("磷火虫", 26 + act * 8 + depth, 6));
-            } else {
+                s.enemies.add(enemy("磷火虫", 26 + act * 8 + depth, 21));
+            } else if (elite == 3) {
                 s.enemies.add(enemy("根牢卫士", 64 + act * 17 + depth * 2, 7));
+            } else if (elite == 4) {
+                s.enemies.add(enemy("雾钟敲击者", 58 + act * 16 + depth * 2, 13));
+                s.enemies.add(enemy("空面盗", 28 + act * 8 + depth, 23));
+            } else {
+                s.enemies.add(enemy("血契巡礼者", 66 + act * 18 + depth * 2, 14));
             }
             return;
         }
-        int count = s.run.nextInt(100) < 22 + act * 7 ? 2 : 1;
-        for (int i = 0; i < count; i++) {
-            String[] names = {"锈刃徒", "磷火虫", "藤壳兽", "空面盗"};
-            int roll = s.run.nextInt(names.length);
-            s.enemies.add(enemy(names[roll], 24 + act * 8 + depth + s.run.nextInt(10), 20 + roll));
+        int templateMax = act >= 3 ? 8 : act >= 2 ? 7 : 5;
+        int template = s.run.nextInt(templateMax);
+        int base = 18 + act * 8 + depth;
+        if (template == 0) {
+            s.enemies.add(enemy("锈刃徒", base + 18 + s.run.nextInt(9), 20));
+        } else if (template == 1) {
+            s.enemies.add(enemy("磷火虫", base + 5 + s.run.nextInt(7), 21));
+            s.enemies.add(enemy("锈刃徒", base + 9 + s.run.nextInt(8), 20));
+        } else if (template == 2) {
+            s.enemies.add(enemy("藤壳兽", base + 16 + s.run.nextInt(9), 22));
+            s.enemies.add(enemy("空面盗", base + 3 + s.run.nextInt(7), 23));
+        } else if (template == 3) {
+            s.enemies.add(enemy("琥珀哨兵", base + 24 + s.run.nextInt(10), 25));
+        } else if (template == 4) {
+            s.enemies.add(enemy("蚀骨祭司", base + 12 + s.run.nextInt(8), 24));
+            if (act >= 2 || s.run.nextBoolean()) {
+                s.enemies.add(enemy("磷火虫", base + 1 + s.run.nextInt(6), 21));
+            }
+        } else if (template == 5) {
+            s.enemies.add(enemy("钩爪游民", base + 18 + s.run.nextInt(9), 26));
+            s.enemies.add(enemy("藤壳兽", base + 10 + s.run.nextInt(7), 22));
+        } else if (template == 6) {
+            s.enemies.add(enemy("雾匠", base + 15 + s.run.nextInt(8), 27));
+            s.enemies.add(enemy("空面盗", base + 7 + s.run.nextInt(8), 23));
+        } else {
+            s.enemies.add(enemy("锈刃徒", base + 6 + s.run.nextInt(7), 20));
+            s.enemies.add(enemy("磷火虫", base + 2 + s.run.nextInt(6), 21));
+            s.enemies.add(enemy("空面盗", base + 1 + s.run.nextInt(6), 23));
         }
     }
 
@@ -1051,17 +1247,42 @@ public final class GameCore {
         s.block = 0;
         s.energy = 3;
         s.cardsPlayedThisTurn = 0;
+        s.professionUsedThisTurn = 0;
+        if (hasRelic(s, "amber_quill") && s.turn == 1) {
+            s.energy++;
+        }
         if (hasRelic(s, "sapphire_cell")) {
             s.energy++;
         }
         if (hasRelic(s, "obsidian_core")) {
             s.energy++;
         }
+        if (s.nextEnergyPenalty > 0) {
+            s.energy = Math.max(0, s.energy - s.nextEnergyPenalty);
+            log(s, "雾锁使本回合能量 -" + s.nextEnergyPenalty + "。");
+            s.nextEnergyPenalty = 0;
+        }
         if (hasRelic(s, "mirror_sun") && s.turn == 1) {
             s.energy += 2;
         }
+        if (hasRelic(s, "deep_totem") && s.combatKind == 'B' && s.turn == 1) {
+            s.energy++;
+            gainBlock(s, 10);
+        }
         if (s.encounterModifier == MOD_TURBULENT && s.turn % 2 == 1) {
             s.energy++;
+        }
+        if (PROF_WARDEN.equals(s.profession)) {
+            gainBlock(s, 2 + Math.min(6, s.act + s.steelEngine));
+        }
+        if (PROF_RANGER.equals(s.profession) && firstLiving(s) != null) {
+            firstLiving(s).bind += 1 + s.bindPower / 2;
+        }
+        if (PROF_ARCANIST.equals(s.profession) && s.turn == 1) {
+            s.voidEngine++;
+        }
+        if (PROF_MERCHANT.equals(s.profession) && s.turn == 1) {
+            gainBlock(s, Math.min(16, Math.max(3, s.gold / 35)));
         }
         if (hasRelic(s, "steel_oath") && s.turn == 1) {
             gainBlock(s, 6);
@@ -1084,6 +1305,15 @@ public final class GameCore {
         if (hasRelic(s, "void_lens") && s.turn == 1) {
             draw(s, 1);
         }
+        if (hasRelic(s, "warden_plate") && s.turn == 1) {
+            gainBlock(s, 8);
+        }
+        if (hasRelic(s, "duelist_sash") && s.turn == 1) {
+            s.energy++;
+        }
+        if (hasRelic(s, "ranger_map") && s.turn == 1 && firstLiving(s) != null) {
+            firstLiving(s).bind += 3;
+        }
         for (Enemy e : s.enemies) {
             if (e.hp > 0) {
                 if (e.burn > 0) {
@@ -1102,7 +1332,13 @@ public final class GameCore {
         if (hasRelic(s, "runic_shackle")) {
             baseDraw = Math.max(1, baseDraw - 1);
         }
+        if (PROF_ARCANIST.equals(s.profession) && s.turn == 1) {
+            baseDraw++;
+        }
         draw(s, baseDraw);
+        if (hasRelic(s, "deep_totem") && s.combatKind == 'B' && s.turn == 1) {
+            draw(s, 2);
+        }
         if (hasRelic(s, "void_anchor") && s.turn == 1) {
             Card anchor = new Card("void_nova");
             anchor.temp = true;
@@ -1218,6 +1454,116 @@ public final class GameCore {
                 } else {
                     e.intent = ENEMY_SPECIAL;
                     e.intentValue = 2 + s.act;
+                }
+            } else if (e.kind == 13) {
+                if (r < 42) {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 2;
+                } else if (r < 76) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 10 + s.act * 3;
+                }
+            } else if (e.kind == 14) {
+                if (r < 38) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 12 + s.act * 3;
+                } else if (r < 68) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 3 + s.act;
+                } else {
+                    e.intent = ENEMY_BUFF;
+                    e.intentValue = 2 + s.act;
+                }
+            } else if (e.kind == 20) {
+                if (r < 62) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 7 + s.act * 3;
+                } else if (r < 82) {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 7 + s.act * 2;
+                } else {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1 + s.act;
+                }
+            } else if (e.kind == 21) {
+                if (r < 48) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 5 + s.act * 2;
+                } else if (r < 84) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 2 + s.act;
+                } else {
+                    e.intent = ENEMY_BUFF;
+                    e.intentValue = 1;
+                }
+            } else if (e.kind == 22) {
+                if (r < 34) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 6 + s.act * 2;
+                } else if (r < 74) {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 10 + s.act * 3;
+                } else {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 2 + s.act;
+                }
+            } else if (e.kind == 23) {
+                if (r < 48) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 6 + s.act * 2;
+                } else if (r < 78) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 1;
+                }
+            } else if (e.kind == 24) {
+                if (r < 32) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 5 + s.act * 2;
+                } else if (r < 72) {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 1 + s.act / 2;
+                } else {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                }
+            } else if (e.kind == 25) {
+                if (r < 42) {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 12 + s.act * 3;
+                } else if (r < 76) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 10 + s.act * 3;
+                } else {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 2;
+                }
+            } else if (e.kind == 26) {
+                if (r < 55) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 9 + s.act * 3;
+                } else if (r < 82) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_BUFF;
+                    e.intentValue = 2;
+                }
+            } else if (e.kind == 27) {
+                if (r < 36) {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 1;
+                } else if (r < 72) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 7 + s.act * 2;
                 }
             } else if (r < 68) {
                 e.intent = ENEMY_ATTACK;
@@ -1341,6 +1687,29 @@ public final class GameCore {
             damage += c.upgraded ? 8 : 5;
             block += c.upgraded ? 4 : 3;
         }
+        if (d.comboDamage > 0) {
+            damage += d.comboDamage * Math.max(0, s.cardsPlayedThisTurn - 1);
+        }
+        if (d.goldDamage) {
+            damage += Math.min(c.upgraded ? 42 : 28, Math.max(0, s.gold / (c.upgraded ? 8 : 11)));
+        }
+        if (d.goldBlock) {
+            block += Math.min(c.upgraded ? 24 : 16, Math.max(0, s.gold / (c.upgraded ? 12 : 16)));
+        }
+        if (d.burnToBlock) {
+            int burnTotal = 0;
+            for (Enemy e : livingEnemies(s)) {
+                burnTotal += e.burn;
+            }
+            block += Math.min(c.upgraded ? 28 : 20, burnTotal);
+        }
+        if (d.bindToDraw) {
+            int bindTotal = 0;
+            for (Enemy e : livingEnemies(s)) {
+                bindTotal += e.bind;
+            }
+            draw += Math.min(c.upgraded ? 3 : 2, bindTotal / 4);
+        }
 
         if (damage > 0) {
             if (d.aoe) {
@@ -1361,14 +1730,33 @@ public final class GameCore {
         if (d.energyGain > 0) {
             s.energy += c.upgraded ? d.energyGain + d.energyGainUp : d.energyGain;
         }
-        if (burn > 0 && target != null) {
-            target.burn += burn + s.burnPower;
+        if (burn > 0) {
+            if (d.aoe) {
+                for (Enemy e : livingEnemies(s)) {
+                    e.burn += burn + s.burnPower;
+                }
+            } else if (target != null) {
+                target.burn += burn + s.burnPower;
+            }
         }
-        if (bind > 0 && target != null) {
-            target.bind += bind + s.bindPower;
+        if (bind > 0) {
+            if (d.aoe) {
+                for (Enemy e : livingEnemies(s)) {
+                    e.bind += bind + s.bindPower;
+                }
+            } else if (target != null) {
+                target.bind += bind + s.bindPower;
+            }
         }
-        if (d.vulnerable > 0 && target != null) {
-            target.vulnerable += c.upgraded ? d.vulnerable + 1 : d.vulnerable;
+        if (d.vulnerable > 0) {
+            int vuln = c.upgraded ? d.vulnerable + 1 : d.vulnerable;
+            if (d.aoe) {
+                for (Enemy e : livingEnemies(s)) {
+                    e.vulnerable += vuln;
+                }
+            } else if (target != null) {
+                target.vulnerable += vuln;
+            }
         }
         if (heal > 0) {
             s.hp = Math.min(s.maxHp, s.hp + heal);
@@ -1416,6 +1804,25 @@ public final class GameCore {
             Card echo = new Card(d.echoCardId.length() > 0 ? d.echoCardId : c.id);
             echo.temp = true;
             addToHand(s, echo);
+        }
+        if (d.createPotion && s.potions.size() < potionLimit(s)) {
+            PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+            s.potions.add(p.id);
+            log(s, "调制药剂：" + p.name);
+        }
+        if (d.goldGain > 0) {
+            s.gold += c.upgraded ? d.goldGain + 5 : d.goldGain;
+        }
+        if (d.spreadStatus && target != null) {
+            for (Enemy e : livingEnemies(s)) {
+                if (e != target) {
+                    e.burn += Math.min(c.upgraded ? 5 : 3, Math.max(0, target.burn / 2));
+                    e.bind += Math.min(c.upgraded ? 5 : 3, Math.max(0, target.bind / 2));
+                    if (target.vulnerable > 0) {
+                        e.vulnerable += 1;
+                    }
+                }
+            }
         }
         if (d.retainBlock) {
             s.block += s.turn;
@@ -1475,6 +1882,61 @@ public final class GameCore {
         }
         if (hasRelic(s, "opal_scar") && s.cardsPlayedThisTurn == 3) {
             gainBlock(s, 7);
+        }
+        if (hasRelic(s, "warden_plate") && d.type == 1 && s.cardsPlayedThisTurn <= 2) {
+            gainBlock(s, 3);
+        }
+        if (hasRelic(s, "duelist_sash") && d.type == 0 && s.cardsPlayedThisTurn == 2) {
+            Card cut = new Card("quick_cut");
+            cut.temp = true;
+            addToHand(s, cut);
+        }
+        if (hasRelic(s, "ranger_map") && d.bind > 0) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.vulnerable += 1;
+            }
+        }
+        if (hasRelic(s, "arcane_ink") && d.exhaust) {
+            s.energy++;
+        }
+        if (PROF_WARDEN.equals(s.profession) && d.type == 1) {
+            s.professionCharge++;
+            if (s.professionCharge >= 2) {
+                gainBlock(s, 5);
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    damageEnemy(s, e, 5 + s.steelEngine, true);
+                }
+                s.professionCharge = 0;
+            }
+        }
+        if (PROF_DUELIST.equals(s.profession) && d.type == 0) {
+            s.professionCharge++;
+            if (s.professionCharge >= 3) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    damageEnemy(s, e, 8 + Math.min(10, s.cardsPlayedThisTurn), true);
+                }
+                s.professionCharge = 0;
+            }
+        }
+        if (PROF_RANGER.equals(s.profession) && d.type == 0) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+            }
+        }
+        if (PROF_ARCANIST.equals(s.profession) && (d.exhaust || c.temp)) {
+            s.professionCharge++;
+            if (s.professionCharge >= 2) {
+                draw(s, 1);
+                s.energy++;
+                s.professionCharge = 0;
+            }
+        }
+        if (PROF_MERCHANT.equals(s.profession) && d.goldGain > 0) {
+            gainBlock(s, 4 + Math.min(8, s.gold / 80));
         }
         if (s.steelEngine > 0 && d.type == 1) {
             Enemy e = firstLiving(s);
@@ -1603,7 +2065,7 @@ public final class GameCore {
         } else if (s.combatKind == 'E' || s.run.nextInt(100) < (s.encounterModifier == MOD_BOUNTY ? 34 : 18)) {
             s.relicRewards.add(randomRelic(s).id);
         }
-        if (s.potions.size() < 3 && s.run.nextInt(100) < 34) {
+        if (s.potions.size() < potionLimit(s) && s.run.nextInt(100) < 34) {
             PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
             s.potions.add(p.id);
             log(s, "发现药剂：" + p.name);
@@ -1675,6 +2137,11 @@ public final class GameCore {
                     continue;
                 }
             }
+            if (d.profession.length() > 0 && !d.profession.equals(s.profession)) {
+                if (s.run.nextInt(100) > 8) {
+                    continue;
+                }
+            }
             if (!allowRare && d.rarity == 2) {
                 continue;
             }
@@ -1685,6 +2152,10 @@ public final class GameCore {
             if (d.origin.equals(origin)) {
                 weight += 3;
             }
+            if (d.profession.equals(s.profession)) {
+                weight += 7;
+            }
+            weight += professionCardBonus(s, d);
             for (int i = 0; i < weight; i++) {
                 pool.add(d);
             }
@@ -1700,6 +2171,28 @@ public final class GameCore {
         return pool.get(s.run.nextInt(pool.size()));
     }
 
+    private static int professionCardBonus(State s, CardDef d) {
+        if (PROF_WARDEN.equals(s.profession) && (d.block > 0 || d.gainSteelEngine > 0 || d.blockToDamage)) {
+            return 3;
+        }
+        if (PROF_DUELIST.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.comboDamage > 0)) {
+            return 3;
+        }
+        if (PROF_ALCHEMIST.equals(s.profession) && (d.burn > 0 || d.bind > 0 || d.createPotion || d.spreadStatus)) {
+            return 3;
+        }
+        if (PROF_RANGER.equals(s.profession) && (d.bind > 0 || d.aoe || d.bindToDraw)) {
+            return 3;
+        }
+        if (PROF_ARCANIST.equals(s.profession) && (d.exhaust || d.createEcho || d.exhaustTopDiscard || d.exhaustForDamage)) {
+            return 3;
+        }
+        if (PROF_MERCHANT.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) {
+            return 4;
+        }
+        return 0;
+    }
+
     private static RelicDef randomRelic(State s) {
         return randomRelic(s, Collections.<String>emptySet());
     }
@@ -1708,13 +2201,38 @@ public final class GameCore {
         ArrayList<RelicDef> pool = new ArrayList<>();
         for (RelicDef r : RELIC_LIBRARY) {
             if (!r.boss && !s.relics.contains(r.id) && !excluded.contains(r.id)) {
-                pool.add(r);
+                int weight = 1 + professionRelicBonus(s, r.id);
+                for (int i = 0; i < weight; i++) {
+                    pool.add(r);
+                }
             }
         }
         if (pool.isEmpty()) {
             return RELIC_LIBRARY.get(0);
         }
         return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static int professionRelicBonus(State s, String id) {
+        if (PROF_WARDEN.equals(s.profession) && ("warden_plate".equals(id) || "steel_oath".equals(id) || "thorn_ring".equals(id))) {
+            return 2;
+        }
+        if (PROF_DUELIST.equals(s.profession) && ("duelist_sash".equals(id) || "amber_quill".equals(id) || "opal_scar".equals(id))) {
+            return 2;
+        }
+        if (PROF_ALCHEMIST.equals(s.profession) && ("alchemist_case".equals(id) || "cinder_spoon".equals(id) || "green_bell".equals(id))) {
+            return 2;
+        }
+        if (PROF_RANGER.equals(s.profession) && ("ranger_map".equals(id) || "root_drum".equals(id) || "green_bell".equals(id))) {
+            return 2;
+        }
+        if (PROF_ARCANIST.equals(s.profession) && ("arcane_ink".equals(id) || "hollow_crown".equals(id) || "void_lens".equals(id))) {
+            return 2;
+        }
+        if (PROF_MERCHANT.equals(s.profession) && ("merchant_scale".equals(id) || "merchant_key".equals(id) || "cracked_compass".equals(id))) {
+            return 2;
+        }
+        return 0;
     }
 
     private static RelicDef randomBossRelic(State s, Set<String> excluded) {
@@ -1862,6 +2380,58 @@ public final class GameCore {
         c.vulnerable = 1;
         c = addCard("last_light", "终灯", "通用", 2, 2, 2, 0, 0, 10, 15, "获得10点格挡，抽2张，获得1能量。", "获得15点格挡，抽2张，获得1能量。");
         c.draw = c.drawUp = 2; c.energyGain = 1;
+        c = addCard("ember_barrier", "烬障", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡，场上燃灼越多格挡越高。", "更多格挡，燃灼转防御更强。");
+        c.burnToBlock = true;
+        c = addCard("snare_survey", "缚痕勘察", "通用", 1, 1, 2, 0, 0, 0, 0, "束缚总量越高，额外抽牌。", "最多额外抽3张。");
+        c.bindToDraw = true; c.draw = 1; c.drawUp = 1;
+        c = addCard("status_spill", "异常扩散", "通用", 1, 1, 2, 0, 0, 0, 0, "把目标的部分燃灼、束缚与易伤扩散给其他敌人。", "扩散更多异常。");
+        c.spreadStatus = true; c.targetEnemy = true;
+        c = addCard("coin_edge", "金刃", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，金币越多伤害越高。", "更高基础伤害与金币加成。");
+        c.goldDamage = true;
+        c = addCard("vault_guard", "库藏护符", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡，金币越多格挡越高。", "更高基础格挡与金币加成。");
+        c.goldBlock = true;
+
+        c = addCard("warden_oath", "坚守誓言", "通用", 0, 1, 1, 0, 0, 10, 14, "获得格挡。守卫：推动护卫计数。", "更多格挡。");
+        c.profession = PROF_WARDEN;
+        c = addCard("warden_slam", "壁垒重击", "通用", 1, 2, 0, 10, 14, 8, 12, "造成伤害并格挡。若已有格挡，伤害更高。", "更高伤害与格挡。");
+        c.profession = PROF_WARDEN; c.blockToDamage = true;
+        c = addCard("warden_stand", "不退阵", "通用", 2, 2, 1, 0, 0, 16, 22, "获得大量格挡，抽1张，守势+1。", "更多格挡，守势+2。");
+        c.profession = PROF_WARDEN; c.draw = c.drawUp = 1; c.gainSteelEngine = 1;
+
+        c = addCard("duelist_flurry", "连步刺", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，本回合打牌越多越强。", "更高伤害与连击成长。");
+        c.profession = PROF_DUELIST; c.comboDamage = 2;
+        c = addCard("duelist_feint", "佯攻换位", "通用", 1, 0, 2, 0, 0, 3, 5, "获得格挡，抽2张，消耗。", "更多格挡，抽3张，消耗。");
+        c.profession = PROF_DUELIST; c.draw = 2; c.drawUp = 3; c.exhaust = true;
+        c = addCard("duelist_finish", "终式", "通用", 2, 1, 0, 8, 12, 0, 0, "造成伤害，本回合打牌越多越强。", "更高伤害与连击成长。");
+        c.profession = PROF_DUELIST; c.comboDamage = 4;
+
+        c = addCard("alchemist_mix", "试剂调和", "通用", 0, 1, 2, 0, 0, 4, 6, "获得格挡并调制随机药剂，消耗。", "更多格挡并调制随机药剂，消耗。");
+        c.profession = PROF_ALCHEMIST; c.createPotion = true; c.exhaust = true;
+        c = addCard("alchemist_cloud", "腐蚀云", "通用", 1, 1, 2, 0, 0, 0, 0, "目标获得燃灼与束缚，并扩散异常。", "更多异常扩散。");
+        c.profession = PROF_ALCHEMIST; c.burn = 3; c.burnUp = 5; c.bind = 2; c.bindUp = 3; c.spreadStatus = true; c.targetEnemy = true;
+        c = addCard("alchemist_catalyst", "催化剂", "通用", 2, 1, 2, 0, 0, 0, 0, "抽2张，获得燃势与束缚势，消耗。", "抽3张，获得更多势能，消耗。");
+        c.profession = PROF_ALCHEMIST; c.draw = 2; c.drawUp = 3; c.gainBurnPower = 1; c.gainBindPower = 1; c.exhaust = true;
+
+        c = addCard("ranger_trap", "踏影陷阱", "通用", 0, 1, 1, 0, 0, 6, 9, "获得格挡，施加束缚。", "更多格挡与束缚。");
+        c.profession = PROF_RANGER; c.bind = 2; c.bindUp = 3; c.targetEnemy = true;
+        c = addCard("ranger_volley", "猎线齐射", "通用", 1, 1, 0, 5, 8, 0, 0, "对所有敌人造成伤害并施加束缚。", "更高伤害与束缚。");
+        c.profession = PROF_RANGER; c.aoe = true; c.bind = 1; c.bindUp = 2;
+        c = addCard("ranger_patience", "潜伏耐心", "通用", 2, 1, 2, 0, 0, 0, 0, "束缚总量越高抽牌越多，获得束缚势。", "抽牌上限更高，获得更多束缚势。");
+        c.profession = PROF_RANGER; c.bindToDraw = true; c.gainBindPower = 1;
+
+        c = addCard("arcanist_glyph", "秘文摹写", "通用", 0, 0, 2, 0, 0, 0, 0, "制造一张临时疾切，消耗。", "制造一张临时疾切，消耗。");
+        c.profession = PROF_ARCANIST; c.createEcho = true; c.echoCardId = "quick_cut"; c.exhaust = true;
+        c = addCard("arcanist_rift", "裂门术", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡，消耗弃牌堆顶牌，抽2张。", "更多格挡与抽牌。");
+        c.profession = PROF_ARCANIST; c.exhaustTopDiscard = true; c.draw = 2; c.drawUp = 3;
+        c = addCard("arcanist_loop", "秘环回流", "通用", 2, 1, 2, 0, 0, 0, 0, "回声势+1，抽2张，获得1能量，消耗。", "回声势+2，抽3张，获得1能量，消耗。");
+        c.profession = PROF_ARCANIST; c.gainVoidEngine = 1; c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.exhaust = true;
+
+        c = addCard("merchant_haggle", "讨价还价", "通用", 0, 0, 2, 0, 0, 0, 0, "获得金币，抽1张，消耗。", "获得更多金币，抽1张，消耗。");
+        c.profession = PROF_MERCHANT; c.goldGain = 12; c.draw = c.drawUp = 1; c.exhaust = true;
+        c = addCard("merchant_invest", "风险投资", "通用", 1, 1, 1, 0, 0, 5, 8, "获得格挡和金币，金币越多格挡越高。", "更多格挡与金币。");
+        c.profession = PROF_MERCHANT; c.goldGain = 8; c.goldBlock = true;
+        c = addCard("merchant_liquidate", "清算", "通用", 2, 2, 0, 10, 15, 0, 0, "造成伤害，金币越多伤害越高。获得金币。", "更高伤害与金币收益。");
+        c.profession = PROF_MERCHANT; c.goldDamage = true; c.goldGain = 10;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -2033,6 +2603,12 @@ public final class GameCore {
         addRelicDef("cinder_spoon", "烬匙", "燃灼流派获得额外爆发。");
         addRelicDef("green_bell", "青铃", "束缚流派获得额外续航。");
         addRelicDef("hollow_crown", "空冠", "消耗流派更容易转化为资源。");
+        addRelicDef("warden_plate", "守卫胸甲", "技能牌前两次额外获得格挡，首回合获得格挡。");
+        addRelicDef("duelist_sash", "决斗绶带", "首回合能量+1；每回合第二张攻击生成临时疾切。");
+        addRelicDef("alchemist_case", "炼金匣", "药剂上限+1；药剂额外施加易伤。");
+        addRelicDef("ranger_map", "猎路图", "首回合束缚首个敌人；束缚牌额外施加易伤。");
+        addRelicDef("arcane_ink", "秘术墨水", "打出消耗牌后获得1能量。");
+        addRelicDef("merchant_scale", "行商天平", "商店进一步降价。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -2104,6 +2680,7 @@ public final class GameCore {
         public int previousMode;
         public String pendingAction = "";
         public String origin = "";
+        public String profession = "";
         public int ascension;
         public int hp;
         public int maxHp;
@@ -2141,12 +2718,15 @@ public final class GameCore {
         public int energy;
         public int block;
         public int vulnerable;
+        public int nextEnergyPenalty;
         public int burnPower;
         public int bindPower;
         public int steelEngine;
         public int ashEngine;
         public int wildEngine;
         public int voidEngine;
+        public int professionCharge;
+        public int professionUsedThisTurn;
         public int cardsPlayedThisTurn;
         public int totalCardsPlayed;
 
@@ -2171,6 +2751,7 @@ public final class GameCore {
         public String id;
         public String name;
         public String origin;
+        public String profession = "";
         public int rarity;
         public int cost;
         public int type;
@@ -2198,6 +2779,8 @@ public final class GameCore {
         public int gainVoidEngine;
         public int upgradeCostDrop;
         public int scry;
+        public int comboDamage;
+        public int goldGain;
         public boolean targetEnemy;
         public boolean exhaust;
         public boolean aoe;
@@ -2206,6 +2789,12 @@ public final class GameCore {
         public boolean exhaustForDamage;
         public boolean exhaustTopDiscard;
         public boolean createEcho;
+        public boolean createPotion;
+        public boolean goldDamage;
+        public boolean goldBlock;
+        public boolean burnToBlock;
+        public boolean bindToDraw;
+        public boolean spreadStatus;
         public boolean retainBlock;
         public boolean upgradeRandom;
         public boolean addStatusToEnemy;

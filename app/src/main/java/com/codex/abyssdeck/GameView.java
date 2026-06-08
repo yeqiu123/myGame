@@ -66,6 +66,8 @@ public final class GameView extends View {
             drawTitle(c);
         } else if (s.mode == GameCore.MODE_ORIGIN) {
             drawOrigins(c);
+        } else if (s.mode == GameCore.MODE_CLASS) {
+            drawClasses(c);
         } else if (s.mode == GameCore.MODE_BOON) {
             drawBoons(c);
         } else if (s.mode == GameCore.MODE_MAP) {
@@ -139,6 +141,8 @@ public final class GameView extends View {
         } else if ("continue".equals(action)) {
             if (s.origin.length() == 0) {
                 GameCore.start(s);
+            } else if (s.profession == null || s.profession.length() == 0) {
+                s.mode = GameCore.MODE_CLASS;
             } else {
                 s.mode = GameCore.MODE_MAP;
             }
@@ -150,6 +154,10 @@ public final class GameView extends View {
         } else if ("origin".equals(action)) {
             String[] origins = {GameCore.ORIGIN_STEEL, GameCore.ORIGIN_ASH, GameCore.ORIGIN_WILD, GameCore.ORIGIN_VOID};
             GameCore.chooseOrigin(s, origins[index]);
+        } else if ("profession".equals(action)) {
+            if (index >= 0 && index < GameCore.PROFESSIONS.length) {
+                GameCore.chooseProfession(s, GameCore.PROFESSIONS[index]);
+            }
         } else if ("boon".equals(action)) {
             GameCore.chooseBoon(s, index);
         } else if ("depth".equals(action)) {
@@ -262,14 +270,15 @@ public final class GameView extends View {
     }
 
     private void drawTopBar(Canvas c) {
-        if (s.mode == GameCore.MODE_TITLE || s.mode == GameCore.MODE_ORIGIN || s.mode == GameCore.MODE_BOON) {
+        if (s.mode == GameCore.MODE_TITLE || s.mode == GameCore.MODE_ORIGIN || s.mode == GameCore.MODE_CLASS || s.mode == GameCore.MODE_BOON) {
             return;
         }
         int w = getWidth();
         p.setColor(0xdd0b1018);
         c.drawRoundRect(new RectF(dp(10), dp(8), w - dp(10), dp(54)), dp(6), dp(6), p);
         drawText(c, "深渊牌旅", dp(20), dp(36), 20, 0xfff3d486, true);
-        String info = "Act " + s.act + "  层 " + s.floor + "  HP " + s.hp + "/" + s.maxHp + "  金 " + s.gold;
+        String job = s.profession == null || s.profession.length() == 0 ? "" : "  " + s.profession;
+        String info = "Act " + s.act + "  层 " + s.floor + "  HP " + s.hp + "/" + s.maxHp + "  金 " + s.gold + job;
         drawText(c, info, dp(128), dp(36), 15, 0xffe9ddc7, false);
         addButton(w - dp(92), dp(16), dp(76), dp(30), "牌组", "deck", 0);
     }
@@ -279,7 +288,7 @@ public final class GameView extends View {
         int h = getHeight();
         drawText(c, "深渊牌旅", dp(30), h * 0.18f, 42, 0xfff6d780, true);
         drawText(c, "原创暗潮爬塔卡牌游戏", dp(32), h * 0.18f + dp(38), 17, 0xffd6cdbd, false);
-        drawText(c, "四种起源，十二层分支地图，卡组、遗物、药剂与事件共同塑造每一局。", dp(32), h * 0.18f + dp(72), 15, 0xffb9c7cf, false);
+        drawText(c, "四种起源乘六种职业，卡组、遗物、药剂与事件共同塑造每一局。", dp(32), h * 0.18f + dp(72), 15, 0xffb9c7cf, false);
         addButton(dp(30), h * 0.38f, w - dp(60), dp(54), "新旅程", "new", 0);
         addButton(dp(30), h * 0.47f, w - dp(60), dp(48), "继续", "continue", 0);
         addButton(dp(30), h * 0.55f, w - dp(60), dp(48), "图鉴", "codex", 0);
@@ -315,10 +324,45 @@ public final class GameView extends View {
         }
     }
 
+    private void drawClasses(Canvas c) {
+        int w = getWidth();
+        drawText(c, "选择职业", dp(24), dp(76), 30, 0xfff4d580, true);
+        drawText(c, s.origin + " 起源会与职业被动叠加，形成不同构筑路线。", dp(26), dp(104), 15, 0xffc9d2d2, false);
+        int cols = 2;
+        float gap = dp(10);
+        float cardW = (w - dp(48) - gap * (cols - 1)) / cols;
+        float cardH = dp(106);
+        String[] desc = {
+                "格挡反击 / 技能充能",
+                "低费连击 / 穿透追击",
+                "药剂扩散 / 异常爆发",
+                "束缚控制 / 群体压制",
+                "消耗回流 / 临时牌循环",
+                "金币运营 / 商店折扣"
+        };
+        for (int i = 0; i < GameCore.PROFESSIONS.length; i++) {
+            int row = i / cols;
+            int col = i % cols;
+            float x = dp(24) + col * (cardW + gap);
+            float y = dp(126) + row * dp(118);
+            String name = GameCore.PROFESSIONS[i];
+            p.setColor(0xcc121923);
+            c.drawRoundRect(new RectF(x, y, x + cardW, y + cardH), dp(8), dp(8), p);
+            p.setColor(GameCore.professionColor(name));
+            c.drawRoundRect(new RectF(x + dp(8), y + dp(10), x + dp(50), y + dp(52)), dp(7), dp(7), p);
+            drawProfessionMark(c, name, x + dp(29), y + dp(31), dp(17));
+            drawText(c, name, x + dp(60), y + dp(30), 20, 0xfff5ead2, true);
+            drawWrapped(c, desc[i], x + dp(10), y + dp(68), cardW - dp(20), 12, 0xffc5d0cf);
+            addButton(x + cardW - dp(58), y + dp(16), dp(48), dp(30), "选", "profession", i);
+            addButton(x, y, cardW, cardH, "", "profession", i);
+        }
+        addButton(dp(24), getHeight() - dp(56), dp(98), dp(38), "返回起源", "new", 0);
+    }
+
     private void drawBoons(Canvas c) {
         int w = getWidth();
         drawText(c, "选择开局赐印", dp(24), dp(86), 30, 0xfff4d580, true);
-        drawText(c, s.origin + " / 难度阶层 " + s.ascension, dp(26), dp(116), 15, 0xffc9d2d2, false);
+        drawText(c, s.origin + " / " + s.profession + " / 难度阶层 " + s.ascension, dp(26), dp(116), 15, 0xffc9d2d2, false);
         for (int i = 0; i < s.boonChoices.size(); i++) {
             GameCore.BoonDef b = GameCore.boon(s.boonChoices.get(i));
             float y = dp(154) + i * dp(118);
@@ -379,7 +423,8 @@ public final class GameView extends View {
         int w = getWidth();
         int h = getHeight();
         drawText(c, "能量 " + s.energy + "   格挡 " + s.block + "   回合 " + s.turn, dp(22), dp(82), 22, 0xfff2d373, true);
-        String engines = "守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
+        String engines = "职业 " + (s.profession == null || s.profession.length() == 0 ? "未定" : s.profession)
+                + "  充能 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
         if (s.burnPower > 0 || s.bindPower > 0) {
             engines += "  燃势 " + s.burnPower + "  束缚势 " + s.bindPower;
         }
@@ -502,13 +547,17 @@ public final class GameView extends View {
         int w = getWidth();
         drawText(c, "裂隙商栈", dp(24), dp(86), 30, 0xfff4d580, true);
         drawText(c, "金币 " + s.gold, w - dp(118), dp(84), 20, 0xffffdb7a, true);
+        if (GameCore.PROF_MERCHANT.equals(s.profession)) {
+            drawText(c, "行商折扣生效", dp(24), dp(106), 13, 0xffffdf86, true);
+        }
+        drawText(c, "药剂 " + s.potions.size() + "/" + GameCore.potionLimit(s), dp(132), dp(106), 13, 0xffc9d2d2, true);
         float cardW = Math.min(dp(104), (w - dp(34)) / 5f - dp(6));
         float cardH = cardW * 1.42f;
         for (int i = 0; i < s.shopCards.size(); i++) {
             GameCore.Card card = new GameCore.Card(s.shopCards.get(i));
             RectF r = new RectF(dp(18) + i * (cardW + dp(6)), dp(112), dp(18) + i * (cardW + dp(6)) + cardW, dp(112) + cardH);
             drawCard(c, card, r, false);
-            int price = GameCore.cardPrice(GameCore.card(card.id));
+            int price = GameCore.shopCardPrice(s, GameCore.card(card.id));
             addButton(r.left, r.bottom + dp(6), r.width(), dp(30), price + "金", "shop_card", i);
         }
         float y = dp(112) + cardH + dp(50);
@@ -516,18 +565,18 @@ public final class GameView extends View {
         for (int i = 0; i < s.shopRelics.size(); i++) {
             GameCore.RelicDef r = GameCore.relic(s.shopRelics.get(i));
             drawRelicRow(c, r, dp(24), y + dp(18) + i * dp(52), w - dp(48));
-            addButton(w - dp(96), y + dp(26) + i * dp(52), dp(74), dp(32), "165金", "shop_relic", i);
+            addButton(w - dp(96), y + dp(26) + i * dp(52), dp(74), dp(32), GameCore.shopRelicPrice(s) + "金", "shop_relic", i);
         }
         float py = y + dp(180);
         drawText(c, "药剂", dp(24), py, 18, 0xffe9d7a1, true);
         for (int i = 0; i < s.shopPotions.size(); i++) {
             GameCore.PotionDef po = GameCore.potion(s.shopPotions.get(i));
-            addButton(dp(24) + i * dp(108), py + dp(18), dp(98), dp(36), po.name + " 42", "shop_potion", i);
+            addButton(dp(24) + i * dp(108), py + dp(18), dp(98), dp(36), po.name + " " + GameCore.shopPotionPrice(s), "shop_potion", i);
         }
         float sy = py + dp(76);
-        addButton(dp(24), sy, dp(98), dp(40), "删牌85", "shop_remove", 0);
-        addButton(dp(132), sy, dp(98), dp(40), "升级75", "shop_upgrade", 0);
-        addButton(dp(240), sy, dp(108), dp(40), "转化105", "shop_transform", 0);
+        addButton(dp(24), sy, dp(98), dp(40), "删牌" + GameCore.shopServicePrice(s, "shop_remove"), "shop_remove", 0);
+        addButton(dp(132), sy, dp(98), dp(40), "升级" + GameCore.shopServicePrice(s, "shop_upgrade"), "shop_upgrade", 0);
+        addButton(dp(240), sy, dp(108), dp(40), "转化" + GameCore.shopServicePrice(s, "shop_transform"), "shop_transform", 0);
         addButton(dp(24), getHeight() - dp(58), w - dp(48), dp(42), "离开商店", "leave_shop", 0);
     }
 
@@ -592,7 +641,7 @@ public final class GameView extends View {
         int w = getWidth();
         int h = getHeight();
         drawText(c, victory ? "抵达无光尽头" : "旅程终止", dp(30), h * 0.25f, 34, victory ? 0xfff6d780 : 0xffff8d75, true);
-        drawText(c, "Act " + s.act + " / 层 " + s.floor + " / 牌组 " + s.deck.size() + " 张 / 遗物 " + s.relics.size(), dp(32), h * 0.25f + dp(44), 16, 0xffd8ded8, false);
+        drawText(c, s.origin + " " + s.profession + " / Act " + s.act + " / 层 " + s.floor + " / 牌组 " + s.deck.size() + " 张 / 遗物 " + s.relics.size(), dp(32), h * 0.25f + dp(44), 16, 0xffd8ded8, false);
         addButton(dp(30), h * 0.45f, w - dp(60), dp(52), "再来一局", "new", 0);
         addButton(dp(30), h * 0.54f, w - dp(60), dp(46), "返回标题", "title", 0);
     }
@@ -608,7 +657,7 @@ public final class GameView extends View {
         p.setColor(0xff202838);
         c.drawRoundRect(inner, dp(6), dp(6), p);
         drawCardArt(c, d, new RectF(inner.left + dp(5), inner.top + dp(22), inner.right - dp(5), inner.top + inner.height() * 0.55f));
-        p.setColor(GameCore.originColor(d.origin));
+        p.setColor(d.profession.length() > 0 ? GameCore.professionColor(d.profession) : GameCore.originColor(d.origin));
         c.drawRoundRect(new RectF(inner.left, inner.top, inner.right, inner.top + dp(20)), dp(5), dp(5), p);
         drawText(c, d.name + (card.upgraded ? "+" : ""), inner.left + dp(5), inner.top + dp(15), Math.max(10, inner.width() / 8.2f), 0xff121416, true);
         p.setColor(0xffe8d27a);
@@ -616,7 +665,8 @@ public final class GameView extends View {
         int cost = card.upgraded ? Math.max(0, d.cost - d.upgradeCostDrop) : d.cost;
         drawText(c, String.valueOf(cost), inner.left + dp(10), inner.top + dp(37), 14, 0xff1b150b, true);
         drawWrapped(c, GameCore.cardText(card), inner.left + dp(7), inner.top + inner.height() * 0.62f, inner.width() - dp(14), Math.max(9, inner.width() / 10.5f), 0xfff3ead7);
-        drawText(c, rarity(d.rarity), inner.left + dp(7), inner.bottom - dp(6), 10, 0xffc8d0d0, false);
+        String tag = d.profession.length() > 0 ? d.profession + " " + rarity(d.rarity) : rarity(d.rarity);
+        drawText(c, tag, inner.left + dp(7), inner.bottom - dp(6), 10, 0xffc8d0d0, false);
     }
 
     private void drawCardArt(Canvas c, GameCore.CardDef d, RectF r) {
@@ -632,10 +682,15 @@ public final class GameView extends View {
             c.drawRoundRect(r, dp(4), dp(4), p);
             return;
         }
-        p.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, GameCore.originColor(d.origin), 0xff111721, Shader.TileMode.CLAMP));
+        int color = d.profession.length() > 0 ? GameCore.professionColor(d.profession) : GameCore.originColor(d.origin);
+        p.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, color, 0xff111721, Shader.TileMode.CLAMP));
         c.drawRoundRect(r, dp(4), dp(4), p);
         p.setShader(null);
-        drawSigil(c, d.origin, r.centerX(), r.centerY(), r.width() * 0.22f);
+        if (d.profession.length() > 0) {
+            drawProfessionMark(c, d.profession, r.centerX(), r.centerY(), r.width() * 0.22f);
+        } else {
+            drawSigil(c, d.origin, r.centerX(), r.centerY(), r.width() * 0.22f);
+        }
     }
 
     private void drawSigil(Canvas c, String origin, float cx, float cy, float size) {
@@ -657,6 +712,44 @@ public final class GameView extends View {
         } else {
             c.drawCircle(cx, cy, size, p);
             c.drawLine(cx - size, cy - size, cx + size, cy + size, p);
+        }
+        p.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawProfessionMark(Canvas c, String profession, float cx, float cy, float size) {
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(2, size / 7));
+        p.setColor(0xee11151b);
+        if (GameCore.PROF_WARDEN.equals(profession)) {
+            Path shield = new Path();
+            shield.moveTo(cx, cy - size);
+            shield.lineTo(cx + size, cy - size * 0.35f);
+            shield.lineTo(cx + size * 0.7f, cy + size);
+            shield.lineTo(cx, cy + size * 1.2f);
+            shield.lineTo(cx - size * 0.7f, cy + size);
+            shield.lineTo(cx - size, cy - size * 0.35f);
+            shield.close();
+            c.drawPath(shield, p);
+        } else if (GameCore.PROF_DUELIST.equals(profession)) {
+            c.drawLine(cx - size, cy + size, cx + size, cy - size, p);
+            c.drawLine(cx - size * 0.45f, cy + size, cx + size, cy - size * 0.45f, p);
+        } else if (GameCore.PROF_ALCHEMIST.equals(profession)) {
+            c.drawCircle(cx, cy + size * 0.15f, size * 0.72f, p);
+            c.drawLine(cx - size * 0.35f, cy - size, cx + size * 0.35f, cy - size, p);
+            c.drawLine(cx - size * 0.22f, cy - size, cx - size * 0.22f, cy - size * 0.45f, p);
+            c.drawLine(cx + size * 0.22f, cy - size, cx + size * 0.22f, cy - size * 0.45f, p);
+        } else if (GameCore.PROF_RANGER.equals(profession)) {
+            c.drawOval(new RectF(cx - size, cy - size * 0.9f, cx + size, cy + size * 0.9f), p);
+            c.drawLine(cx - size, cy, cx + size, cy, p);
+            c.drawLine(cx, cy - size, cx, cy + size, p);
+        } else if (GameCore.PROF_ARCANIST.equals(profession)) {
+            c.drawCircle(cx, cy, size, p);
+            c.drawCircle(cx, cy, size * 0.45f, p);
+            c.drawLine(cx - size, cy, cx + size, cy, p);
+        } else {
+            c.drawCircle(cx, cy, size * 0.9f, p);
+            c.drawLine(cx - size * 0.55f, cy - size * 0.2f, cx + size * 0.55f, cy - size * 0.2f, p);
+            c.drawLine(cx - size * 0.55f, cy + size * 0.25f, cx + size * 0.55f, cy + size * 0.25f, p);
         }
         p.setStyle(Paint.Style.FILL);
     }

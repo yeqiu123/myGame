@@ -24,6 +24,7 @@ public final class SimulationHarness {
             GameCore.chooseDepth(s, depth);
             String[] origins = {GameCore.ORIGIN_STEEL, GameCore.ORIGIN_ASH, GameCore.ORIGIN_WILD, GameCore.ORIGIN_VOID};
             GameCore.chooseOrigin(s, origins[i % origins.length]);
+            GameCore.chooseProfession(s, GameCore.PROFESSIONS[i % GameCore.PROFESSIONS.length]);
             int guard = 0;
             while (s.mode != GameCore.MODE_GAME_OVER && s.mode != GameCore.MODE_VICTORY && guard++ < 900) {
                 step(s);
@@ -59,9 +60,9 @@ public final class SimulationHarness {
                 GameCore.skipReward(s);
             }
         } else if (s.mode == GameCore.MODE_SHOP) {
-            if (!s.shopRelics.isEmpty() && s.gold >= 165) {
+            if (!s.shopRelics.isEmpty() && s.gold >= GameCore.shopRelicPrice(s)) {
                 GameCore.shopBuyRelic(s, 0);
-            } else if (!s.shopCards.isEmpty() && s.gold >= GameCore.cardPrice(GameCore.card(s.shopCards.get(0)))) {
+            } else if (!s.shopCards.isEmpty() && s.gold >= GameCore.shopCardPrice(s, GameCore.card(s.shopCards.get(0)))) {
                 GameCore.shopBuyCard(s, 0);
             } else {
                 GameCore.leaveShop(s);
