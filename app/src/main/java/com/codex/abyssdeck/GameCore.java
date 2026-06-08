@@ -2666,6 +2666,7 @@ public final class GameCore {
         s.cardsPlayedThisTurn = 0;
         s.professionUsedThisTurn = 0;
         s.relicTriggersThisTurn = 0;
+        s.bossRelicTriggersThisTurn = 0;
         s.professionSkillUsedThisTurn = false;
         if (hasRelic(s, "amber_quill") && s.turn == 1) {
             s.energy++;
@@ -2674,6 +2675,9 @@ public final class GameCore {
             s.energy++;
         }
         if (hasRelic(s, "obsidian_core")) {
+            s.energy++;
+        }
+        if (hasRelic(s, "ability_crown") && s.turn == 1) {
             s.energy++;
         }
         if (s.nextEnergyPenalty > 0) {
@@ -2691,6 +2695,9 @@ public final class GameCore {
         if (hasTalent(s, "t_shared_longnight") && s.turn == 4) {
             s.energy++;
             draw(s, 1);
+        }
+        if (hasRelic(s, "forge_heart") && s.turn == 1) {
+            s.energy = Math.max(0, s.energy - 1);
         }
         if (s.encounterModifier == MOD_TURBULENT && s.turn % 2 == 1) {
             s.energy++;
@@ -2771,6 +2778,13 @@ public final class GameCore {
         if (hasRelic(s, "leaf_charm")) {
             s.hp = Math.min(s.maxHp, s.hp + 1);
         }
+        if (hasRelic(s, "hex_moon") && firstLiving(s) != null) {
+            firstLiving(s).burn += 1 + s.act / 2 + s.burnPower / 2;
+            firstLiving(s).bind += 1 + s.bindPower / 2;
+            if (s.turn == 1) {
+                firstLiving(s).vulnerable += 1;
+            }
+        }
         if (s.wildEngine > 0) {
             s.hp = Math.min(s.maxHp, s.hp + s.wildEngine);
             if (firstLiving(s) != null) {
@@ -2827,9 +2841,32 @@ public final class GameCore {
             anchor.temp = true;
             addToHand(s, anchor);
         }
+        if (hasRelic(s, "echo_crown") && s.turn == 1) {
+            Card echo = new Card(PROF_SUMMONER.equals(s.profession) ? "summoner_wisp" : "quick_cut");
+            echo.temp = true;
+            addToHand(s, echo);
+            Card bait = new Card("echo_bait");
+            bait.temp = true;
+            addToHand(s, bait);
+        }
+        if (hasRelic(s, "ability_crown") && s.turn == 1) {
+            CardDef power = randomTypeCard(s, 2, true);
+            if (power != null) {
+                Card c = new Card(power.id);
+                c.temp = true;
+                addToHand(s, c);
+            }
+        }
         if (hasRelic(s, "blood_contract") && s.turn == 1) {
             s.hp = Math.max(1, s.hp - 2);
             draw(s, 2);
+        }
+        if (hasRelic(s, "forge_heart") && s.turn == 1) {
+            upgradeRandomHandCard(s);
+            upgradeRandomHandCard(s);
+        }
+        if (hasRelic(s, "hex_moon") && s.turn > 1 && s.turn % 2 == 0) {
+            addStatusCard(s, "daze");
         }
         if (hasRelic(s, "moon_lantern") && s.turn == 1) {
             draw(s, 1);
@@ -3657,6 +3694,32 @@ public final class GameCore {
                 }
             }
         }
+        if (hasRelic(s, "echo_crown") && (c.temp || d.createEcho)) {
+            addProfessionSkillCharge(s, 1);
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+            }
+        }
+        if (hasRelic(s, "hex_moon") && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.createWound || "wound".equals(c.id) || "daze".equals(c.id))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.vulnerable += 1;
+            }
+        }
+        if (hasRelic(s, "forge_heart") && (c.upgraded || d.upgradeRandom || d.scry > 0) && s.bossRelicTriggersThisTurn < 3) {
+            gainBlock(s, 3 + s.act);
+            s.bossRelicTriggersThisTurn++;
+        }
+        if (hasRelic(s, "golden_throne") && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) {
+            s.gold += 3 + s.act;
+            gainBlock(s, 2 + s.act);
+        }
+        if (hasRelic(s, "ability_crown") && d.type == 2) {
+            addProfessionSkillCharge(s, 2);
+            if (s.cardsPlayedThisTurn <= 2) {
+                s.energy++;
+            }
+        }
         if (hasRelic(s, "opal_scar") && s.cardsPlayedThisTurn == 3) {
             gainBlock(s, 7);
         }
@@ -4226,6 +4289,9 @@ public final class GameCore {
         if (hasRelic(s, "runic_shackle")) {
             rewardCount++;
         }
+        if (hasRelic(s, "golden_throne") && s.gold >= 160) {
+            rewardCount++;
+        }
         if (hasTalent(s, "t_shared_wayfarer") && s.combatKind == 'C' && s.run.nextInt(100) < 35) {
             rewardCount++;
         }
@@ -4307,6 +4373,11 @@ public final class GameCore {
         s.shopCards.clear();
         s.shopRelics.clear();
         s.shopPotions.clear();
+        if (hasRelic(s, "golden_throne")) {
+            int income = 18 + s.act * 8;
+            s.gold += income;
+            log(s, "金座裂币入账 " + income + "。");
+        }
         if (hasTalent(s, "t_merchant_interest")) {
             int income = 20 + s.act * 10;
             s.gold += income;
@@ -4387,6 +4458,30 @@ public final class GameCore {
             return randomCard(s, s.origin, allowRare);
         }
         return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static CardDef randomTypeCard(State s, int type, boolean allowRare) {
+        ArrayList<CardDef> pool = new ArrayList<>();
+        for (CardDef d : CARD_LIBRARY) {
+            if (d.type != type) {
+                continue;
+            }
+            if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            int weight = d.rarity == 0 ? 6 : d.rarity == 1 ? 4 : 2;
+            if (d.origin.equals(s.origin)) {
+                weight += 3;
+            }
+            if (d.profession.equals(s.profession)) {
+                weight += 5;
+            }
+            weight += professionCardBonus(s, d);
+            for (int i = 0; i < weight; i++) {
+                pool.add(d);
+            }
+        }
+        return pool.isEmpty() ? null : pool.get(s.run.nextInt(pool.size()));
     }
 
     private static CardDef randomCard(State s, String origin, boolean allowRare, Set<String> excluded) {
@@ -4644,6 +4739,30 @@ public final class GameCore {
             s.hp += 18;
         } else if ("mirror_sun".equals(id)) {
             addStatusCard(s, "daze");
+            addStatusCard(s, "daze");
+        } else if ("echo_crown".equals(id)) {
+            s.maxHp = Math.max(30, s.maxHp - 6);
+            s.hp = Math.min(s.hp, s.maxHp);
+            Card c = new Card("echo_bait");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("hex_moon".equals(id)) {
+            addStatusCard(s, "daze");
+            addStatusCard(s, "wound");
+        } else if ("forge_heart".equals(id)) {
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+        } else if ("golden_throne".equals(id)) {
+            s.gold += 160;
+            addStatusCard(s, "daze");
+        } else if ("ability_crown".equals(id)) {
+            CardDef c = randomTypeCard(s, 2, true);
+            if (c != null) {
+                Card add = new Card(c.id);
+                add.upgraded = true;
+                s.deck.add(add);
+            }
             addStatusCard(s, "daze");
         }
         log(s, "获得遗物：" + r.name);
@@ -5090,6 +5209,11 @@ public final class GameCore {
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
         addBossRelicDef("void_anchor", "虚空锚", "每场战斗首回合获得一张临时无光新星。");
         addBossRelicDef("mirror_sun", "镜日", "每场战斗首回合能量+2；获得时加入2张眩光。");
+        addBossRelicDef("echo_crown", "回声王冠", "最大生命降低；获得升级回声诱饵。临时/召唤牌推动职业技并稳定抽牌。");
+        addBossRelicDef("hex_moon", "咒月", "获得时加入眩光与裂伤；每回合施加异常，异常牌追加易伤。");
+        addBossRelicDef("forge_heart", "锻炉心", "获得时升级3张牌；首回合能量-1，但升级/检视牌提供格挡。");
+        addBossRelicDef("golden_throne", "裂币王座", "获得大量金币并加入眩光；商店入账，富裕时战后多一张卡牌奖励。");
+        addBossRelicDef("ability_crown", "权能冠冕", "获得升级能力牌并加入眩光；首回合获得临时能力牌，能力牌推动职业技。");
     }
 
     private static void addRelicDef(String id, String name, String text) {
@@ -5294,6 +5418,7 @@ public final class GameCore {
         public int professionSkillCharge;
         public int professionUsedThisTurn;
         public int relicTriggersThisTurn;
+        public int bossRelicTriggersThisTurn;
         public int cardsPlayedThisTurn;
         public int totalCardsPlayed;
         public int pactFulfilled;
