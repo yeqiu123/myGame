@@ -279,6 +279,7 @@ public final class GameCore {
             return;
         }
         s.skillSpec = spec.id;
+        s.skillSpecLevel = 1;
         s.skillSpecChoices.clear();
         applySkillSpecPickup(s, spec.id);
         s.mode = MODE_MAP;
@@ -297,6 +298,7 @@ public final class GameCore {
         s.talents.add(t.id);
         s.talentChoices.clear();
         applyTalentPickup(s, t.id);
+        advanceSkillSpec(s);
         log(s, "领悟专精：" + t.name);
         nextAct(s);
     }
@@ -347,7 +349,7 @@ public final class GameCore {
 
     public static String skillSpecName(State s) {
         SkillSpecDef spec = s == null ? null : skillSpec(s.skillSpec);
-        return spec == null ? "未专修" : spec.name;
+        return spec == null ? "未专修" : spec.name + skillSpecLevelSuffix(s);
     }
 
     public static String skillSpecText(State s) {
@@ -355,7 +357,21 @@ public final class GameCore {
         if (spec == null) {
             return "选择一条职业技专修后，职业技会获得长期分支效果。";
         }
-        return spec.text;
+        return spec.text + skillSpecRankText(s);
+    }
+
+    private static String skillSpecLevelSuffix(State s) {
+        int level = s == null ? 0 : Math.max(1, s.skillSpecLevel);
+        if (level >= 3) return " III";
+        if (level == 2) return " II";
+        return " I";
+    }
+
+    private static String skillSpecRankText(State s) {
+        int level = s == null ? 0 : Math.max(1, s.skillSpecLevel);
+        if (level >= 3) return " 当前III阶。";
+        if (level == 2) return " 当前II阶。";
+        return " 当前I阶。";
     }
 
     private static void applyDepthStartPenalty(State s) {
@@ -2151,6 +2167,7 @@ public final class GameCore {
         s.pactChoices.clear();
         s.pact = "";
         s.skillSpec = "";
+        s.skillSpecLevel = 0;
         s.skillSpecChoices.clear();
         s.pactFulfilled = 0;
         s.masterySkillCharge = 0;
@@ -2587,6 +2604,54 @@ public final class GameCore {
         }
     }
 
+    private static void advanceSkillSpec(State s) {
+        SkillSpecDef spec = skillSpec(s.skillSpec);
+        if (spec == null || s.skillSpecLevel >= 3) {
+            return;
+        }
+        s.skillSpecLevel = Math.max(1, s.skillSpecLevel) + 1;
+        if ("spec_burst".equals(spec.id)) {
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + s.skillSpecLevel);
+            Card c = new Card("heavy_line");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("spec_tempo".equals(spec.id)) {
+            Card c = new Card("double_step");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("spec_sustain".equals(spec.id)) {
+            s.maxHp += 4 + s.skillSpecLevel;
+            s.hp += 4 + s.skillSpecLevel;
+        } else if ("spec_resonance".equals(spec.id)) {
+            CardDef d = buildFocusRewardCard(s);
+            if (d != null) {
+                Card c = new Card(d.id);
+                c.upgraded = true;
+                s.deck.add(c);
+            }
+        } else if ("spec_mastery".equals(spec.id)) {
+            Card c = new Card(masteryOverloadCard(s.profession));
+            c.upgraded = true;
+            s.deck.add(c);
+            upgradeRandomDeckCard(s);
+        }
+        log(s, "职业技专修晋阶：" + spec.name + " " + skillSpecLevelSuffix(s));
+    }
+
+    private static CardDef buildFocusRewardCard(State s) {
+        int focus = buildScoutFocus(s);
+        if (focus == BUILD_OVERLOAD) return card("overload_conduit");
+        if (focus == BUILD_ECHO) return card("echo_matrix");
+        if (focus == BUILD_BREW) return card("brew_crucible");
+        if (focus == BUILD_GOLD) return card("golden_engine");
+        if (focus == BUILD_BLOOD) return card("crimson_loop");
+        if (focus == BUILD_FORGE) return card("forge_blueprint");
+        if (focus == BUILD_STATUS) return card("plague_vector");
+        if (focus == BUILD_CYCLE) return card("cycle_metronome");
+        if (focus == BUILD_GUARD) return card("aegis_engine");
+        return randomOverloadCard(s, true);
+    }
+
     private static void removeStarterJunk(State s) {
         for (int i = 0; i < s.deck.size(); i++) {
             String id = s.deck.get(i).id;
@@ -2939,113 +3004,122 @@ public final class GameCore {
         if (spec == null) {
             return;
         }
+        int level = Math.max(1, s.skillSpecLevel);
         Enemy target = chosenTarget != null && chosenTarget.hp > 0 ? chosenTarget : firstLiving(s);
         if ("spec_burst".equals(spec.id)) {
             if (target != null) {
-                int damage = 8 + s.act * 3 + overload * 3 + Math.min(12, s.cardsPlayedThisTurn * 2);
+                int damage = 6 + level * 4 + s.act * 3 + overload * (2 + level) + Math.min(12 + level * 3, s.cardsPlayedThisTurn * 2);
                 damageEnemy(s, target, damage, true);
                 if (target.hp <= 0) {
                     s.energy++;
-                    addProfessionSkillCharge(s, 2);
+                    addProfessionSkillCharge(s, 1 + level);
                 }
             }
         } else if ("spec_tempo".equals(spec.id)) {
-            draw(s, 1 + overload / 4);
+            draw(s, 1 + overload / 4 + (level >= 3 ? 1 : 0));
             Card cut = new Card("quick_cut");
             cut.temp = true;
             addToHand(s, cut);
-            addProfessionSkillCharge(s, 1 + overload / 3);
+            if (level >= 2) {
+                s.energy++;
+            }
+            addProfessionSkillCharge(s, level + overload / 3);
         } else if ("spec_sustain".equals(spec.id)) {
-            int low = s.hp <= s.maxHp / 2 ? 4 : 0;
-            gainBlock(s, 8 + s.act * 2 + overload * 2 + low);
-            s.hp = Math.min(s.maxHp, s.hp + 3 + overload + low / 2);
+            int low = s.hp <= s.maxHp / 2 ? 3 + level * 2 : 0;
+            gainBlock(s, 6 + level * 4 + s.act * 2 + overload * 2 + low);
+            s.hp = Math.min(s.maxHp, s.hp + 2 + level * 2 + overload + low / 2);
         } else if ("spec_resonance".equals(spec.id)) {
-            addProfessionSkillCharge(s, 2 + overload / 2);
+            addProfessionSkillCharge(s, 1 + level + overload / 2);
             int focus = s.buildResonanceFocus;
             if (focus >= 0 && focus < BUILD_FOCUS_NAMES.length) {
                 if (focus == BUILD_ECHO || focus == BUILD_CYCLE) {
-                    draw(s, 1);
+                    draw(s, level >= 3 ? 2 : 1);
                 } else if (focus == BUILD_GUARD || focus == BUILD_FORGE) {
-                    gainBlock(s, 6 + s.act);
+                    gainBlock(s, 4 + level * 3 + s.act);
                 } else if (focus == BUILD_BREW || focus == BUILD_STATUS) {
                     for (Enemy e : livingEnemies(s)) {
-                        e.bind += 1 + s.bindPower / 2;
+                        e.bind += level + s.bindPower / 2;
                         e.vulnerable += 1;
                     }
                 } else if (focus == BUILD_GOLD) {
-                    s.gold += 8 + s.act * 2;
+                    s.gold += 6 + level * 4 + s.act * 2;
                 } else if (focus == BUILD_BLOOD) {
-                    s.hp = Math.min(s.maxHp, s.hp + 4 + overload);
+                    s.hp = Math.min(s.maxHp, s.hp + 2 + level * 3 + overload);
                 } else if (target != null) {
-                    damageEnemy(s, target, 8 + overload * 2, true);
+                    damageEnemy(s, target, 5 + level * 4 + overload * 2, true);
                 }
             }
         } else if ("spec_mastery".equals(spec.id)) {
-            applyMasterySkillSpec(s, target, overload);
+            applyMasterySkillSpec(s, target, overload, level);
         }
         log(s, "专修触发：" + spec.name + "。");
     }
 
-    private static void applyMasterySkillSpec(State s, Enemy target, int overload) {
+    private static void applyMasterySkillSpec(State s, Enemy target, int overload, int level) {
         if (PROF_WARDEN.equals(s.profession)) {
             s.steelEngine++;
-            gainBlock(s, 6 + s.steelEngine * 2 + overload);
+            gainBlock(s, 4 + level * 3 + s.steelEngine * 2 + overload);
             if (target != null) {
-                damageEnemy(s, target, Math.min(24, s.block / 5 + overload * 2), true);
+                damageEnemy(s, target, Math.min(18 + level * 6, s.block / 5 + overload * 2), true);
             }
         } else if (PROF_DUELIST.equals(s.profession)) {
             draw(s, 1);
             s.energy += s.cardsPlayedThisTurn >= 4 ? 1 : 0;
             if (target != null) {
-                damageEnemy(s, target, 6 + s.cardsPlayedThisTurn * 2 + overload * 2, true);
+                damageEnemy(s, target, 4 + level * 3 + s.cardsPlayedThisTurn * 2 + overload * 2, true);
             }
         } else if (PROF_ALCHEMIST.equals(s.profession)) {
             s.burnPower++;
             s.bindPower++;
-            if (s.potions.size() < potionLimit(s) && overload >= 2) {
+            if (s.potions.size() < potionLimit(s) && (overload >= 2 || level >= 3)) {
                 s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
             }
         } else if (PROF_RANGER.equals(s.profession)) {
             if (target != null) {
-                target.mark += 2 + overload / 2;
-                target.bind += 2 + s.bindPower;
-                damageEnemy(s, target, 5 + target.mark * 2, true);
+                target.mark += level + 1 + overload / 2;
+                target.bind += level + s.bindPower;
+                damageEnemy(s, target, 3 + level * 2 + target.mark * 2, true);
             }
         } else if (PROF_ARCANIST.equals(s.profession)) {
             s.voidEngine++;
             Card glyph = new Card("arcanist_glyph");
             glyph.temp = true;
             addToHand(s, glyph);
-            if (overload >= 3) {
+            if (overload >= 3 || level >= 3) {
                 s.energy++;
             }
         } else if (PROF_MERCHANT.equals(s.profession)) {
-            int income = 12 + s.act * 4 + overload * 2;
+            int income = 8 + level * 5 + s.act * 4 + overload * 2;
             s.gold += income;
             gainBlock(s, Math.min(18, 5 + income / 2));
         } else if (PROF_BLOODBOUND.equals(s.profession)) {
             addStatusCard(s, "wound");
-            s.hp = Math.min(s.maxHp, s.hp + 4 + overload);
+            s.hp = Math.min(s.maxHp, s.hp + 2 + level * 3 + overload);
             if (target != null) {
                 target.vulnerable++;
             }
         } else if (PROF_WEAVER.equals(s.profession)) {
             upgradeRandomHandCard(s);
             draw(s, 1);
-            gainBlock(s, 5 + upgradedCardCount(s) / 3);
+            gainBlock(s, 3 + level * 3 + upgradedCardCount(s) / 3);
         } else if (PROF_SUMMONER.equals(s.profession)) {
             Card spirit = new Card("summoner_sprite");
             spirit.temp = true;
             addToHand(s, spirit);
-            for (Enemy e : livingEnemies(s)) {
-                e.bind += 1 + s.bindPower;
+            if (level >= 3) {
+                Card wisp = new Card("summoner_wisp");
+                wisp.temp = true;
+                addToHand(s, wisp);
             }
-            gainBlock(s, 5 + s.act);
+            for (Enemy e : livingEnemies(s)) {
+                e.bind += level + s.bindPower;
+            }
+            gainBlock(s, 3 + level * 3 + s.act);
         } else if (PROF_HEXER.equals(s.profession)) {
             addStatusCard(s, "daze");
             for (Enemy e : livingEnemies(s)) {
                 e.vulnerable++;
-                e.mark += 1 + overload / 3;
+                e.mark += level + overload / 3;
             }
         }
     }
@@ -3180,8 +3254,9 @@ public final class GameCore {
         applyRouteCombatStart(s);
         applyEncounterStart(s);
         applyEnemyStartMechanics(s);
-        if (s.masterySkillCharge > 0) {
-            s.professionSkillCharge = Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.masterySkillCharge);
+        int startCharge = s.masterySkillCharge + skillSpecStartCharge(s);
+        if (startCharge > 0) {
+            s.professionSkillCharge = Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, startCharge);
         }
         if (hasRelic(s, "bone_mask")) {
             gainBlock(s, 8);
@@ -3205,6 +3280,21 @@ public final class GameCore {
         if (s.combatQuest != QUEST_NONE) {
             log(s, "战斗目标：" + questName(s.combatQuest) + " - " + questText(s));
         }
+    }
+
+    private static int skillSpecStartCharge(State s) {
+        SkillSpecDef spec = skillSpec(s.skillSpec);
+        if (spec == null) {
+            return 0;
+        }
+        int level = Math.max(1, s.skillSpecLevel);
+        if ("spec_burst".equals(spec.id)) {
+            return level;
+        }
+        if ("spec_resonance".equals(spec.id) || "spec_mastery".equals(spec.id)) {
+            return Math.max(0, level - 1);
+        }
+        return 0;
     }
 
     private static int chooseCombatQuest(State s, char kind) {
@@ -5783,6 +5873,7 @@ public final class GameCore {
             s.talentChoices.add(pool.get(i).id);
         }
         if (s.talentChoices.isEmpty()) {
+            advanceSkillSpec(s);
             nextAct(s);
         } else {
             s.mode = MODE_TALENT;
@@ -7762,6 +7853,7 @@ public final class GameCore {
         public int pactForgeCards;
         public int pactGoldCards;
         public int masterySkillCharge;
+        public int skillSpecLevel;
         public int buildResonanceFocus = -1;
         public int buildResonanceScore;
         public int runGuardMilestone;
@@ -7791,6 +7883,9 @@ public final class GameCore {
             }
             if (skillSpec == null) {
                 skillSpec = "";
+            }
+            if (skillSpec.length() > 0 && skillSpecLevel <= 0) {
+                skillSpecLevel = 1;
             }
             if (skillSpecChoices == null) {
                 skillSpecChoices = new ArrayList<>();

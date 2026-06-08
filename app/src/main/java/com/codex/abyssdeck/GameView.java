@@ -459,7 +459,7 @@ public final class GameView extends View {
         int w = getWidth();
         drawText(c, "选择职业技专修", dp(24), dp(86), 30, 0xfff4d580, true);
         drawText(c, s.origin + " / " + s.profession + " / " + GameCore.pactName(s), dp(26), dp(116), 15, 0xffc9d2d2, false);
-        drawText(c, "专修会改变职业技释放后的分支收益，并与构筑共鸣叠加。", dp(26), dp(136), 12, 0xffaebdc0, false);
+        drawText(c, "专修会改变职业技释放后的分支收益，Boss后随职业专精晋阶。", dp(26), dp(136), 12, 0xffaebdc0, false);
         for (int i = 0; i < s.skillSpecChoices.size(); i++) {
             GameCore.SkillSpecDef spec = GameCore.skillSpec(s.skillSpecChoices.get(i));
             float y = dp(160) + i * dp(122);
