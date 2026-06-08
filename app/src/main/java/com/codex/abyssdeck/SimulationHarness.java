@@ -162,7 +162,7 @@ public final class SimulationHarness {
                 int score = GameCore.cardDamage(c) * 3 + GameCore.cardBlock(c) * 2 + d.draw * 4 + d.energyGain * 7
                         + d.burn * 4 + d.bind * 3 + d.gainSteelEngine * 12 + d.gainAshEngine * 12
                         + d.gainWildEngine * 12 + d.gainVoidEngine * 12 + d.heal * 4 + d.scry * 2
-                        + (d.upgradeRandom ? 8 : 0) + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0);
+                        + d.skillChargeGain * 7 + (d.upgradeRandom ? 8 : 0) + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0);
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
                 }
@@ -181,6 +181,7 @@ public final class SimulationHarness {
                 if (s.relics.contains("tithe_box") && d.goldGain > 0) score += 7;
                 if (s.relics.contains("polished_cog") && c.upgraded) score += 4;
                 if (s.relics.contains("scar_talisman") && "wound".equals(c.id)) score += 12;
+                if (d.skillChargeGain > 0 && s.professionSkillCharge >= GameCore.PROF_SKILL_MAX - 4) score += 12;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;

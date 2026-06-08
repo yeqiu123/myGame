@@ -2743,6 +2743,9 @@ public final class GameCore {
         if (d.gainVoidEngine > 0) {
             s.voidEngine += c.upgraded ? d.gainVoidEngine + 1 : d.gainVoidEngine;
         }
+        if (d.skillChargeGain > 0) {
+            addProfessionSkillCharge(s, c.upgraded ? d.skillChargeGain + 1 : d.skillChargeGain);
+        }
         if (d.blockToDamage && target != null) {
             damageEnemy(s, target, s.block, false);
         }
@@ -3762,6 +3765,8 @@ public final class GameCore {
         c.profession = PROF_WARDEN; c.blockToDamage = true;
         c = addCard("warden_stand", "不退阵", "通用", 2, 2, 1, 0, 0, 16, 22, "获得大量格挡，抽1张，守势+1。", "更多格挡，守势+2。");
         c.profession = PROF_WARDEN; c.draw = c.drawUp = 1; c.gainSteelEngine = 1;
+        c = addCard("warden_command", "盾阵号令", "通用", 2, 1, 1, 0, 0, 9, 13, "获得格挡，抽1张，职业技充能+3。", "更多格挡，职业技充能+4。");
+        c.profession = PROF_WARDEN; c.skillChargeGain = 3; c.draw = c.drawUp = 1;
 
         c = addCard("duelist_flurry", "连步刺", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，本回合打牌越多越强。", "更高伤害与连击成长。");
         c.profession = PROF_DUELIST; c.comboDamage = 2;
@@ -3769,6 +3774,8 @@ public final class GameCore {
         c.profession = PROF_DUELIST; c.draw = 2; c.drawUp = 3; c.exhaust = true;
         c = addCard("duelist_finish", "终式", "通用", 2, 1, 0, 8, 12, 0, 0, "造成伤害，本回合打牌越多越强。", "更高伤害与连击成长。");
         c.profession = PROF_DUELIST; c.comboDamage = 4;
+        c = addCard("duelist_flashstep", "闪步终拍", "通用", 2, 0, 0, 2, 4, 0, 0, "造成低伤害，抽1张，职业技充能+2。", "更高伤害，职业技充能+3。");
+        c.profession = PROF_DUELIST; c.draw = c.drawUp = 1; c.comboDamage = 2; c.skillChargeGain = 2;
 
         c = addCard("alchemist_mix", "试剂调和", "通用", 0, 1, 2, 0, 0, 4, 6, "获得格挡并调制随机药剂，消耗。", "更多格挡并调制随机药剂，消耗。");
         c.profession = PROF_ALCHEMIST; c.createPotion = true; c.exhaust = true;
@@ -3776,6 +3783,8 @@ public final class GameCore {
         c.profession = PROF_ALCHEMIST; c.burn = 3; c.burnUp = 5; c.bind = 2; c.bindUp = 3; c.spreadStatus = true; c.targetEnemy = true;
         c = addCard("alchemist_catalyst", "催化剂", "通用", 2, 1, 2, 0, 0, 0, 0, "抽2张，获得燃势与束缚势，消耗。", "抽3张，获得更多势能，消耗。");
         c.profession = PROF_ALCHEMIST; c.draw = 2; c.drawUp = 3; c.gainBurnPower = 1; c.gainBindPower = 1; c.exhaust = true;
+        c = addCard("alchemist_reactor", "连锁反应釜", "通用", 2, 1, 2, 0, 0, 5, 8, "获得格挡并调制药剂，职业技充能+2。", "更多格挡，职业技充能+3。");
+        c.profession = PROF_ALCHEMIST; c.createPotion = true; c.exhaust = true; c.skillChargeGain = 2;
 
         c = addCard("ranger_trap", "踏影陷阱", "通用", 0, 1, 1, 0, 0, 6, 9, "获得格挡，施加束缚。", "更多格挡与束缚。");
         c.profession = PROF_RANGER; c.bind = 2; c.bindUp = 3; c.targetEnemy = true;
@@ -3783,6 +3792,8 @@ public final class GameCore {
         c.profession = PROF_RANGER; c.aoe = true; c.bind = 1; c.bindUp = 2;
         c = addCard("ranger_patience", "潜伏耐心", "通用", 2, 1, 2, 0, 0, 0, 0, "束缚总量越高抽牌越多，获得束缚势。", "抽牌上限更高，获得更多束缚势。");
         c.profession = PROF_RANGER; c.bindToDraw = true; c.gainBindPower = 1;
+        c = addCard("ranger_killzone", "猎场封锁", "通用", 2, 1, 1, 0, 0, 8, 11, "获得格挡，对目标施加束缚和易伤，职业技充能+2。", "更多格挡、束缚和充能。");
+        c.profession = PROF_RANGER; c.bind = 3; c.bindUp = 5; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("arcanist_glyph", "秘文摹写", "通用", 0, 0, 2, 0, 0, 0, 0, "制造一张临时疾切，消耗。", "制造一张临时疾切，消耗。");
         c.profession = PROF_ARCANIST; c.createEcho = true; c.echoCardId = "quick_cut"; c.exhaust = true;
@@ -3790,6 +3801,8 @@ public final class GameCore {
         c.profession = PROF_ARCANIST; c.exhaustTopDiscard = true; c.draw = 2; c.drawUp = 3;
         c = addCard("arcanist_loop", "秘环回流", "通用", 2, 1, 2, 0, 0, 0, 0, "回声势+1，抽2张，获得1能量，消耗。", "回声势+2，抽3张，获得1能量，消耗。");
         c.profession = PROF_ARCANIST; c.gainVoidEngine = 1; c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.exhaust = true;
+        c = addCard("arcanist_convergence", "秘能汇流", "通用", 2, 1, 2, 0, 0, 0, 0, "抽1张，制造临时疾切，职业技充能+3，消耗。", "抽2张，职业技充能+4。");
+        c.profession = PROF_ARCANIST; c.draw = 1; c.drawUp = 2; c.createEcho = true; c.echoCardId = "quick_cut"; c.skillChargeGain = 3; c.exhaust = true;
 
         c = addCard("merchant_haggle", "讨价还价", "通用", 0, 0, 2, 0, 0, 0, 0, "获得金币，抽1张，消耗。", "获得更多金币，抽1张，消耗。");
         c.profession = PROF_MERCHANT; c.goldGain = 12; c.draw = c.drawUp = 1; c.exhaust = true;
@@ -3797,6 +3810,8 @@ public final class GameCore {
         c.profession = PROF_MERCHANT; c.goldGain = 8; c.goldBlock = true;
         c = addCard("merchant_liquidate", "清算", "通用", 2, 2, 0, 10, 15, 0, 0, "造成伤害，金币越多伤害越高。获得金币。", "更高伤害与金币收益。");
         c.profession = PROF_MERCHANT; c.goldDamage = true; c.goldGain = 10;
+        c = addCard("merchant_speculate", "期货契据", "通用", 2, 1, 2, 0, 0, 4, 7, "获得格挡和金币，职业技充能+2。", "更多格挡和金币，职业技充能+3。");
+        c.profession = PROF_MERCHANT; c.goldGain = 18; c.goldBlock = true; c.draw = c.drawUp = 1; c.skillChargeGain = 2;
 
         c = addCard("blood_pact", "血契刻印", "通用", 0, 1, 0, 9, 13, 0, 0, "失去生命造成伤害。血契者会把失去生命转为额外爆发。", "失去更少生命，造成更高伤害。");
         c.profession = PROF_BLOODBOUND; c.hpLoss = 2; c.vulnerable = 1;
@@ -3804,6 +3819,8 @@ public final class GameCore {
         c.profession = PROF_BLOODBOUND; c.draw = 2; c.drawUp = 3; c.createWound = true; c.exhaust = true;
         c = addCard("blood_feast", "赤宴", "通用", 2, 2, 0, 12, 18, 0, 0, "造成伤害并治疗，低血线构筑收益更高。", "更高伤害和治疗。");
         c.profession = PROF_BLOODBOUND; c.heal = 4; c.healUp = 7;
+        c = addCard("blood_sigilstorm", "血印风暴", "通用", 2, 1, 0, 8, 12, 0, 0, "失去生命造成伤害，职业技充能+3并加入裂伤。", "更高伤害，职业技充能+4。");
+        c.profession = PROF_BLOODBOUND; c.hpLoss = 2; c.createWound = true; c.skillChargeGain = 3;
 
         c = addCard("weaver_thread", "织线", "通用", 0, 0, 1, 0, 0, 4, 6, "获得格挡，检视牌库并抽1张。织牌师偏好牌序工程。", "更多格挡，抽2张。");
         c.profession = PROF_WEAVER; c.scry = 3; c.draw = 1; c.drawUp = 2;
@@ -3811,6 +3828,8 @@ public final class GameCore {
         c.profession = PROF_WEAVER; c.upgradeRandom = true; c.draw = c.drawUp = 1;
         c = addCard("weaver_pattern", "定式改写", "通用", 2, 1, 2, 0, 0, 0, 0, "制造临时疾切，检视牌库，获得能量，消耗。", "额外抽牌并获得能量。");
         c.profession = PROF_WEAVER; c.createEcho = true; c.echoCardId = "quick_cut"; c.scry = 4; c.energyGain = 1; c.draw = 1; c.drawUp = 2; c.exhaust = true;
+        c = addCard("weaver_overpattern", "超定式", "通用", 2, 1, 1, 0, 0, 7, 10, "获得格挡，升级手牌，职业技充能+2。", "更多格挡，职业技充能+3。");
+        c.profession = PROF_WEAVER; c.upgradeRandom = true; c.draw = c.drawUp = 1; c.skillChargeGain = 2;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -4273,6 +4292,7 @@ public final class GameCore {
         public int scry;
         public int comboDamage;
         public int goldGain;
+        public int skillChargeGain;
         public boolean targetEnemy;
         public boolean exhaust;
         public boolean aoe;
