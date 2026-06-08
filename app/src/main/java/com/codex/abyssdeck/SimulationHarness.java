@@ -253,6 +253,16 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
                 if (s.talents.contains("t_warden_armory") && d.type == 1) score += 6;
+                if (s.talents.contains("t_warden_vanguard") && d.type == 1) score += 10;
+                if (s.talents.contains("t_duelist_masterstep") && s.cardsPlayedThisTurn >= 4) score += 14;
+                if (s.talents.contains("t_alchemist_grandbrew") && (d.createPotion || d.burn > 0 || d.bind > 0 || d.spreadStatus)) score += 12;
+                if (s.talents.contains("t_ranger_apex") && (d.bind > 0 || d.vulnerable > 0 || d.bindToDraw)) score += 10;
+                if (s.talents.contains("t_arcanist_singularity") && (d.exhaust || d.createEcho || c.temp)) score += 12;
+                if (s.talents.contains("t_merchant_monopoly") && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) score += 12;
+                if (s.talents.contains("t_bloodbound_hemocraft") && (d.hpLoss > 0 || "wound".equals(c.id))) score += 12;
+                if (s.talents.contains("t_weaver_grandpattern") && (c.upgraded || d.upgradeRandom || d.scry > 0)) score += 12;
+                if (s.talents.contains("t_summoner_overflow") && (d.createEcho || c.temp || "summoner_sprite".equals(c.id) || "summoner_wisp".equals(c.id))) score += 12;
+                if (s.talents.contains("t_hexer_abysscurse") && (d.vulnerable > 0 || d.createWound || d.addStatusToEnemy || "wound".equals(c.id) || "daze".equals(c.id))) score += 12;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if (s.relics.contains("loom_shuttle") && d.scry > 0) score += 6;
                 if (s.relics.contains("void_abacus") && d.exhaust) score += 6;

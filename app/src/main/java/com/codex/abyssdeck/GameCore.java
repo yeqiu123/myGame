@@ -829,6 +829,13 @@ public final class GameCore {
             target.burn += 2 + s.burnPower;
             target.bind += 2 + s.bindPower;
         }
+        if (hasTalent(s, "t_alchemist_grandbrew") && target != null) {
+            target.vulnerable += 1;
+            for (Enemy e : livingEnemies(s)) {
+                e.burn += 1 + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+            }
+        }
         log(s, "使用药剂：" + p.name);
         if (checkPlayerDefeated(s)) {
             return;
@@ -1915,7 +1922,51 @@ public final class GameCore {
             Card c = new Card("hexer_purge");
             c.upgraded = true;
             s.deck.add(c);
+        } else if ("t_warden_vanguard".equals(id)) {
+            s.maxHp += 5;
+            s.hp += 5;
+            addUpgradedDeckCard(s, "warden_command");
+        } else if ("t_duelist_masterstep".equals(id)) {
+            addUpgradedDeckCard(s, "duelist_flashstep");
+        } else if ("t_alchemist_grandbrew".equals(id)) {
+            addUpgradedDeckCard(s, "alchemist_reactor");
+            if (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if ("t_ranger_apex".equals(id)) {
+            addUpgradedDeckCard(s, "ranger_killzone");
+        } else if ("t_arcanist_singularity".equals(id)) {
+            addUpgradedDeckCard(s, "arcanist_convergence");
+        } else if ("t_merchant_monopoly".equals(id)) {
+            s.gold += 90;
+            addUpgradedDeckCard(s, "merchant_speculate");
+        } else if ("t_bloodbound_hemocraft".equals(id)) {
+            s.maxHp += 5;
+            s.hp += 5;
+            addUpgradedDeckCard(s, "blood_sigilstorm");
+        } else if ("t_weaver_grandpattern".equals(id)) {
+            upgradeRandomDeckCard(s);
+            addUpgradedDeckCard(s, "weaver_overpattern");
+        } else if ("t_summoner_overflow".equals(id)) {
+            addUpgradedDeckCard(s, "summoner_court");
+        } else if ("t_hexer_abysscurse".equals(id)) {
+            addUpgradedDeckCard(s, "hexer_maledict");
+            addStatusCard(s, "daze");
         }
+    }
+
+    private static void addUpgradedDeckCard(State s, String id) {
+        Card c = new Card(id);
+        c.upgraded = true;
+        s.deck.add(c);
+    }
+
+    private static boolean isAdvancedTalent(String id) {
+        return "t_warden_vanguard".equals(id) || "t_duelist_masterstep".equals(id)
+                || "t_alchemist_grandbrew".equals(id) || "t_ranger_apex".equals(id)
+                || "t_arcanist_singularity".equals(id) || "t_merchant_monopoly".equals(id)
+                || "t_bloodbound_hemocraft".equals(id) || "t_weaver_grandpattern".equals(id)
+                || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -2713,6 +2764,10 @@ public final class GameCore {
             s.steelEngine++;
             upgradeRandomHandCard(s);
         }
+        if (hasTalent(s, "t_warden_vanguard") && s.turn == 1) {
+            s.steelEngine++;
+            gainBlock(s, 6 + s.act * 2);
+        }
         if (PROF_RANGER.equals(s.profession) && firstLiving(s) != null) {
             firstLiving(s).bind += 1 + s.bindPower / 2;
         }
@@ -2723,6 +2778,10 @@ public final class GameCore {
         if (hasTalent(s, "t_ranger_wildpath") && firstLiving(s) != null) {
             firstLiving(s).bind += 1 + s.act / 2;
         }
+        if (hasTalent(s, "t_ranger_apex") && s.turn == 1 && firstLiving(s) != null) {
+            firstLiving(s).bind += 2 + s.bindPower / 2;
+            firstLiving(s).vulnerable += 1;
+        }
         if (PROF_ARCANIST.equals(s.profession) && s.turn == 1) {
             s.voidEngine++;
         }
@@ -2730,8 +2789,14 @@ public final class GameCore {
             s.voidEngine++;
             draw(s, 1);
         }
+        if (hasTalent(s, "t_arcanist_singularity") && s.turn == 1) {
+            s.voidEngine++;
+        }
         if (PROF_MERCHANT.equals(s.profession) && s.turn == 1) {
             gainBlock(s, Math.min(16, Math.max(3, s.gold / 35)));
+        }
+        if (hasTalent(s, "t_merchant_monopoly") && s.turn == 1) {
+            gainBlock(s, Math.min(18, 4 + s.gold / 40));
         }
         if (PROF_BLOODBOUND.equals(s.profession) && s.turn == 1) {
             s.professionCharge = 0;
@@ -2762,11 +2827,22 @@ public final class GameCore {
             if (hasTalent(s, "t_summoner_bond")) {
                 gainBlock(s, 7 + s.act);
             }
+            if (hasTalent(s, "t_summoner_overflow")) {
+                Card wisp = new Card("summoner_wisp");
+                wisp.temp = true;
+                addToHand(s, wisp);
+            }
         }
         if (PROF_HEXER.equals(s.profession) && s.turn == 1 && firstLiving(s) != null) {
             firstLiving(s).vulnerable += 1;
             if (hasTalent(s, "t_hexer_malediction")) {
                 firstLiving(s).bind += 2;
+            }
+            if (hasTalent(s, "t_hexer_abysscurse")) {
+                for (Enemy e : livingEnemies(s)) {
+                    e.vulnerable += 1;
+                    e.bind += 1 + s.bindPower / 2;
+                }
             }
         }
         if (hasRelic(s, "steel_oath") && s.turn == 1) {
@@ -3388,6 +3464,10 @@ public final class GameCore {
             block += 3;
             draw += 1;
         }
+        if (hasTalent(s, "t_weaver_grandpattern") && c.upgraded && (d.type == 1 || d.upgradeRandom || d.scry > 0)) {
+            block += 3 + s.act;
+            addProfessionSkillCharge(s, 1);
+        }
         if (hasRelic(s, "polished_cog") && c.upgraded && s.relicTriggersThisTurn < 2) {
             block += 3;
             s.relicTriggersThisTurn++;
@@ -3406,9 +3486,30 @@ public final class GameCore {
             damage += 5 + s.act * 2;
             draw += d.type == 0 ? 1 : 0;
         }
+        if (hasTalent(s, "t_duelist_masterstep") && s.cardsPlayedThisTurn >= 5) {
+            damage += 7 + s.act * 2;
+            if (d.type == 0) {
+                draw += 1;
+            }
+        }
         if (hasTalent(s, "t_alchemist_distiller") && d.createPotion) {
             block += 5 + s.act;
             draw += 1;
+        }
+        if (hasTalent(s, "t_alchemist_grandbrew") && d.createPotion) {
+            block += 4 + s.act;
+            s.burnPower++;
+            s.bindPower++;
+        }
+        if (hasTalent(s, "t_ranger_apex") && target != null && (target.bind >= 5 || target.vulnerable >= 2)) {
+            damage += 5 + s.act * 2 + Math.min(10, target.bind);
+            draw += d.type == 0 ? 1 : 0;
+        }
+        if (hasTalent(s, "t_bloodbound_hemocraft") && (d.hpLoss > 0 || "wound".equals(c.id))) {
+            block += 4 + s.act;
+            if (target != null && s.hp <= s.maxHp / 2) {
+                damage += 5 + s.act * 2;
+            }
         }
         if (d.goldDamage) {
             damage += Math.min(c.upgraded ? 42 : 28, Math.max(0, s.gold / (c.upgraded ? 8 : 11)));
@@ -3771,6 +3872,14 @@ public final class GameCore {
                 damageEnemy(s, e, 4 + Math.min(12, s.block / 6), true);
             }
         }
+        if (hasTalent(s, "t_warden_vanguard") && d.type == 1 && s.block >= 22) {
+            addProfessionSkillCharge(s, 1);
+            gainBlock(s, 2 + s.act);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                damageEnemy(s, e, 4 + s.steelEngine + Math.min(10, s.block / 8), true);
+            }
+        }
         if (PROF_DUELIST.equals(s.profession) && d.type == 0) {
             addProfessionSkillCharge(s, s.cardsPlayedThisTurn >= 4 ? 2 : 1);
             s.professionCharge++;
@@ -3783,11 +3892,27 @@ public final class GameCore {
                 s.professionCharge = 0;
             }
         }
+        if (hasTalent(s, "t_duelist_masterstep") && s.cardsPlayedThisTurn == 5) {
+            s.energy++;
+            addProfessionSkillCharge(s, 2);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                damageEnemy(s, e, 7 + s.act * 3, true);
+            }
+        }
         if (PROF_RANGER.equals(s.profession) && d.type == 0) {
             addProfessionSkillCharge(s, 1);
             Enemy e = firstLiving(s);
             if (e != null) {
                 e.bind += 1 + s.bindPower / 2;
+            }
+        }
+        if (hasTalent(s, "t_ranger_apex") && d.bind > 0) {
+            Enemy e = firstLiving(s);
+            if (e != null && e.bind >= 6) {
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(8, e.bind / 2), true);
+                addProfessionSkillCharge(s, 1);
             }
         }
         if (PROF_ARCANIST.equals(s.profession) && (d.exhaust || c.temp)) {
@@ -3804,9 +3929,25 @@ public final class GameCore {
                 s.professionCharge = 0;
             }
         }
+        if (hasTalent(s, "t_arcanist_singularity") && (d.exhaust || c.temp || d.createEcho)) {
+            addProfessionSkillCharge(s, 1);
+            if (s.cardsPlayedThisTurn % 3 == 0) {
+                Card echo = new Card("arcanist_glyph");
+                echo.temp = true;
+                addToHand(s, echo);
+                gainBlock(s, 3 + s.voidEngine);
+            }
+        }
         if (PROF_MERCHANT.equals(s.profession) && d.goldGain > 0) {
             addProfessionSkillCharge(s, 1);
             gainBlock(s, 4 + Math.min(8, s.gold / 80));
+        }
+        if (hasTalent(s, "t_merchant_monopoly") && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) {
+            s.gold += 4 + s.act * 2;
+            gainBlock(s, 3 + Math.min(9, s.gold / 90));
+            if (s.gold >= 200) {
+                addProfessionSkillCharge(s, 1);
+            }
         }
         if (hasTalent(s, "t_merchant_blackmarket") && s.cardsPlayedThisTurn == 2) {
             s.gold += 4 + s.act * 2;
@@ -3818,6 +3959,14 @@ public final class GameCore {
         }
         if (hasTalent(s, "t_shared_apothecary") && d.createPotion) {
             s.energy++;
+        }
+        if (hasTalent(s, "t_alchemist_grandbrew") && (d.createPotion || d.burn > 0 || d.bind > 0 || d.spreadStatus)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+            }
+            addProfessionSkillCharge(s, 1);
         }
         if (hasRelic(s, "tithe_box") && d.goldGain > 0) {
             Enemy e = firstLiving(s);
@@ -3844,6 +3993,10 @@ public final class GameCore {
                     e.vulnerable += hasTalent(s, "t_bloodbound_scar") ? 1 : 0;
                 }
                 s.hp = Math.min(s.maxHp, s.hp + (hasTalent(s, "t_bloodbound_feast") ? 5 : 2));
+                if (hasTalent(s, "t_bloodbound_hemocraft")) {
+                    gainBlock(s, 5 + s.act);
+                    addStatusCard(s, "wound");
+                }
                 s.professionCharge = 0;
             }
         }
@@ -3854,6 +4007,15 @@ public final class GameCore {
                 draw(s, hasTalent(s, "t_weaver_mastery") ? 2 : 1);
                 s.energy += 1;
                 upgradeRandomHandCard(s);
+                s.professionCharge = 0;
+            }
+        }
+        if (hasTalent(s, "t_weaver_grandpattern") && (c.upgraded || d.upgradeRandom || d.scry > 0)) {
+            s.professionCharge++;
+            if (s.professionCharge >= 4) {
+                upgradeRandomHandCard(s);
+                draw(s, 1);
+                gainBlock(s, 4 + s.act);
                 s.professionCharge = 0;
             }
         }
@@ -3875,6 +4037,18 @@ public final class GameCore {
                 s.professionCharge = 0;
             }
         }
+        if (hasTalent(s, "t_summoner_overflow") && (c.temp || d.createEcho || "summoner_sprite".equals(d.id) || "summoner_wisp".equals(d.id))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+            }
+            if (s.cardsPlayedThisTurn % 3 == 0) {
+                Card spirit = new Card("summoner_sprite");
+                spirit.temp = true;
+                addToHand(s, spirit);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (PROF_HEXER.equals(s.profession) && ("wound".equals(c.id) || "daze".equals(c.id) || d.vulnerable > 0 || d.addStatusToEnemy)) {
             addProfessionSkillCharge(s, 1);
             Enemy e = firstLiving(s);
@@ -3885,6 +4059,19 @@ public final class GameCore {
             if (hasTalent(s, "t_hexer_darkdeal") && ("wound".equals(c.id) || "daze".equals(c.id))) {
                 s.gold += 3 + s.act;
                 draw(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_hexer_abysscurse") && ("wound".equals(c.id) || "daze".equals(c.id) || d.vulnerable > 0 || d.createWound || d.addStatusToEnemy)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                if ("wound".equals(c.id) || "daze".equals(c.id)) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+                damageEnemy(s, e, 3 + s.act + Math.min(10, e.vulnerable * 2), true);
+            }
+            if ("wound".equals(c.id) || "daze".equals(c.id)) {
+                gainBlock(s, 3 + s.act);
+                addProfessionSkillCharge(s, 1);
             }
         }
         if (s.steelEngine > 0 && d.type == 1) {
@@ -4352,6 +4539,9 @@ public final class GameCore {
         s.talentChoices.clear();
         ArrayList<TalentDef> pool = new ArrayList<>();
         for (TalentDef t : TALENT_LIBRARY) {
+            if (s.act < 2 && isAdvancedTalent(t.id)) {
+                continue;
+            }
             if (!s.talents.contains(t.id) && (t.profession.length() == 0 || t.profession.equals(s.profession))) {
                 pool.add(t);
             }
@@ -5340,6 +5530,16 @@ public final class GameCore {
         addTalent("t_hexer_darkdeal", PROF_HEXER, "暗账交易", "状态牌提供金币和抽牌；职业技加入裂伤，获得升级暗契。");
         addTalent("t_hexer_malediction", PROF_HEXER, "恶咒连环", "首个敌人额外受束缚；获得升级恶咒。");
         addTalent("t_hexer_cleanse", PROF_HEXER, "以咒净咒", "移除一张状态牌，并获得升级以咒净咒。");
+        addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
+        addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
+        addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
+        addTalent("t_ranger_apex", PROF_RANGER, "顶点猎场", "获得升级猎场封锁；攻击重度束缚或易伤敌人更强，束缚牌追加标记追击。");
+        addTalent("t_arcanist_singularity", PROF_ARCANIST, "奇点回路", "获得升级秘能汇流；消耗、临时与回声牌加速充能，每3张制造临时秘文。");
+        addTalent("t_merchant_monopoly", PROF_MERCHANT, "垄断契账", "获得金币和升级期货契据；金币牌追加收益、格挡，富裕时推动职业技。");
+        addTalent("t_bloodbound_hemocraft", PROF_BLOODBOUND, "血工秘艺", "获得最大生命和升级血印风暴；自损与裂伤提供格挡，血契反击会补裂伤。");
+        addTalent("t_weaver_grandpattern", PROF_WEAVER, "大定式", "升级牌和牌序工程提供格挡与充能；连续定式会升级手牌、抽牌并加固防线。");
+        addTalent("t_summoner_overflow", PROF_SUMMONER, "满溢灵潮", "获得升级灵庭；首回合临时游魂引，召唤与临时牌持续束缚并续接灵火。");
+        addTalent("t_hexer_abysscurse", PROF_HEXER, "深渊咒冠", "获得升级恶咒并加入眩光；异常与状态牌会向敌群扩散易伤、束缚和穿透伤害。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
