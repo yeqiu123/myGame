@@ -947,7 +947,14 @@ public final class GameView extends View {
         y += dp(26);
         String origin = d.profession.length() > 0 ? d.profession + "职业牌" : d.origin;
         drawText(c, "派系 " + origin + (card.temp ? "   临时" : ""), panel.left + dp(18), y, 14, 0xffc8d0d0, false);
-        y += dp(32);
+        y += dp(24);
+        String buildTags = cardBuildTags(card, d);
+        if (buildTags.length() > 0) {
+            drawText(c, "构筑 " + buildTags, panel.left + dp(18), y, 13, 0xff9fd5c5, false);
+            y += dp(24);
+        } else {
+            y += dp(8);
+        }
         drawWrapped(c, GameCore.cardText(card), panel.left + dp(18), y, panelW - dp(36), 15, 0xfff3ead7);
         y += dp(96);
         if (!card.upgraded && d.upText != null && d.upText.length() > 0 && !d.upText.equals(d.text)) {
@@ -962,6 +969,23 @@ public final class GameView extends View {
         if (d.type == 1) return "技能";
         if (d.type == 2) return "能力";
         return "状态";
+    }
+
+    private String cardBuildTags(GameCore.Card card, GameCore.CardDef d) {
+        String tags = "";
+        if (d.skillChargeGain > 0) tags = appendTag(tags, "过载");
+        if (d.createEcho || d.exhaust || card.temp) tags = appendTag(tags, "回声");
+        if (d.createPotion) tags = appendTag(tags, "炼调");
+        if (d.goldGain > 0 || d.goldDamage || d.goldBlock) tags = appendTag(tags, "金币");
+        if (d.hpLoss > 0 || d.createWound || "wound".equals(card.id)) tags = appendTag(tags, "血契");
+        if (d.upgradeRandom || d.scry > 0 || card.upgraded) tags = appendTag(tags, "工坊");
+        if (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.spreadStatus) tags = appendTag(tags, "异常");
+        if (d.draw > 0 || d.energyGain > 0) tags = appendTag(tags, "循环");
+        return tags;
+    }
+
+    private String appendTag(String tags, String tag) {
+        return tags.length() == 0 ? tag : tags + " / " + tag;
     }
 
     private void drawCardArt(Canvas c, GameCore.CardDef d, RectF r) {
