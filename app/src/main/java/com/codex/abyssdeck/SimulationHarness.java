@@ -199,6 +199,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_CHEF.equals(s.profession) && isChefSignal(d)) score += 14;
             if (GameCore.PROF_BARD.equals(s.profession) && isBardSignal(d)) score += 14;
             if (GameCore.PROF_MIRRORIST.equals(s.profession) && isMirroristSignal(d)) score += 14;
+            if (GameCore.PROF_PUPPETEER.equals(s.profession) && isPuppeteerSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -234,6 +235,9 @@ public final class SimulationHarness {
             if ("mirrorist_grand_mirror".equals(d.id) || "mirrorist_overimage".equals(d.id)
                     || "mirrorist_shard".equals(d.id) || "mirrorist_guard".equals(d.id)
                     || "mirrorist_reflect".equals(d.id) || "mirrorist_prismcut".equals(d.id)) score += 14;
+            if ("puppeteer_grand_stage".equals(d.id) || "puppeteer_overpull".equals(d.id)
+                    || "puppeteer_thread".equals(d.id) || "puppeteer_screen".equals(d.id)
+                    || "puppeteer_rehearse".equals(d.id) || "puppeteer_needle".equals(d.id)) score += 14;
             if (isStormcallerCard(d)) score += 14;
             if (isShadowdancerCard(d)) score += 14;
             if (isRunebladeCard(d)) score += 14;
@@ -245,6 +249,7 @@ public final class SimulationHarness {
             if (isChefCard(d)) score += 14;
             if (isBardCard(d)) score += 14;
             if (isMirroristCard(d)) score += 14;
+            if (isPuppeteerCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -290,6 +295,10 @@ public final class SimulationHarness {
             if (s.relics.contains("mirror_crown") && (isMirroristSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.createEcho || d.vulnerable > 0
                     || isHybridCore(d))) score += 20;
+            if (s.relics.contains("string_spool") && (isPuppeteerSignal(d) || d.bind > 0
+                    || d.createEcho || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("marionette_crown") && (isPuppeteerSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.createEcho || d.bind > 0 || d.block > 0)) score += 20;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
@@ -397,16 +406,24 @@ public final class SimulationHarness {
                     || "tempo_metronome".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
                     || "markchain_seal".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
                     || "stormglass_seal".equals(id))) score += 36;
+            if (GameCore.PROF_PUPPETEER.equals(s.profession) && ("marionette_crown".equals(id) || "string_spool".equals(id)
+                    || "root_drum".equals(id) || "green_bell".equals(id) || "spirit_bell".equals(id)
+                    || "spirit_processional".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
+                    || "markchain_seal".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                    || "stormglass_seal".equals(id) || "tempo_metronome".equals(id) || "confluence_map".equals(id)
+                    || "prism_gear".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
                     || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_CHEF.equals(s.profession)
-                    || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession))) score += 28;
+                    || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession)
+                    || GameCore.PROF_PUPPETEER.equals(s.profession))) score += 28;
             if ("echo_ledger".equals(id) && (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
                     || GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession) || GameCore.PROF_MEDIUM.equals(s.profession)
-                    || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession))) score += 28;
+                    || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession)
+                    || GameCore.PROF_PUPPETEER.equals(s.profession))) score += 28;
             if ("bloodspark_contract".equals(id) && (GameCore.PROF_BLOODBOUND.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
                     || GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_ALCHEMIST.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession))) score += 28;
@@ -422,6 +439,7 @@ public final class SimulationHarness {
             if ("recipe_book".equals(id) || "banquet_crown".equals(id)) score += 20;
             if ("songbook".equals(id) || "finale_crown".equals(id)) score += 20;
             if ("mirror_lens".equals(id) || "mirror_crown".equals(id)) score += 20;
+            if ("string_spool".equals(id) || "marionette_crown".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
@@ -545,6 +563,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_MIRRORIST.equals(s.profession) && ("pact_forge".equals(id) || "pact_confluence".equals(id)
                     || "pact_void".equals(id) || "pact_sprinter".equals(id) || "pact_suppression".equals(id)
                     || "pact_hunter".equals(id) || "pact_guardian".equals(id))) score += 24;
+            if (GameCore.PROF_PUPPETEER.equals(s.profession) && ("pact_summon".equals(id) || "pact_suppression".equals(id)
+                    || "pact_guardian".equals(id) || "pact_void".equals(id) || "pact_hunter".equals(id)
+                    || "pact_sprinter".equals(id) || "pact_confluence".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -582,14 +603,14 @@ public final class SimulationHarness {
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
                     || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
-                    || GameCore.PROF_MIRRORIST.equals(s.profession)) ? 32 : 20;
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 32 : 20;
             else if ("spec_control".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_INSCRIBER.equals(s.profession) || GameCore.PROF_PACTMAKER.equals(s.profession)
                     || GameCore.PROF_STORMCALLER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
                     || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
                     || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
-                    || GameCore.PROF_MIRRORIST.equals(s.profession)) ? 31 : 24;
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 31 : 24;
             else if ("spec_assembly".equals(id)) score += (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_MACHINIST.equals(s.profession)
                     || GameCore.PROF_ASTROLOGER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
                     || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)
@@ -598,7 +619,7 @@ public final class SimulationHarness {
                     || GameCore.PROF_CHRONOMANCER.equals(s.profession) || GameCore.PROF_SHADOWDANCER.equals(s.profession)
                     || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_DREAMWALKER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
-                    || GameCore.PROF_MIRRORIST.equals(s.profession)) ? 33 : 26;
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 33 : 26;
             else if ("spec_markchain".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
                     || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_PACTMAKER.equals(s.profession) || GameCore.PROF_STORMCALLER.equals(s.profession)
@@ -606,7 +627,7 @@ public final class SimulationHarness {
                     || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)
                     || GameCore.PROF_DREAMWALKER.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
-                    || GameCore.PROF_MIRRORIST.equals(s.profession)) ? 33 : 25;
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 33 : 25;
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && ("spec_sustain".equals(id) || "spec_resonance".equals(id)
                     || "spec_mastery".equals(id))) score += 6;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
@@ -639,6 +660,9 @@ public final class SimulationHarness {
                     || "spec_burst".equals(id) || "spec_sustain".equals(id))) score += 8;
             if (GameCore.PROF_MIRRORIST.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_assembly".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id)
+                    || "spec_tempo".equals(id) || "spec_sustain".equals(id))) score += 8;
+            if (GameCore.PROF_PUPPETEER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_echoflow".equals(id) || "spec_markchain".equals(id) || "spec_control".equals(id)
                     || "spec_tempo".equals(id) || "spec_sustain".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
@@ -709,7 +733,7 @@ public final class SimulationHarness {
                         || "tuner_note".equals(c.id) || "tuner_harmonic".equals(c.id) || "tuner_grand_cadence".equals(c.id)
                         || isStormcallerCard(d) || isShadowdancerCard(d) || isRunebladeCard(d) || isMediumCard(d)
                         || isTacticianCard(d) || isPrismistCard(d) || isDreamwalkerCard(d) || isGardenerCard(d)
-                        || isBardCard(d) || isMirroristCard(d))) score += 20;
+                        || isBardCard(d) || isMirroristCard(d) || isPuppeteerCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -855,6 +879,16 @@ public final class SimulationHarness {
                             || d.skillChargeGain > 0 || isMirroristCard(d))) score += 5;
                     if (tempOrEchoHandCards(s) >= 2 && (d.createEcho || d.draw > 0 || isMirroristCard(d))) score += 5;
                 }
+                if (GameCore.PROF_PUPPETEER.equals(s.profession) && (isPuppeteerSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.bind > 0 || d.createEcho || c.temp || d.block > 0 || d.vulnerable > 0) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isPuppeteerCard(d)
+                            || d.createEcho || d.bind > 0)) score += 6;
+                    if (puppeteerEnemyPressure(s) >= 8 && ("puppeteer_needle".equals(c.id)
+                            || "puppeteer_overpull".equals(c.id) || "puppeteer_grand_stage".equals(c.id))) score += 8;
+                    if ((tempOrEchoHandCards(s) >= 2 || s.block >= 14) && (d.draw > 0 || d.block > 0
+                            || d.skillChargeGain > 0 || isPuppeteerCard(d))) score += 5;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -947,6 +981,15 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_mirrorist_grand") && (d.scry > 0 || d.upgradeRandom
                         || d.createEcho || c.temp || d.skillChargeGain > 0 || d.rarity == 2
                         || isHybridCore(d) || isConfluenceCore(d) || isMirroristCard(d))) score += 14;
+                if (s.talents.contains("t_puppeteer_thread") && (d.cost == 0 || d.bind > 0 || c.temp
+                        || isPuppeteerCard(d))) score += 12;
+                if (s.talents.contains("t_puppeteer_screen") && (d.block > 0 || d.type == 1
+                        || d.createEcho || isPuppeteerCard(d))) score += 12;
+                if (s.talents.contains("t_puppeteer_rehearse") && (d.createEcho || c.temp
+                        || d.draw > 0 || d.skillChargeGain > 0 || isPuppeteerCard(d))) score += 12;
+                if (s.talents.contains("t_puppeteer_grand") && (d.bind > 0 || d.createEcho
+                        || c.temp || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                        || isPuppeteerCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1004,6 +1047,9 @@ public final class SimulationHarness {
                 if ("mirrorist_grand_mirror".equals(c.id) || "mirrorist_overimage".equals(c.id)) score += 18;
                 if ("mirrorist_shard".equals(c.id) || "mirrorist_guard".equals(c.id)
                         || "mirrorist_reflect".equals(c.id) || "mirrorist_prismcut".equals(c.id)) score += 14;
+                if ("puppeteer_grand_stage".equals(c.id) || "puppeteer_overpull".equals(c.id)) score += 18;
+                if ("puppeteer_thread".equals(c.id) || "puppeteer_screen".equals(c.id)
+                        || "puppeteer_rehearse".equals(c.id) || "puppeteer_needle".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -1104,6 +1150,10 @@ public final class SimulationHarness {
                 if (s.relics.contains("mirror_crown") && (isMirroristSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom || d.createEcho
                         || d.vulnerable > 0 || isHybridCore(d))) score += 16;
+                if (s.relics.contains("string_spool") && (isPuppeteerSignal(d) || c.temp
+                        || d.bind > 0 || d.createEcho || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("marionette_crown") && (isPuppeteerSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.createEcho || d.bind > 0 || d.block > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -1242,6 +1292,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_PUPPETEER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean puppetWindow = target >= 0 && (s.enemies.get(target).bind >= 3
+                    || s.enemies.get(target).mark >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || puppetWindow || tempOrEchoHandCards(s) >= 3
+                    || s.block >= 16 + s.act * 2 || puppeteerEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -1279,7 +1339,8 @@ public final class SimulationHarness {
                 || s.relics.contains("seed_satchel") || s.relics.contains("verdant_crown")
                 || s.relics.contains("recipe_book") || s.relics.contains("banquet_crown")
                 || s.relics.contains("songbook") || s.relics.contains("finale_crown")
-                || s.relics.contains("mirror_lens") || s.relics.contains("mirror_crown");
+                || s.relics.contains("mirror_lens") || s.relics.contains("mirror_crown")
+                || s.relics.contains("string_spool") || s.relics.contains("marionette_crown");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
@@ -1418,6 +1479,18 @@ public final class SimulationHarness {
                 || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id));
     }
 
+    private static boolean isPuppeteerSignal(GameCore.CardDef d) {
+        return d != null && (d.bind > 0 || d.createEcho || d.draw > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.type == 1 || d.vulnerable > 0
+                || GameCore.PROF_PUPPETEER.equals(d.profession));
+    }
+
+    private static boolean isPuppeteerCard(GameCore.CardDef d) {
+        return d != null && ("puppeteer_thread".equals(d.id) || "puppeteer_screen".equals(d.id)
+                || "puppeteer_rehearse".equals(d.id) || "puppeteer_needle".equals(d.id)
+                || "puppeteer_overpull".equals(d.id) || "puppeteer_grand_stage".equals(d.id));
+    }
+
     private static int stormcallerEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -1523,6 +1596,16 @@ public final class SimulationHarness {
         for (GameCore.Enemy e : s.enemies) {
             if (e.hp > 0) {
                 pressure += e.mark * 2 + e.vulnerable * 3 + e.bind + e.burn;
+            }
+        }
+        return pressure;
+    }
+
+    private static int puppeteerEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.bind * 3 + e.mark * 2 + e.vulnerable * 2 + e.burn;
             }
         }
         return pressure;
