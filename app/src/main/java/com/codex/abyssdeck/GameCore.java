@@ -2231,6 +2231,7 @@ public final class GameCore {
         if (e.kind == 34) text += "链压 ";
         if (e.kind == 35) text += "尘捕 ";
         if (e.kind == 36) text += "校验 ";
+        if (e.kind == 37) text += "誓审 ";
         return text.trim();
     }
 
@@ -4202,7 +4203,7 @@ public final class GameCore {
 
     private static void applyEnemyStartMechanics(State s) {
         for (Enemy e : s.enemies) {
-            if (e.kind == 10 || e.kind == 11 || e.kind == 12) {
+            if (e.kind == 10 || e.kind == 11 || e.kind == 12 || e.kind == 37) {
                 e.phase = Math.max(1, e.phase);
             }
             if (e.kind == 25 && e.thorns == 0) {
@@ -4225,6 +4226,13 @@ public final class GameCore {
                 e.doom = 3;
             } else if (e.kind == 36 && e.shieldPulse == 0) {
                 e.shieldPulse = 2;
+            } else if (e.kind == 37) {
+                if (e.shieldPulse == 0) {
+                    e.shieldPulse = 2;
+                }
+                if (e.doom == 0) {
+                    e.doom = 4;
+                }
             }
         }
     }
@@ -4319,6 +4327,27 @@ public final class GameCore {
                     log(s, e.name + " 校验构筑标签，折成护甲。");
                 }
             }
+            if (e.kind == 37) {
+                int audit = judgmentPressure(s);
+                if (audit >= 4 && (s.turn + e.phase) % 3 == 0) {
+                    int drained = Math.min(s.professionSkillCharge, 1 + Math.min(3, audit / 3));
+                    s.professionSkillCharge -= drained;
+                    e.block += 8 + s.act * 2 + audit * 2 + drained * 3;
+                    if (audit >= 8 && s.run.nextBoolean()) {
+                        addStatusCard(s, "daze");
+                    }
+                    log(s, e.name + " 复核誓约履历，抽走 " + drained + " 点职业技充能。");
+                }
+                int pressure = bestEnemyPressure(s);
+                if (pressure >= 10 && s.turn % 2 == 0) {
+                    int sealed = drainEnemyPressureForJudgment(s, 2 + s.act);
+                    e.block += 6 + sealed * 4;
+                    if (sealed >= 4) {
+                        e.strength += 1;
+                    }
+                    log(s, e.name + " 封存异常证词，转成终审护甲。");
+                }
+            }
         }
     }
 
@@ -4364,6 +4393,23 @@ public final class GameCore {
                 s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
                 addStatusCard(s, "daze");
                 log(s, e.name + " 展开终审二相，牌序被撕开。");
+            } else if (e.kind == 37) {
+                e.phase = 2;
+                e.enraged = true;
+                int audit = judgmentPressure(s);
+                int drained = Math.min(s.professionSkillCharge, 2 + s.act);
+                s.professionSkillCharge -= drained;
+                int sealed = drainEnemyPressureForJudgment(s, 3 + s.act);
+                e.strength += 2 + s.act;
+                e.block += 18 + s.act * 4 + audit * 2 + drained * 3 + sealed * 3;
+                if (livingEnemies(s).size() < 3) {
+                    Enemy clerk = enemy("誓庭校验者", 28 + s.act * 8 + s.ascension, 36);
+                    clerk.intent = ENEMY_SPECIAL;
+                    clerk.intentValue = 2;
+                    s.enemies.add(clerk);
+                }
+                addStatusCard(s, "daze");
+                log(s, e.name + " 开启二相终审，誓约与异常被归档成护甲。");
             }
         }
     }
@@ -4388,11 +4434,26 @@ public final class GameCore {
                 boss.intentValue = 3;
                 s.enemies.add(boss);
             } else {
-                Enemy boss = enemy("空冠审判者", 136 + act * 32 + depth * 5, 12);
-                boss.intent = ENEMY_SPECIAL;
-                boss.intentValue = 2;
-                s.enemies.add(boss);
-                s.enemies.add(enemy("空冠副面", 34 + act * 8 + depth, 8));
+                int judgmentChance = 35
+                        + (s.pactFulfilled > 0 ? 12 : 0)
+                        + (s.skillSpec != null && s.skillSpec.length() > 0 ? 10 : 0)
+                        + (s.buildResonanceScore >= 55 ? 8 : 0);
+                if (s.run.nextInt(100) < judgmentChance) {
+                    Enemy boss = enemy("誓约终审官", 128 + act * 32 + depth * 5, 37);
+                    boss.intent = ENEMY_SPECIAL;
+                    boss.intentValue = 3;
+                    s.enemies.add(boss);
+                    Enemy clerk = enemy("誓链书记", 34 + act * 8 + depth, 34);
+                    clerk.intent = ENEMY_GUARD;
+                    clerk.intentValue = 10 + act * 3;
+                    s.enemies.add(clerk);
+                } else {
+                    Enemy boss = enemy("空冠审判者", 136 + act * 32 + depth * 5, 12);
+                    boss.intent = ENEMY_SPECIAL;
+                    boss.intentValue = 2;
+                    s.enemies.add(boss);
+                    s.enemies.add(enemy("空冠副面", 34 + act * 8 + depth, 8));
+                }
             }
             return;
         }
@@ -4974,6 +5035,25 @@ public final class GameCore {
                     e.intent = ENEMY_BUFF;
                     e.intentValue = 5;
                 }
+            } else if (e.kind == 37) {
+                int audit = judgmentPressure(s);
+                int pressure = bestEnemyPressure(s);
+                if (e.phase >= 2 && (pressure >= 7 || s.professionSkillCharge >= PROF_SKILL_MAX) && r < 42) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 3 + Math.min(4, audit / 2);
+                } else if (r < 34) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 14 + s.act * 4 + (e.phase >= 2 ? 4 : 0) + Math.min(6, audit);
+                } else if (r < 66) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 2 + Math.min(4, audit / 2);
+                } else if (r < 84) {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 2 + (audit >= 7 ? 1 : 0);
+                } else {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 14 + s.act * 4 + Math.min(18, pressure + audit * 2);
+                }
             } else if (e.kind == 1) {
                 if (r < 55) {
                     e.intent = ENEMY_ATTACK;
@@ -5320,6 +5400,25 @@ public final class GameCore {
             s.energy = Math.max(0, s.energy - 1);
             addStatusCard(s, "daze");
             log(s, e.name + " 扭曲你的牌序。");
+        } else if (e.kind == 37) {
+            int audit = judgmentPressure(s);
+            int chain = Math.min(s.confluenceChain, Math.max(1, e.intentValue));
+            s.confluenceChain = Math.max(0, s.confluenceChain - chain);
+            int skillDrain = Math.min(s.professionSkillCharge, 2 + s.act + e.phase);
+            s.professionSkillCharge -= skillDrain;
+            int chargeDrain = Math.min(s.professionCharge, 1 + Math.min(3, audit / 3));
+            s.professionCharge -= chargeDrain;
+            int sealed = drainEnemyPressureForJudgment(s, 3 + s.act + Math.min(3, audit / 3));
+            e.block += 12 + s.act * 4 + chain * 5 + skillDrain * 2 + chargeDrain * 3 + sealed * 3;
+            if (sealed >= 5 || audit >= 9) {
+                e.strength += 1;
+            }
+            if (chain >= 3 || skillDrain >= 4) {
+                s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
+            }
+            s.vulnerable += audit >= 6 ? 1 : 0;
+            addStatusCard(s, sealed >= 4 ? "wound" : "daze");
+            log(s, e.name + " 宣判誓约与汇流，抽走 " + (chain + skillDrain + chargeDrain) + " 点势能。");
         } else if (e.kind == 2) {
             e.block += 10 + s.act * 2;
             e.strength += 1;
@@ -9599,6 +9698,51 @@ public final class GameCore {
             best = Math.max(best, e.burn + e.bind + e.vulnerable + e.mark);
         }
         return best;
+    }
+
+    private static int judgmentPressure(State s) {
+        int pressure = 0;
+        pressure += Math.min(3, Math.max(0, s.pactFulfilled));
+        pressure += Math.min(3, Math.max(0, s.pactConfluenceCards));
+        pressure += Math.min(3, Math.max(0, s.pactStatusCards));
+        pressure += Math.min(3, focusMaskCount(s.confluenceMask));
+        pressure += Math.min(5, Math.max(0, s.confluenceChain));
+        pressure += Math.min(3, Math.max(0, s.professionSkillCharge / 3));
+        if (s.skillSpec != null && s.skillSpec.length() > 0) {
+            pressure += Math.max(1, Math.min(3, s.skillSpecLevel));
+        }
+        return pressure;
+    }
+
+    private static int drainEnemyPressureForJudgment(State s, int cap) {
+        int drained = 0;
+        for (Enemy e : livingEnemies(s)) {
+            if (drained >= cap) {
+                break;
+            }
+            int take = Math.min(e.burn, cap - drained);
+            e.burn -= take;
+            drained += take;
+            if (drained >= cap) {
+                break;
+            }
+            take = Math.min(e.bind, cap - drained);
+            e.bind -= take;
+            drained += take;
+            if (drained >= cap) {
+                break;
+            }
+            take = Math.min(e.vulnerable, cap - drained);
+            e.vulnerable -= take;
+            drained += take;
+            if (drained >= cap) {
+                break;
+            }
+            take = Math.min(e.mark, cap - drained);
+            e.mark -= take;
+            drained += take;
+        }
+        return drained;
     }
 
     private static Enemy firstLiving(State s) {
