@@ -648,10 +648,29 @@ public final class GameCore {
         String profession = s == null ? "" : s.profession;
         String text = professionSkillTextFor(profession);
         int overload = professionSkillOverload(s);
+        String resonance = professionSkillResonanceText(s);
         if (overload > 0) {
-            return text + " 当前过载+" + overload + "。";
+            return text + " 当前过载+" + overload + "。" + (resonance.length() > 0 ? " " + resonance : "");
         }
-        return text + " 满充能后可继续积蓄过载。";
+        return text + " 满充能后可继续积蓄过载。" + (resonance.length() > 0 ? " " + resonance : "");
+    }
+
+    public static String professionSkillResonanceText(State s) {
+        if (s == null || skillResonanceTier(s) <= 0) {
+            return "";
+        }
+        int focus = s.buildResonanceFocus;
+        String rank = buildFocusRank(s.buildResonanceScore);
+        if (focus == BUILD_OVERLOAD) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，返还充能并追加穿透。";
+        if (focus == BUILD_ECHO) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，制造临时牌并续抽。";
+        if (focus == BUILD_BREW) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，扩散燃灼束缚。";
+        if (focus == BUILD_GOLD) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，回收金币并转为格挡。";
+        if (focus == BUILD_BLOOD) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，按失血治疗并反击。";
+        if (focus == BUILD_FORGE) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，升级手牌并加固。";
+        if (focus == BUILD_STATUS) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，放大异常并穿透。";
+        if (focus == BUILD_CYCLE) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，抽牌，高阶返能。";
+        if (focus == BUILD_GUARD) return "技共鸣：" + BUILD_FOCUS_NAMES[focus] + rank + "，获得格挡并反击。";
+        return "";
     }
 
     public static String professionSkillTextFor(String profession) {
@@ -771,6 +790,7 @@ public final class GameCore {
             draw(s, 2 + overload / 4);
             s.energy += 1 + overload / 5;
         }
+        applyProfessionSkillResonance(s, target, overload);
         applyProfessionSkillRelics(s, target);
         log(s, "释放职业技：" + professionSkillName(s.profession) + (overload > 0 ? " 过载+" + overload : ""));
         updateQuestProgress(s);
@@ -2736,6 +2756,101 @@ public final class GameCore {
         else if (PROF_SUMMONER.equals(s.profession) && d != null && (d.createEcho || d.bind > 0 || d.aoe || d.type == 1)) amount++;
         else if (PROF_HEXER.equals(s.profession) && d != null && (d.vulnerable > 0 || d.addStatusToEnemy || d.createWound || "wound".equals(d.id) || "daze".equals(d.id))) amount++;
         addProfessionSkillCharge(s, amount);
+    }
+
+    private static void applyProfessionSkillResonance(State s, Enemy chosenTarget, int overload) {
+        int tier = skillResonanceTier(s);
+        if (tier <= 0) {
+            return;
+        }
+        int focus = s.buildResonanceFocus;
+        Enemy target = chosenTarget != null && chosenTarget.hp > 0 ? chosenTarget : firstLiving(s);
+        if (focus == BUILD_OVERLOAD) {
+            addProfessionSkillCharge(s, 1 + tier + overload / 3);
+            if (target != null) {
+                damageEnemy(s, target, 5 + tier * 4 + overload * 2, true);
+            }
+        } else if (focus == BUILD_ECHO) {
+            Card echo = new Card(PROF_SUMMONER.equals(s.profession) ? "summoner_sprite" : "quick_cut");
+            echo.temp = true;
+            addToHand(s, echo);
+            if (tier >= 2) {
+                Card glimpse = new Card("void_glimpse");
+                glimpse.temp = true;
+                addToHand(s, glimpse);
+            }
+            if (tier >= 3) {
+                draw(s, 1);
+            }
+        } else if (focus == BUILD_BREW) {
+            for (Enemy e : livingEnemies(s)) {
+                e.burn += 1 + tier + s.burnPower / 2;
+                e.bind += tier + s.bindPower / 2;
+                if (tier >= 3) {
+                    e.vulnerable++;
+                }
+            }
+            addQuestProgress(s, QUEST_BREW, 1);
+        } else if (focus == BUILD_GOLD) {
+            int refund = 5 + tier * 5 + Math.min(12, s.gold / 60) + overload;
+            s.gold += refund;
+            gainBlock(s, 4 + tier * 3 + Math.min(8, s.gold / 90));
+            if (target != null && tier >= 2) {
+                damageEnemy(s, target, 4 + tier * 3 + Math.min(10, refund / 2), false);
+            }
+        } else if (focus == BUILD_BLOOD) {
+            int missing = Math.max(0, s.maxHp - s.hp);
+            int heal = 2 + tier * 2 + Math.min(8, missing / 8) + overload / 2;
+            s.hp = Math.min(s.maxHp, s.hp + heal);
+            if (target != null) {
+                damageEnemy(s, target, 5 + tier * 4 + missing / 8 + overload * 2, true);
+            }
+        } else if (focus == BUILD_FORGE) {
+            upgradeRandomHandCard(s);
+            if (tier >= 3) {
+                upgradeRandomHandCard(s);
+            }
+            gainBlock(s, 5 + tier * 3);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        } else if (focus == BUILD_STATUS) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.bind += 1 + tier + s.bindPower / 2;
+                e.mark += tier;
+                damageEnemy(s, e, 2 + tier * 3 + overload, true);
+            }
+        } else if (focus == BUILD_CYCLE) {
+            draw(s, tier >= 3 ? 2 : 1);
+            if (tier >= 2) {
+                s.energy++;
+            }
+            if (tier >= 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        } else if (focus == BUILD_GUARD) {
+            gainBlock(s, 6 + tier * 4 + s.steelEngine);
+            if (tier >= 3) {
+                s.steelEngine++;
+            }
+            if (target != null) {
+                damageEnemy(s, target, Math.min(30, s.block / 4 + tier * 4 + overload * 2), true);
+            }
+        }
+        log(s, "职业技共鸣：" + BUILD_FOCUS_NAMES[focus] + " " + buildFocusRank(s.buildResonanceScore) + "。");
+    }
+
+    private static int skillResonanceTier(State s) {
+        if (s == null || s.mode != MODE_COMBAT || s.buildResonanceFocus < 0
+                || s.buildResonanceFocus >= BUILD_FOCUS_NAMES.length || s.buildResonanceScore < 35) {
+            return 0;
+        }
+        if (s.buildResonanceScore >= 80) {
+            return 3;
+        }
+        if (s.buildResonanceScore >= 55) {
+            return 2;
+        }
+        return 1;
     }
 
     private static void applyProfessionSkillRelics(State s, Enemy target) {

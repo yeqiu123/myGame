@@ -572,10 +572,7 @@ public final class GameView extends View {
         }
         drawText(c, powers, dp(22), dp(122), 12, 0xffbfcfcc, false);
         String skillTip = GameCore.professionSkillText(s);
-        if (skillTip.length() > 30) {
-            skillTip = skillTip.substring(0, 30);
-        }
-        drawText(c, skillTip, dp(22), dp(140), 12, 0xffaebdc0, false);
+        drawText(c, fitText(skillTip, 12, w - dp(44)), dp(22), dp(140), 12, 0xffaebdc0, false);
         String resonance = GameCore.buildResonanceText(s);
         String buildLine = "构筑 " + GameCore.buildSummaryText(s) + (resonance.length() > 0 ? "  " + resonance : "");
         drawText(c, shortText(buildLine, 56), dp(22), dp(158), 12, 0xff9fd5c5, true);
