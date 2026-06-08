@@ -52,7 +52,7 @@ public final class GameCore {
     public static final int QUEST_BLOODCOIN = 10;
     public static final int QUEST_FORGE = 11;
     public static final int QUEST_TREASURE = 12;
-    public static final int EVENT_COUNT = 12;
+    public static final int EVENT_COUNT = 15;
     private static final int MILESTONE_GUARD = 1;
     private static final int MILESTONE_COMBO = 1 << 1;
     private static final int MILESTONE_HEX = 1 << 2;
@@ -1182,7 +1182,7 @@ public final class GameCore {
                 s.deck.add(c);
                 log(s, "你倾空药剂，换来升级牌：" + d.name);
             }
-        } else {
+        } else if (e == 11) {
             if (choice == 0) {
                 CardDef d = randomCard(s, s.origin, true);
                 Card copy = new Card(d.id);
@@ -1195,6 +1195,51 @@ public final class GameCore {
                 s.pendingAction = "event_transform_bonus";
                 openDeck(s, MODE_EVENT);
                 return;
+            }
+        } else if (e == 12) {
+            if (choice == 0) {
+                CardDef d = randomOverloadCard(s, true);
+                Card c = new Card(d.id);
+                c.upgraded = true;
+                s.deck.add(c);
+                s.gold = Math.max(0, s.gold - 35);
+                log(s, "过载训练完成，获得：" + d.name);
+            } else {
+                addRelic(s, randomSkillRelicFor(s));
+                addStatusCard(s, "daze");
+                log(s, "训练场留下职业技遗物，也让牌组沾上眩光。");
+            }
+        } else if (e == 13) {
+            if (choice == 0) {
+                CardDef d = randomOffPoolCard(s, true);
+                Card c = new Card(d.id);
+                c.upgraded = true;
+                s.deck.add(c);
+                s.maxHp = Math.max(30, s.maxHp - 4);
+                s.hp = Math.min(s.hp, s.maxHp);
+                log(s, "裂隙交换带来异派升级牌：" + d.name);
+            } else {
+                addRelic(s, "rift_compass");
+                addStatusCard(s, "daze");
+                log(s, "你接过裂隙罗盘，混搭路线被打开。");
+            }
+        } else {
+            if (choice == 0) {
+                upgradeRandomDeckCard(s);
+                upgradeRandomDeckCard(s);
+                CardDef d = randomOverloadCard(s, false);
+                s.deck.add(new Card(d.id));
+                log(s, "工坊合约升级牌组，并交付：" + d.name);
+            } else {
+                s.gold += 45;
+                addStatusCard(s, "wound");
+                CardDef d = randomTypeCard(s, 2, true);
+                if (d != null) {
+                    Card c = new Card(d.id);
+                    c.upgraded = true;
+                    s.deck.add(c);
+                    log(s, "你拿走合约金与升级能力牌：" + d.name);
+                }
             }
         }
         s.mode = MODE_MAP;
@@ -5136,6 +5181,63 @@ public final class GameCore {
                 }
             }
             return CARD_LIBRARY.get(0);
+        }
+        return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static CardDef randomOverloadCard(State s, boolean allowRare) {
+        ArrayList<CardDef> pool = new ArrayList<>();
+        for (CardDef d : CARD_LIBRARY) {
+            if (d.type == 3 || d.skillChargeGain <= 0 || !d.profession.equals(s.profession)) {
+                continue;
+            }
+            if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            if (s.act < 2 && isCapstoneCard(d.id)) {
+                continue;
+            }
+            int weight = d.rarity == 0 ? 8 : d.rarity == 1 ? 6 : 2;
+            if (d.id.indexOf("over") >= 0) {
+                weight += 5;
+            }
+            for (int i = 0; i < weight; i++) {
+                pool.add(d);
+            }
+        }
+        if (pool.isEmpty()) {
+            return randomProfessionCard(s, allowRare);
+        }
+        return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static CardDef randomOffPoolCard(State s, boolean allowRare) {
+        ArrayList<CardDef> pool = new ArrayList<>();
+        for (CardDef d : CARD_LIBRARY) {
+            if (d.type == 3) {
+                continue;
+            }
+            if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            if (s.act < 2 && isCapstoneCard(d.id)) {
+                continue;
+            }
+            boolean offOrigin = !"通用".equals(d.origin) && !d.origin.equals(s.origin);
+            boolean offProfession = d.profession.length() > 0 && !d.profession.equals(s.profession);
+            if (!offOrigin && !offProfession) {
+                continue;
+            }
+            int weight = d.rarity == 0 ? 5 : d.rarity == 1 ? 4 : 2;
+            if (d.createEcho || d.skillChargeGain > 0 || d.draw > 0) {
+                weight += 2;
+            }
+            for (int i = 0; i < weight; i++) {
+                pool.add(d);
+            }
+        }
+        if (pool.isEmpty()) {
+            return randomCard(s, s.origin, allowRare);
         }
         return pool.get(s.run.nextInt(pool.size()));
     }

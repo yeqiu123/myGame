@@ -1207,7 +1207,8 @@ public final class GameView extends View {
         String[] t = {
                 "黑水圣龛", "裂币喷泉", "会呼吸的书页", "无名旅人",
                 "石刻囚笼", "炼金雨棚", "无灯影市", "旧王雾门",
-                "职业导师", "深渊账本", "药剂实验台", "镜面牌桌"
+                "职业导师", "深渊账本", "药剂实验台", "镜面牌桌",
+                "过载训练场", "裂隙交换会", "工坊合约"
         };
         return t[Math.max(0, Math.min(t.length - 1, s.eventId))];
     }
@@ -1225,7 +1226,10 @@ public final class GameView extends View {
                 "一位认得你职业徽记的导师坐在路边。他只教一次，要么给招式，要么给批注。",
                 "账本摊开，数字像活物一样爬动。你可以借深渊的钱，也可以赎回一部分名字。",
                 "实验台上排着无标签药剂。你能装满腰带，也能把所有药剂熔成一张稳定牌。",
-                "牌桌镜面映出另一副牌组。它愿意复制一张强牌，也愿意重塑你的旧牌。"
+                "牌桌镜面映出另一副牌组。它愿意复制一张强牌，也愿意重塑你的旧牌。",
+                "训练场的刻线专为职业技而生。导师要求你把满溢的力量压进牌面。",
+                "交换会的摊位来自不同派系与职业。越不像你的东西，越可能打开新路线。",
+                "工坊合约写着两种报酬：稳定锻造，或带着伤口拿走一张能力牌。"
         };
         return t[Math.max(0, Math.min(t.length - 1, s.eventId))];
     }
@@ -1242,7 +1246,10 @@ public final class GameView extends View {
         if (s.eventId == 8) return new String[]{"获得升级职业牌", "获得35金币并升级1张牌"};
         if (s.eventId == 9) return new String[]{"借款：获得金币，加入1张眩光", "支付55金币，最大生命+7并升级"};
         if (s.eventId == 10) return new String[]{"装满药剂，加入1张裂伤", "清空药剂，获得升级随机牌"};
-        return new String[]{"复制一张升级随机牌，加入1张眩光", "重塑一张牌为升级随机牌，获得25金币"};
+        if (s.eventId == 11) return new String[]{"复制一张升级随机牌，加入1张眩光", "重塑一张牌为升级随机牌，获得25金币"};
+        if (s.eventId == 12) return new String[]{"支付35金币，获得升级过载职业牌", "获得职业技遗物，加入1张眩光"};
+        if (s.eventId == 13) return new String[]{"最大生命-4，获得升级跨池牌", "获得裂隙罗盘，加入1张眩光"};
+        return new String[]{"升级两张牌，获得过载职业牌", "获得45金币和升级能力牌，加入1张裂伤"};
     }
 
     private int dp(float v) {

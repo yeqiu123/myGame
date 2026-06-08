@@ -84,7 +84,7 @@ public final class SimulationHarness {
                 GameCore.restHeal(s);
             }
         } else if (s.mode == GameCore.MODE_EVENT) {
-            GameCore.eventChoose(s, s.eventId % 2);
+            GameCore.eventChoose(s, chooseEvent(s));
         } else if (s.mode == GameCore.MODE_DECK) {
             if ("event_remove_hp".equals(s.pendingAction) || "event_transform_bonus".equals(s.pendingAction)) {
                 GameCore.deckPick(s, 0);
@@ -92,6 +92,22 @@ public final class SimulationHarness {
                 upgradeFirst(s);
             }
         }
+    }
+
+    private static int chooseEvent(GameCore.State s) {
+        if (s.eventId == 0) return s.hp > s.maxHp * 0.45f ? 0 : 1;
+        if (s.eventId == 1) return s.hp < s.maxHp * 0.55f ? 1 : 0;
+        if (s.eventId == 3) return s.gold >= 85 ? 0 : 1;
+        if (s.eventId == 4) return hasUpgradableCard(s) && s.deck.size() <= 32 ? 0 : 1;
+        if (s.eventId == 5) return s.hp > s.maxHp * 0.45f && s.potions.size() < GameCore.potionLimit(s) ? 0 : 1;
+        if (s.eventId == 6) return s.deck.size() > 30 ? 0 : 1;
+        if (s.eventId == 7) return s.maxHp >= 60 ? 0 : 1;
+        if (s.eventId == 9) return s.gold >= 90 ? 1 : 0;
+        if (s.eventId == 10) return s.potions.size() <= 1 ? 0 : 1;
+        if (s.eventId == 12) return s.gold >= 70 ? 0 : 1;
+        if (s.eventId == 13) return s.maxHp >= 58 && s.relics.contains("rift_compass") ? 0 : 1;
+        if (s.eventId == 14) return hasUpgradableCard(s) ? 0 : 1;
+        return s.eventId % 2;
     }
 
     private static void upgradeFirst(GameCore.State s) {
