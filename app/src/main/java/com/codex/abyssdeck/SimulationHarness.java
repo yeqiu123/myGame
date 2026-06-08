@@ -58,7 +58,7 @@ public final class SimulationHarness {
             combat(s);
         } else if (s.mode == GameCore.MODE_REWARD) {
             if (!s.relicRewards.isEmpty()) {
-                GameCore.pickRelicReward(s, 0);
+                GameCore.pickRelicReward(s, chooseRelicReward(s));
             } else if (!s.cardRewards.isEmpty()) {
                 GameCore.pickRewardCard(s, chooseRewardCard(s));
             } else {
@@ -140,6 +140,34 @@ public final class SimulationHarness {
             if (GameCore.PROF_SUMMONER.equals(s.profession) && (d.createEcho || d.bind > 0 || d.type == 1)) score += 12;
             if (GameCore.PROF_HEXER.equals(s.profession) && (d.vulnerable > 0 || d.createWound || d.addStatusToEnemy || d.spreadStatus)) score += 12;
             if (s.deck.size() > 34 && d.cost >= 2 && d.draw == 0) score -= 6;
+            if (score > bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private static int chooseRelicReward(GameCore.State s) {
+        int best = 0;
+        int bestScore = -9999;
+        for (int i = 0; i < s.relicRewards.size(); i++) {
+            String id = s.relicRewards.get(i);
+            int score = 12;
+            if ("sapphire_cell".equals(id) || "ink_fountain".equals(id) || "obsidian_core".equals(id)) score += 26;
+            else if ("cracked_compass".equals(id) || "scarlet_dice".equals(id) || "runic_shackle".equals(id)) score += 20;
+            else if ("ruby_branch".equals(id) || "black_bread".equals(id) || "blood_contract".equals(id)) score += 16;
+            if (GameCore.PROF_WARDEN.equals(s.profession) && ("aegis_throne".equals(id) || "command_banner".equals(id) || "warden_plate".equals(id))) score += 34;
+            if (GameCore.PROF_DUELIST.equals(s.profession) && ("finale_rapier".equals(id) || "flash_heel".equals(id) || "tempo_metronome".equals(id))) score += 34;
+            if (GameCore.PROF_ALCHEMIST.equals(s.profession) && ("solar_crucible".equals(id) || "catalyst_pump".equals(id) || "alchemist_case".equals(id) || "glass_vials".equals(id))) score += 34;
+            if (GameCore.PROF_RANGER.equals(s.profession) && ("apex_compass".equals(id) || "hawk_fletching".equals(id) || "ranger_map".equals(id))) score += 34;
+            if (GameCore.PROF_ARCANIST.equals(s.profession) && ("singularity_orb".equals(id) || "echo_prism".equals(id) || "void_abacus".equals(id) || "arcane_ink".equals(id))) score += 34;
+            if (GameCore.PROF_MERCHANT.equals(s.profession) && ("kingmaker_seal".equals(id) || "ledger_stamp".equals(id) || "merchant_key".equals(id) || "tithe_box".equals(id))) score += 34;
+            if (GameCore.PROF_BLOODBOUND.equals(s.profession) && ("blood_crown".equals(id) || "crimson_seal".equals(id) || "scar_talisman".equals(id))) score += 34;
+            if (GameCore.PROF_WEAVER.equals(s.profession) && ("clockwork_loom".equals(id) || "pattern_spool".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id))) score += 34;
+            if (GameCore.PROF_SUMMONER.equals(s.profession) && ("spirit_processional".equals(id) || "spirit_bell".equals(id) || "root_drum".equals(id))) score += 34;
+            if (GameCore.PROF_HEXER.equals(s.profession) && ("fallen_crown".equals(id) || "hex_tablet".equals(id) || "curse_censer".equals(id))) score += 34;
+            if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
@@ -333,6 +361,16 @@ public final class SimulationHarness {
                 if (s.relics.contains("bloodcoin_broach") && (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id))) score += 8;
                 if (s.relics.contains("mirror_anvil") && (c.upgraded || d.upgradeRandom)) score += 8;
                 if (s.relics.contains("rift_compass") && isOffPoolCard(s, d)) score += 10;
+                if (s.relics.contains("aegis_throne") && d.type == 1) score += 9;
+                if (s.relics.contains("finale_rapier") && d.type == 0 && s.cardsPlayedThisTurn >= 3) score += 10;
+                if (s.relics.contains("solar_crucible") && (d.createPotion || d.burn > 0 || d.bind > 0)) score += 10;
+                if (s.relics.contains("apex_compass") && d.bind > 0) score += 10;
+                if (s.relics.contains("singularity_orb") && (d.exhaust || d.createEcho || c.temp)) score += 10;
+                if (s.relics.contains("kingmaker_seal") && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) score += 10;
+                if (s.relics.contains("blood_crown") && (d.hpLoss > 0 || "wound".equals(c.id))) score += 10;
+                if (s.relics.contains("clockwork_loom") && (c.upgraded || d.upgradeRandom || d.scry > 0)) score += 10;
+                if (s.relics.contains("spirit_processional") && (d.createEcho || c.temp || d.bind > 0)) score += 10;
+                if (s.relics.contains("fallen_crown") && (d.vulnerable > 0 || d.createWound || "wound".equals(c.id) || "daze".equals(c.id))) score += 10;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -366,7 +404,12 @@ public final class SimulationHarness {
                 || s.relics.contains("catalyst_pump") || s.relics.contains("hawk_fletching")
                 || s.relics.contains("echo_prism") || s.relics.contains("ledger_stamp")
                 || s.relics.contains("crimson_seal") || s.relics.contains("pattern_spool")
-                || s.relics.contains("spirit_bell") || s.relics.contains("hex_tablet");
+                || s.relics.contains("spirit_bell") || s.relics.contains("hex_tablet")
+                || s.relics.contains("aegis_throne") || s.relics.contains("finale_rapier")
+                || s.relics.contains("solar_crucible") || s.relics.contains("apex_compass")
+                || s.relics.contains("singularity_orb") || s.relics.contains("kingmaker_seal")
+                || s.relics.contains("blood_crown") || s.relics.contains("clockwork_loom")
+                || s.relics.contains("spirit_processional") || s.relics.contains("fallen_crown");
     }
 
     private static boolean isOffPoolCard(GameCore.State s, GameCore.CardDef d) {
