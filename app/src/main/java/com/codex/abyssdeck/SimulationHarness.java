@@ -129,6 +129,13 @@ public final class SimulationHarness {
                 if (GameCore.PROF_WEAVER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0)) {
                     score += 10;
                 }
+                if (s.relics.contains("loom_shuttle") && d.scry > 0) score += 6;
+                if (s.relics.contains("void_abacus") && d.exhaust) score += 6;
+                if (s.relics.contains("tempo_metronome") && s.cardsPlayedThisTurn == 3) score += 12;
+                if (s.relics.contains("vital_sprout") && d.heal > 0) score += 7;
+                if (s.relics.contains("tithe_box") && d.goldGain > 0) score += 7;
+                if (s.relics.contains("polished_cog") && c.upgraded) score += 4;
+                if (s.relics.contains("scar_talisman") && "wound".equals(c.id)) score += 12;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
