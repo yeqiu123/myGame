@@ -437,6 +437,16 @@ public final class GameCore {
             Card c = new Card("coin_edge");
             c.upgraded = true;
             s.deck.add(c);
+        } else if ("pact_suppression".equals(id)) {
+            Card c = new Card("status_spill");
+            c.upgraded = true;
+            s.deck.add(c);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if ("pact_confluence".equals(id)) {
+            Card c = new Card("confluence_chord");
+            c.upgraded = true;
+            s.deck.add(c);
+            upgradeRandomDeckCard(s);
         }
     }
 
@@ -471,6 +481,12 @@ public final class GameCore {
         }
         if ("pact_merchant".equals(s.pact)) {
             return s.pactGoldCards >= 2 || s.gold >= 160 + s.act * 20;
+        }
+        if ("pact_suppression".equals(s.pact)) {
+            return s.pactStatusCards >= 3 || bestEnemyPressure(s) >= 8 || s.combatQuest == QUEST_HEX || s.combatQuest == QUEST_MARK;
+        }
+        if ("pact_confluence".equals(s.pact)) {
+            return s.pactConfluenceCards >= 2 || s.confluenceChain >= 4 || s.combatQuest == QUEST_CONFLUENCE;
         }
         return false;
     }
@@ -531,6 +547,23 @@ public final class GameCore {
         } else if ("pact_merchant".equals(s.pact)) {
             s.gold += 20 + s.act * 5;
             s.hp = Math.min(s.maxHp, s.hp + 3);
+        } else if ("pact_suppression".equals(s.pact)) {
+            addProfessionSkillCharge(s, 1);
+            CardDef d = randomSkillSpecCard(s, false);
+            if (d != null && (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0)) {
+                Card c = new Card(d.id);
+                c.upgraded = s.pactFulfilled >= 2;
+                s.deck.add(c);
+            } else {
+                addUpgradedDeckCard(s, "clean_arc");
+            }
+        } else if ("pact_confluence".equals(s.pact)) {
+            upgradeRandomDeckCard(s);
+            if (s.pactFulfilled >= 2) {
+                Card c = new Card("prism_anchor");
+                c.upgraded = true;
+                s.deck.add(c);
+            }
         }
         log(s, "完成誓约：" + (p == null ? s.pact : p.name) + " " + s.pactFulfilled + "/3，获得 " + gold + " 金币。");
         if (s.pactFulfilled == 3) {
@@ -575,6 +608,14 @@ public final class GameCore {
         } else if ("pact_merchant".equals(s.pact)) {
             s.gold += 120;
             addUpgradedDeckCard(s, "golden_engine");
+        } else if ("pact_suppression".equals(s.pact)) {
+            addUpgradedDeckCard(s, "plague_vector");
+            addRelic(s, "warden_brand");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("pact_confluence".equals(s.pact)) {
+            addUpgradedDeckCard(s, "hybrid_rift_engine");
+            addRelic(s, "prism_gear");
+            upgradeRandomDeckCard(s);
         }
         log(s, "誓约圆满：" + pactName(s) + "给予终局馈赠。");
     }
@@ -3900,6 +3941,7 @@ public final class GameCore {
         s.pactStatusCards = 0;
         s.pactForgeCards = 0;
         s.pactGoldCards = 0;
+        s.pactConfluenceCards = 0;
         s.hand.clear();
         s.draw.clear();
         s.discard.clear();
@@ -7047,6 +7089,10 @@ public final class GameCore {
         if (d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) {
             s.pactGoldCards++;
         }
+        if (d != null && (hybridFocusCount(d) >= 2 || "confluence_chord".equals(d.id)
+                || "prism_anchor".equals(d.id) || "apex_confluence".equals(d.id))) {
+            s.pactConfluenceCards++;
+        }
     }
 
     private static void trackQuestAfterPlay(State s, Card c, CardDef d, boolean exhausted) {
@@ -8060,6 +8106,8 @@ public final class GameCore {
         if ("pact_hex".equals(s.pact)) return focus == BUILD_STATUS ? 15 : focus == BUILD_BLOOD ? 5 : 0;
         if ("pact_forge".equals(s.pact)) return focus == BUILD_FORGE ? 15 : 0;
         if ("pact_merchant".equals(s.pact)) return focus == BUILD_GOLD ? 15 : 0;
+        if ("pact_suppression".equals(s.pact)) return focus == BUILD_STATUS ? 15 : focus == BUILD_OVERLOAD || focus == BUILD_CYCLE ? 5 : 0;
+        if ("pact_confluence".equals(s.pact)) return focus == BUILD_FORGE || focus == BUILD_CYCLE ? 10 : focus == BUILD_ECHO || focus == BUILD_OVERLOAD ? 6 : 0;
         return 0;
     }
 
@@ -9545,6 +9593,14 @@ public final class GameCore {
         return list;
     }
 
+    private static int bestEnemyPressure(State s) {
+        int best = 0;
+        for (Enemy e : livingEnemies(s)) {
+            best = Math.max(best, e.burn + e.bind + e.vulnerable + e.mark);
+        }
+        return best;
+    }
+
     private static Enemy firstLiving(State s) {
         for (Enemy e : s.enemies) {
             if (e.hp > 0) {
@@ -10196,6 +10252,8 @@ public final class GameCore {
         addPact("pact_hex", "咒环誓约", "状态/易伤路线达标兑现净化和咒币；3次圆满获得疫变向量并净化。");
         addPact("pact_forge", "工坊誓约", "升级/检视路线达标持续锻造牌组；3次圆满获得工坊蓝图和额外升级。");
         addPact("pact_merchant", "裂币誓约", "金币牌或富裕达标兑现金币和治疗；3次圆满获得裂币引擎和大量金币。");
+        addPact("pact_suppression", "镇压誓约", "异常、印记或控场路线达标兑现控制牌与充能；3次圆满获得疫变向量和镇压烙印。");
+        addPact("pact_confluence", "汇流誓约", "混搭牌或汇流链达标持续升级牌组；3次圆满获得裂隙万用机和棱镜齿轮。");
     }
 
     private static void addPact(String id, String name, String text) {
@@ -10385,6 +10443,7 @@ public final class GameCore {
         public int pactStatusCards;
         public int pactForgeCards;
         public int pactGoldCards;
+        public int pactConfluenceCards;
         public int masterySkillCharge;
         public int skillSpecLevel;
         public int buildResonanceFocus = -1;
