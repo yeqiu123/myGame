@@ -281,6 +281,9 @@ public final class GameCore {
         } else {
             s.discard.add(c);
         }
+        if (checkPlayerDefeated(s)) {
+            return;
+        }
         if (allEnemiesDead(s)) {
             winCombat(s);
         }
@@ -294,9 +297,7 @@ public final class GameCore {
         s.hand.clear();
         s.playerTurn = false;
         enemyTurn(s);
-        if (s.hp <= 0) {
-            s.mode = MODE_GAME_OVER;
-            finishRun(s, false);
+        if (checkPlayerDefeated(s)) {
             return;
         }
         beginPlayerTurn(s);
@@ -418,6 +419,9 @@ public final class GameCore {
             target.bind += 2 + s.bindPower;
         }
         log(s, "使用药剂：" + p.name);
+        if (checkPlayerDefeated(s)) {
+            return;
+        }
         if (allEnemiesDead(s)) {
             winCombat(s);
         }
@@ -906,6 +910,21 @@ public final class GameCore {
         return "奖励：金币、奖励质量和少量长期记录。";
     }
 
+    public static String enemyMechanicText(Enemy e) {
+        if (e == null) {
+            return "";
+        }
+        String text = "";
+        if (e.phase > 1) text += "相" + e.phase + " ";
+        if (e.enraged) text += "怒 ";
+        if (e.thorns > 0) text += "刺" + e.thorns + " ";
+        if (e.shieldPulse > 0) text += "雾" + e.shieldPulse + " ";
+        if (e.doom > 0) text += "厄" + e.doom + " ";
+        if (e.mark > 0) text += "印" + e.mark + " ";
+        if (e.stolenGold > 0) text += "赃" + e.stolenGold + " ";
+        return text.trim();
+    }
+
     public static int originColor(String origin) {
         if (ORIGIN_STEEL.equals(origin)) {
             return 0xff9fb0ba;
@@ -1269,6 +1288,7 @@ public final class GameCore {
         Collections.shuffle(s.draw, s.run);
         spawnEnemies(s, kind);
         applyEncounterStart(s);
+        applyEnemyStartMechanics(s);
         if (hasRelic(s, "bone_mask")) {
             gainBlock(s, 8);
         }
@@ -1355,6 +1375,100 @@ public final class GameCore {
                 int extra = Math.max(4, e.maxHp / 8);
                 e.maxHp += extra;
                 e.hp += extra;
+            }
+        }
+    }
+
+    private static void applyEnemyStartMechanics(State s) {
+        for (Enemy e : s.enemies) {
+            if (e.kind == 10 || e.kind == 11 || e.kind == 12) {
+                e.phase = Math.max(1, e.phase);
+            }
+            if (e.kind == 25 && e.thorns == 0) {
+                e.thorns = 2 + Math.min(3, s.act);
+            } else if (e.kind == 24 && e.doom == 0) {
+                e.doom = 4;
+            } else if (e.kind == 27 && e.shieldPulse == 0) {
+                e.shieldPulse = 2;
+            }
+        }
+    }
+
+    private static void applyEnemyStartOfPlayerTurnMechanics(State s) {
+        updateEnemyPhases(s);
+        if (s.turn <= 1) {
+            return;
+        }
+        ArrayList<Enemy> acting = new ArrayList<>(s.enemies);
+        for (Enemy e : acting) {
+            if (e.hp <= 0) {
+                continue;
+            }
+            if (e.doom > 0) {
+                e.doom--;
+                if (e.doom <= 0) {
+                    addStatusCard(s, s.act >= 3 ? "wound" : "daze");
+                    s.vulnerable += 1;
+                    e.doom = Math.max(3, 5 - s.act);
+                    log(s, e.name + " 的蚀骨仪式污染牌堆。");
+                }
+            }
+            if (e.shieldPulse > 0) {
+                e.shieldPulse--;
+                if (e.shieldPulse <= 0) {
+                    int guard = 5 + s.act * 2;
+                    for (Enemy other : livingEnemies(s)) {
+                        other.block += guard;
+                    }
+                    e.shieldPulse = 2;
+                    log(s, e.name + " 展开雾盾，敌群获得护甲。");
+                }
+            }
+        }
+    }
+
+    private static void updateEnemyPhases(State s) {
+        ArrayList<Enemy> copy = new ArrayList<>(s.enemies);
+        for (Enemy e : copy) {
+            if (e.hp <= 0 || e.phase >= 2 || e.maxHp <= 0 || e.hp > e.maxHp / 2) {
+                continue;
+            }
+            if (e.kind == 10) {
+                e.phase = 2;
+                e.enraged = true;
+                e.strength += 2 + s.act;
+                e.block += 16 + s.act * 4;
+                if (livingEnemies(s).size() < 4) {
+                    Enemy shard = enemy("王冠裂影", 22 + s.act * 8 + s.ascension, 4);
+                    shard.intent = ENEMY_DEBUFF;
+                    shard.intentValue = 1;
+                    s.enemies.add(shard);
+                }
+                log(s, e.name + " 进入二相，王冠裂开并召来影卫。");
+            } else if (e.kind == 11) {
+                e.phase = 2;
+                e.enraged = true;
+                e.strength += 2 + s.act;
+                s.vulnerable += 1;
+                addStatusCard(s, "wound");
+                addStatusCard(s, "daze");
+                for (Enemy other : livingEnemies(s)) {
+                    other.burn += 2 + s.act;
+                    other.strength += 1;
+                }
+                log(s, e.name + " 炉心破裂，战场升温并污染牌堆。");
+            } else if (e.kind == 12) {
+                e.phase = 2;
+                e.enraged = true;
+                e.strength += 3 + s.act;
+                e.block += 14 + s.act * 3;
+                if (!s.draw.isEmpty()) {
+                    Card top = s.draw.remove(s.draw.size() - 1);
+                    s.exhaust.add(top);
+                }
+                s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
+                addStatusCard(s, "daze");
+                log(s, e.name + " 展开终审二相，牌序被撕开。");
             }
         }
     }
@@ -1538,7 +1652,9 @@ public final class GameCore {
         if (hasRelic(s, "ranger_map") && s.turn == 1 && firstLiving(s) != null) {
             firstLiving(s).bind += 3;
         }
-        for (Enemy e : s.enemies) {
+        applyEnemyStartOfPlayerTurnMechanics(s);
+        ArrayList<Enemy> statusTick = new ArrayList<>(s.enemies);
+        for (Enemy e : statusTick) {
             if (e.hp > 0) {
                 if (e.burn > 0) {
                     damageEnemy(s, e, e.burn, true);
@@ -1593,6 +1709,9 @@ public final class GameCore {
             int fatigue = (s.turn - 18) * 2;
             s.hp -= fatigue;
             log(s, "深渊压迫造成 " + fatigue + " 点伤害。");
+            if (checkPlayerDefeated(s)) {
+                return;
+            }
         }
         if (allEnemiesDead(s)) {
             winCombat(s);
@@ -1606,9 +1725,12 @@ public final class GameCore {
             }
             int r = s.run.nextInt(100);
             if (e.kind == 10) {
-                if (r < 54) {
+                if (e.phase >= 2 && r < 30) {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 14 + s.act * 4;
+                } else if (r < 54) {
                     e.intent = ENEMY_ATTACK;
-                    e.intentValue = 11 + s.act * 4;
+                    e.intentValue = 11 + s.act * 4 + (e.phase >= 2 ? 4 : 0);
                 } else if (r < 76) {
                     e.intent = ENEMY_DEBUFF;
                     e.intentValue = 2;
@@ -1620,9 +1742,12 @@ public final class GameCore {
                     e.intentValue = 4;
                 }
             } else if (e.kind == 11) {
-                if (r < 46) {
+                if (e.phase >= 2 && r < 28) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 6 + s.act;
+                } else if (r < 46) {
                     e.intent = ENEMY_ATTACK;
-                    e.intentValue = 13 + s.act * 4;
+                    e.intentValue = 13 + s.act * 4 + (e.phase >= 2 ? 3 : 0);
                 } else if (r < 78) {
                     e.intent = ENEMY_DEBUFF;
                     e.intentValue = 3 + s.act;
@@ -1631,9 +1756,12 @@ public final class GameCore {
                     e.intentValue = 5 + s.act;
                 }
             } else if (e.kind == 12) {
-                if (r < 42) {
+                if (e.phase >= 2 && r < 34) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 3;
+                } else if (r < 42) {
                     e.intent = ENEMY_ATTACK;
-                    e.intentValue = 15 + s.act * 4;
+                    e.intentValue = 15 + s.act * 4 + (e.phase >= 2 ? 4 : 0);
                 } else if (r < 68) {
                     e.intent = ENEMY_SPECIAL;
                     e.intentValue = 2;
@@ -1812,16 +1940,13 @@ public final class GameCore {
                 continue;
             }
             if (e.intent == ENEMY_ATTACK) {
-                int damage = Math.max(0, e.intentValue + e.strength - (e.bind > 0 ? 3 : 0));
+                int damage = Math.max(0, e.intentValue + e.strength + e.mark - (e.bind > 0 ? 3 : 0));
                 if (s.vulnerable > 0) {
                     damage = Math.round(damage * 1.35f);
                 }
-                int blocked = Math.min(s.block, damage);
-                s.block -= blocked;
-                int taken = damage - blocked;
-                s.hp -= taken;
-                if (taken > 0 && s.combatQuest == QUEST_UNHURT) {
-                    s.questProgress += taken;
+                int taken = dealPlayerDamage(s, damage);
+                if (e.mark > 0) {
+                    e.mark--;
                 }
                 log(s, e.name + " 造成 " + taken + " 点伤害。");
             } else if (e.intent == ENEMY_BUFF) {
@@ -1865,9 +1990,9 @@ public final class GameCore {
             }
             log(s, e.name + " 点燃战场。");
         } else if (e.kind == 12) {
-            if (!s.draw.isEmpty()) {
-                Card top = s.draw.remove(s.draw.size() - 1);
-                s.exhaust.add(top);
+            int exhausts = e.phase >= 2 ? 2 : 1;
+            for (int i = 0; i < exhausts && !s.draw.isEmpty(); i++) {
+                s.exhaust.add(s.draw.remove(s.draw.size() - 1));
             }
             s.energy = Math.max(0, s.energy - 1);
             addStatusCard(s, "daze");
@@ -1888,6 +2013,33 @@ public final class GameCore {
                     other.bind += e.intentValue;
                 }
             }
+        } else if (e.kind == 23) {
+            int stolen = Math.min(s.gold, 8 + s.act * 4);
+            if (stolen > 0) {
+                s.gold -= stolen;
+                e.stolenGold += stolen;
+                e.mark += 1 + s.act / 2;
+                log(s, e.name + " 偷走 " + stolen + " 金币并留下空印。");
+            } else {
+                e.mark += 2;
+                addStatusCard(s, "daze");
+                log(s, e.name + " 留下空印。");
+            }
+        } else if (e.kind == 24) {
+            e.doom = Math.max(1, e.doom - 1);
+            s.vulnerable += 1;
+            addStatusCard(s, "wound");
+            log(s, e.name + " 催动蚀骨仪式。");
+        } else if (e.kind == 25) {
+            e.thorns += 1;
+            e.block += 10 + s.act * 3;
+            log(s, e.name + " 收拢琥珀刺甲。");
+        } else if (e.kind == 27) {
+            for (Enemy other : livingEnemies(s)) {
+                other.block += 7 + s.act * 2;
+            }
+            s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
+            log(s, e.name + " 锁住雾线，下回合能量受压。");
         } else {
             e.strength += 2;
             e.block += 8;
@@ -2229,10 +2381,23 @@ public final class GameCore {
             e.block -= b;
             dmg -= b;
         }
+        boolean triggersContact = !piercing && dmg > 0 && e.thorns > 0;
         e.hp -= dmg;
+        if (triggersContact) {
+            int prick = Math.min(7 + s.act, e.thorns);
+            int taken = dealPlayerDamage(s, prick);
+            if (taken > 0) {
+                log(s, e.name + " 的刺甲反伤 " + taken + "。");
+            }
+        }
         if (e.hp <= 0) {
             e.hp = 0;
             e.block = 0;
+            if (e.stolenGold > 0) {
+                int recovered = e.stolenGold + Math.min(8, e.stolenGold / 2);
+                s.gold += recovered;
+                log(s, "夺回空面赃款 " + recovered + " 金币。");
+            }
             if (hasRelic(s, "hunter_mark")) {
                 s.gold += 7;
             }
@@ -2244,6 +2409,30 @@ public final class GameCore {
                 }
             }
         }
+        updateEnemyPhases(s);
+    }
+
+    private static int dealPlayerDamage(State s, int damage) {
+        int blocked = Math.min(s.block, Math.max(0, damage));
+        s.block -= blocked;
+        int taken = Math.max(0, damage - blocked);
+        if (taken > 0) {
+            s.hp -= taken;
+            if (s.combatQuest == QUEST_UNHURT) {
+                s.questProgress += taken;
+            }
+        }
+        return taken;
+    }
+
+    private static boolean checkPlayerDefeated(State s) {
+        if (s.hp > 0 || s.mode == MODE_GAME_OVER) {
+            return false;
+        }
+        s.mode = MODE_GAME_OVER;
+        s.playerTurn = false;
+        finishRun(s, false);
+        return true;
     }
 
     private static void gainBlock(State s, int amount) {
@@ -3340,6 +3529,13 @@ public final class GameCore {
         public int burn;
         public int bind;
         public int vulnerable;
+        public int phase;
+        public int mark;
+        public int thorns;
+        public int shieldPulse;
+        public int doom;
+        public int stolenGold;
+        public boolean enraged;
     }
 
     public static final class MapNode implements Serializable {

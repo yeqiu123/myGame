@@ -535,7 +535,11 @@ public final class GameView extends View {
         c.drawCircle(cx + dp(12), cy - dp(8), dp(4), p);
         drawText(c, e.name, cx - dp(50), cy + dp(74), 13, 0xfff1e7d4, true);
         drawBar(c, cx - dp(48), cy + dp(84), dp(96), dp(10), e.hp, e.maxHp, 0xffd44c4c);
-        String intent = "攻 " + e.intentValue;
+        int attackPreview = Math.max(0, e.intentValue + e.strength + e.mark - (e.bind > 0 ? 3 : 0));
+        if (s.vulnerable > 0) {
+            attackPreview = Math.round(attackPreview * 1.35f);
+        }
+        String intent = "攻 " + attackPreview;
         if (e.intent == GameCore.ENEMY_BUFF) intent = "强化 " + e.intentValue;
         if (e.intent == GameCore.ENEMY_DEBUFF) intent = "压迫";
         if (e.intent == GameCore.ENEMY_GUARD) intent = "护甲 " + e.intentValue;
@@ -546,6 +550,10 @@ public final class GameView extends View {
         if (e.burn > 0) tags += "燃" + e.burn + " ";
         if (e.bind > 0) tags += "缚" + e.bind + " ";
         if (e.vulnerable > 0) tags += "易" + e.vulnerable;
+        String mechanics = GameCore.enemyMechanicText(e);
+        if (mechanics.length() > 0) {
+            tags += (tags.length() > 0 ? " " : "") + mechanics;
+        }
         drawText(c, tags, cx - dp(48), cy + dp(108), 12, 0xffbcd3d1, false);
         enemyHits.add(new EnemyHit(body, index));
     }
