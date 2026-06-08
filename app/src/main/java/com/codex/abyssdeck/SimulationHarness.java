@@ -59,6 +59,8 @@ public final class SimulationHarness {
             } else {
                 GameCore.skipReward(s);
             }
+        } else if (s.mode == GameCore.MODE_TALENT) {
+            GameCore.chooseTalent(s, 0);
         } else if (s.mode == GameCore.MODE_SHOP) {
             if (!s.shopRelics.isEmpty() && s.gold >= GameCore.shopRelicPrice(s)) {
                 GameCore.shopBuyRelic(s, 0);

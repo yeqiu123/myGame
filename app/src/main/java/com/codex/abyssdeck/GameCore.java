@@ -23,6 +23,7 @@ public final class GameCore {
     public static final int MODE_CODEX = 11;
     public static final int MODE_BOON = 12;
     public static final int MODE_CLASS = 13;
+    public static final int MODE_TALENT = 14;
 
     public static final int ENEMY_ATTACK = 0;
     public static final int ENEMY_BUFF = 1;
@@ -56,12 +57,14 @@ public final class GameCore {
     public static final ArrayList<RelicDef> RELIC_LIBRARY = new ArrayList<>();
     public static final ArrayList<PotionDef> POTION_LIBRARY = new ArrayList<>();
     public static final ArrayList<BoonDef> BOON_LIBRARY = new ArrayList<>();
+    public static final ArrayList<TalentDef> TALENT_LIBRARY = new ArrayList<>();
 
     static {
         seedCards();
         seedRelics();
         seedPotions();
         seedBoons();
+        seedTalents();
     }
 
     private GameCore() {
@@ -151,6 +154,22 @@ public final class GameCore {
         s.boonChoices.clear();
         s.mode = MODE_MAP;
         log(s, "选择赐印：" + b.name);
+    }
+
+    public static void chooseTalent(State s, int index) {
+        if (s.mode != MODE_TALENT || index < 0 || index >= s.talentChoices.size()) {
+            return;
+        }
+        TalentDef t = talent(s.talentChoices.get(index));
+        if (t == null) {
+            s.mode = MODE_MAP;
+            return;
+        }
+        s.talents.add(t.id);
+        s.talentChoices.clear();
+        applyTalentPickup(s, t.id);
+        log(s, "领悟专精：" + t.name);
+        nextAct(s);
     }
 
     public static void chooseDepth(State s, int depth) {
@@ -383,6 +402,10 @@ public final class GameCore {
         }
         if (hasRelic(s, "alchemist_case") && target != null) {
             target.vulnerable += 1;
+        }
+        if (hasTalent(s, "t_alchemist_plague") && target != null) {
+            target.burn += 2 + s.burnPower;
+            target.bind += 2 + s.bindPower;
         }
         log(s, "使用药剂：" + p.name);
         if (allEnemiesDead(s)) {
@@ -674,6 +697,15 @@ public final class GameCore {
         return null;
     }
 
+    public static TalentDef talent(String id) {
+        for (TalentDef t : TALENT_LIBRARY) {
+            if (t.id.equals(id)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
     public static int costOf(State s, Card c, CardDef d) {
         int cost = c.upgraded ? Math.max(0, d.cost - d.upgradeCostDrop) : d.cost;
         if (hasRelic(s, "amber_quill") && s.cardsPlayedThisTurn == 0) {
@@ -721,6 +753,9 @@ public final class GameCore {
         if (hasRelic(s, "merchant_scale")) {
             price -= 10;
         }
+        if (hasTalent(s, "t_merchant_interest")) {
+            price -= 6;
+        }
         return Math.max(18, price);
     }
 
@@ -731,6 +766,9 @@ public final class GameCore {
         }
         if (hasRelic(s, "merchant_scale")) {
             price -= 18;
+        }
+        if (hasTalent(s, "t_merchant_interest")) {
+            price -= 10;
         }
         return Math.max(90, price);
     }
@@ -743,6 +781,9 @@ public final class GameCore {
         if (hasRelic(s, "merchant_scale")) {
             price -= 5;
         }
+        if (hasTalent(s, "t_merchant_interest")) {
+            price -= 3;
+        }
         return Math.max(18, price);
     }
 
@@ -753,6 +794,9 @@ public final class GameCore {
         }
         if (hasRelic(s, "merchant_scale")) {
             price -= 8;
+        }
+        if (hasTalent(s, "t_merchant_interest")) {
+            price -= 5;
         }
         return Math.max(35, price);
     }
@@ -894,6 +938,10 @@ public final class GameCore {
         return false;
     }
 
+    public static boolean hasTalent(State s, String id) {
+        return s.talents.contains(id);
+    }
+
     private static void resetRun(State s) {
         long seed = System.currentTimeMillis();
         s.rngSeed = seed;
@@ -910,6 +958,7 @@ public final class GameCore {
         s.cardRewardSkipped = false;
         s.relicRewards.clear();
         s.boonChoices.clear();
+        s.talentChoices.clear();
         s.shopCards.clear();
         s.shopRelics.clear();
         s.shopPotions.clear();
@@ -971,6 +1020,64 @@ public final class GameCore {
             s.hp = Math.min(s.hp, s.maxHp);
             s.gold += 70;
             s.deck.add(new Card("merchant_haggle"));
+        }
+    }
+
+    private static void applyTalentPickup(State s, String id) {
+        if ("t_shared_masterwork".equals(id)) {
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+        } else if ("t_shared_hunter".equals(id)) {
+            s.gold += 60;
+        } else if ("t_shared_longnight".equals(id)) {
+            s.maxHp += 6;
+            s.hp += 6;
+        } else if ("t_warden_bastion".equals(id)) {
+            s.maxHp += 8;
+            s.hp += 8;
+        } else if ("t_warden_counter".equals(id)) {
+            Card c = new Card("warden_slam");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_duelist_tempo".equals(id)) {
+            Card c = new Card("duelist_flurry");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_duelist_execution".equals(id)) {
+            Card c = new Card("duelist_finish");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_alchemist_reserve".equals(id)) {
+            while (s.potions.size() < Math.min(potionLimit(s), 3)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if ("t_alchemist_plague".equals(id)) {
+            Card c = new Card("alchemist_cloud");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_ranger_quarry".equals(id)) {
+            Card c = new Card("ranger_volley");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_ranger_net".equals(id)) {
+            Card c = new Card("ranger_trap");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_arcanist_rewrite".equals(id)) {
+            Card c = new Card("arcanist_glyph");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_arcanist_overflow".equals(id)) {
+            Card c = new Card("arcanist_loop");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_merchant_interest".equals(id)) {
+            s.gold += 100;
+        } else if ("t_merchant_contract".equals(id)) {
+            s.gold += 120;
+            Card c = new Card("merchant_liquidate");
+            c.upgraded = true;
+            s.deck.add(c);
         }
     }
 
@@ -1104,7 +1211,17 @@ public final class GameCore {
         if (hasRelic(s, "storm_shell") && s.enemies.size() > 1) {
             gainBlock(s, 5 + s.act * 2);
         }
+        if (hasTalent(s, "t_alchemist_reserve") && s.potions.size() < potionLimit(s)) {
+            PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+            s.potions.add(p.id);
+            log(s, "备用试剂补充：" + p.name);
+        }
         beginPlayerTurn(s);
+        if (hasTalent(s, "t_arcanist_rewrite")) {
+            Card glyph = new Card("arcanist_glyph");
+            glyph.temp = true;
+            addToHand(s, glyph);
+        }
         log(s, (kind == 'B' ? "深渊领主现身。" : kind == 'E' ? "精英挡住去路。" : "遭遇敌群。") + " 词缀：" + modifierName(s.encounterModifier));
     }
 
@@ -1269,14 +1386,26 @@ public final class GameCore {
             s.energy++;
             gainBlock(s, 10);
         }
+        if (hasTalent(s, "t_shared_longnight") && s.turn == 4) {
+            s.energy++;
+            draw(s, 1);
+        }
         if (s.encounterModifier == MOD_TURBULENT && s.turn % 2 == 1) {
             s.energy++;
         }
         if (PROF_WARDEN.equals(s.profession)) {
             gainBlock(s, 2 + Math.min(6, s.act + s.steelEngine));
         }
+        if (hasTalent(s, "t_warden_bastion") && s.turn == 1) {
+            s.steelEngine++;
+            gainBlock(s, 8 + s.act * 2);
+        }
         if (PROF_RANGER.equals(s.profession) && firstLiving(s) != null) {
             firstLiving(s).bind += 1 + s.bindPower / 2;
+        }
+        if (hasTalent(s, "t_ranger_quarry") && s.turn == 1 && firstLiving(s) != null) {
+            firstLiving(s).bind += 3;
+            firstLiving(s).vulnerable += 2;
         }
         if (PROF_ARCANIST.equals(s.profession) && s.turn == 1) {
             s.voidEngine++;
@@ -1336,6 +1465,9 @@ public final class GameCore {
             baseDraw++;
         }
         draw(s, baseDraw);
+        if (hasTalent(s, "t_shared_masterwork") && s.turn == 1) {
+            draw(s, 1);
+        }
         if (hasRelic(s, "deep_totem") && s.combatKind == 'B' && s.turn == 1) {
             draw(s, 2);
         }
@@ -1690,6 +1822,13 @@ public final class GameCore {
         if (d.comboDamage > 0) {
             damage += d.comboDamage * Math.max(0, s.cardsPlayedThisTurn - 1);
         }
+        if (hasTalent(s, "t_duelist_tempo") && d.cost == 0 && s.professionUsedThisTurn < 2) {
+            damage += 4 + s.act;
+            s.professionUsedThisTurn++;
+        }
+        if (hasTalent(s, "t_duelist_execution") && target != null && (target.vulnerable > 0 || target.hp <= target.maxHp / 2)) {
+            damage += 6 + s.act * 2;
+        }
         if (d.goldDamage) {
             damage += Math.min(c.upgraded ? 42 : 28, Math.max(0, s.gold / (c.upgraded ? 8 : 11)));
         }
@@ -1811,13 +1950,21 @@ public final class GameCore {
             log(s, "调制药剂：" + p.name);
         }
         if (d.goldGain > 0) {
-            s.gold += c.upgraded ? d.goldGain + 5 : d.goldGain;
+            int gain = c.upgraded ? d.goldGain + 5 : d.goldGain;
+            if (hasTalent(s, "t_merchant_interest")) {
+                gain += 5;
+            }
+            s.gold += gain;
         }
         if (d.spreadStatus && target != null) {
             for (Enemy e : livingEnemies(s)) {
                 if (e != target) {
                     e.burn += Math.min(c.upgraded ? 5 : 3, Math.max(0, target.burn / 2));
                     e.bind += Math.min(c.upgraded ? 5 : 3, Math.max(0, target.bind / 2));
+                    if (hasTalent(s, "t_alchemist_plague")) {
+                        e.burn += 2 + s.burnPower;
+                        e.bind += 2 + s.bindPower;
+                    }
                     if (target.vulnerable > 0) {
                         e.vulnerable += 1;
                     }
@@ -1897,6 +2044,9 @@ public final class GameCore {
                 e.vulnerable += 1;
             }
         }
+        if (hasTalent(s, "t_ranger_net") && d.bind > 0) {
+            gainBlock(s, 4 + Math.min(8, d.bind + s.bindPower));
+        }
         if (hasRelic(s, "arcane_ink") && d.exhaust) {
             s.energy++;
         }
@@ -1906,7 +2056,10 @@ public final class GameCore {
                 gainBlock(s, 5);
                 Enemy e = firstLiving(s);
                 if (e != null) {
-                    damageEnemy(s, e, 5 + s.steelEngine, true);
+                    damageEnemy(s, e, 5 + s.steelEngine + (hasTalent(s, "t_warden_counter") ? 6 : 0), true);
+                }
+                if (hasTalent(s, "t_warden_counter")) {
+                    draw(s, 1);
                 }
                 s.professionCharge = 0;
             }
@@ -1916,7 +2069,8 @@ public final class GameCore {
             if (s.professionCharge >= 3) {
                 Enemy e = firstLiving(s);
                 if (e != null) {
-                    damageEnemy(s, e, 8 + Math.min(10, s.cardsPlayedThisTurn), true);
+                    int extra = hasTalent(s, "t_duelist_execution") && (e.vulnerable > 0 || e.hp <= e.maxHp / 2) ? 8 : 0;
+                    damageEnemy(s, e, 8 + Math.min(10, s.cardsPlayedThisTurn) + extra, true);
                 }
                 s.professionCharge = 0;
             }
@@ -1932,6 +2086,11 @@ public final class GameCore {
             if (s.professionCharge >= 2) {
                 draw(s, 1);
                 s.energy++;
+                if (hasTalent(s, "t_arcanist_overflow")) {
+                    Card echo = new Card("quick_cut");
+                    echo.temp = true;
+                    addToHand(s, echo);
+                }
                 s.professionCharge = 0;
             }
         }
@@ -1979,6 +2138,13 @@ public final class GameCore {
             if (hasRelic(s, "hunter_mark")) {
                 s.gold += 7;
             }
+            if (hasTalent(s, "t_ranger_quarry")) {
+                Enemy next = firstLiving(s);
+                if (next != null) {
+                    next.bind += 2 + s.bindPower;
+                    next.vulnerable += 1;
+                }
+            }
         }
     }
 
@@ -2022,6 +2188,9 @@ public final class GameCore {
         }
         if (s.combatKind == 'B') {
             gold += 55;
+        }
+        if (hasTalent(s, "t_shared_hunter") && (s.combatKind == 'E' || s.combatKind == 'B')) {
+            gold += 18 + s.act * 6;
         }
         if (s.encounterModifier == MOD_ARMORED) {
             gold += 12 + s.act * 3;
@@ -2080,9 +2249,32 @@ public final class GameCore {
 
     private static void afterReward(State s) {
         if (s.combatKind == 'B') {
-            nextAct(s);
+            openTalentChoice(s);
         } else {
             s.mode = MODE_MAP;
+        }
+    }
+
+    private static void openTalentChoice(State s) {
+        if (s.act >= 3) {
+            nextAct(s);
+            return;
+        }
+        s.talentChoices.clear();
+        ArrayList<TalentDef> pool = new ArrayList<>();
+        for (TalentDef t : TALENT_LIBRARY) {
+            if (!s.talents.contains(t.id) && (t.profession.length() == 0 || t.profession.equals(s.profession))) {
+                pool.add(t);
+            }
+        }
+        Collections.shuffle(pool, s.run);
+        for (int i = 0; i < 3 && i < pool.size(); i++) {
+            s.talentChoices.add(pool.get(i).id);
+        }
+        if (s.talentChoices.isEmpty()) {
+            nextAct(s);
+        } else {
+            s.mode = MODE_TALENT;
         }
     }
 
@@ -2091,6 +2283,11 @@ public final class GameCore {
         s.shopCards.clear();
         s.shopRelics.clear();
         s.shopPotions.clear();
+        if (hasTalent(s, "t_merchant_interest")) {
+            int income = 20 + s.act * 10;
+            s.gold += income;
+            log(s, "复利账本入账 " + income + " 金币。");
+        }
         HashSet<String> offeredCards = new HashSet<>();
         for (int i = 0; i < 5; i++) {
             CardDef d = randomCard(s, s.origin, true, offeredCards);
@@ -2189,6 +2386,12 @@ public final class GameCore {
         }
         if (PROF_MERCHANT.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) {
             return 4;
+        }
+        if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
+            return 3;
+        }
+        if (hasTalent(s, "t_shared_masterwork") && d.rarity == 2) {
+            return 1;
         }
         return 0;
     }
@@ -2675,6 +2878,33 @@ public final class GameCore {
         BOON_LIBRARY.add(b);
     }
 
+    private static void seedTalents() {
+        addTalent("t_shared_masterwork", "", "匠心牌组", "获得时升级2张牌；之后每幕首场战斗首回合抽1张。");
+        addTalent("t_shared_hunter", "", "猎取路线", "精英和Boss额外金币；卡牌奖励更偏向当前职业。");
+        addTalent("t_shared_longnight", "", "长夜储备", "每场战斗第4回合获得1能量并抽1张。");
+        addTalent("t_warden_bastion", PROF_WARDEN, "不破壁垒", "每场战斗首回合获得守势与额外格挡。");
+        addTalent("t_warden_counter", PROF_WARDEN, "反击纪律", "每两张技能牌的反击更强，并额外抽1张。");
+        addTalent("t_duelist_tempo", PROF_DUELIST, "快节奏", "每回合前两张0费牌获得额外伤害。");
+        addTalent("t_duelist_execution", PROF_DUELIST, "处决窗口", "连击追击对易伤或低生命敌人更强。");
+        addTalent("t_alchemist_reserve", PROF_ALCHEMIST, "备用试剂", "战斗开始若药剂未满，补充一瓶随机药剂。");
+        addTalent("t_alchemist_plague", PROF_ALCHEMIST, "瘟疫催化", "药剂和异常扩散会额外附加燃灼与束缚。");
+        addTalent("t_ranger_quarry", PROF_RANGER, "标记猎物", "首个敌人开局获得易伤与束缚，击杀后转移标记。");
+        addTalent("t_ranger_net", PROF_RANGER, "复合陷网", "束缚牌同时提供格挡。");
+        addTalent("t_arcanist_rewrite", PROF_ARCANIST, "重写命运", "每场战斗首回合制造临时秘文摹写。");
+        addTalent("t_arcanist_overflow", PROF_ARCANIST, "回声溢出", "触发秘术职业回流时额外制造临时疾切。");
+        addTalent("t_merchant_interest", PROF_MERCHANT, "复利账本", "进入商店获得金币；金币牌奖励更多金币。");
+        addTalent("t_merchant_contract", PROF_MERCHANT, "深渊契据", "Boss后额外获得金币和一张升级的金币牌。");
+    }
+
+    private static void addTalent(String id, String profession, String name, String text) {
+        TalentDef t = new TalentDef();
+        t.id = id;
+        t.profession = profession;
+        t.name = name;
+        t.text = text;
+        TALENT_LIBRARY.add(t);
+    }
+
     public static final class State implements Serializable {
         public int mode;
         public int previousMode;
@@ -2702,7 +2932,9 @@ public final class GameCore {
         public final ArrayList<RewardCard> cardRewards = new ArrayList<>();
         public final ArrayList<String> relicRewards = new ArrayList<>();
         public final ArrayList<String> boonChoices = new ArrayList<>();
+        public ArrayList<String> talentChoices = new ArrayList<>();
         public final ArrayList<String> relics = new ArrayList<>();
+        public ArrayList<String> talents = new ArrayList<>();
         public final ArrayList<String> potions = new ArrayList<>();
         public final ArrayList<String> shopCards = new ArrayList<>();
         public final ArrayList<String> shopRelics = new ArrayList<>();
@@ -2733,6 +2965,21 @@ public final class GameCore {
         public void ensureRandom() {
             if (run == null) {
                 run = new Random(rngSeed ^ System.nanoTime());
+            }
+            if (pendingAction == null) {
+                pendingAction = "";
+            }
+            if (origin == null) {
+                origin = "";
+            }
+            if (profession == null) {
+                profession = "";
+            }
+            if (talentChoices == null) {
+                talentChoices = new ArrayList<>();
+            }
+            if (talents == null) {
+                talents = new ArrayList<>();
             }
         }
     }
@@ -2845,6 +3092,13 @@ public final class GameCore {
     public static final class BoonDef implements Serializable {
         public String id;
         public String name;
+        public String text;
+    }
+
+    public static final class TalentDef implements Serializable {
+        public String id;
+        public String name;
+        public String profession = "";
         public String text;
     }
 }

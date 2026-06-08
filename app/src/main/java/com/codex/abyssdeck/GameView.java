@@ -70,6 +70,8 @@ public final class GameView extends View {
             drawClasses(c);
         } else if (s.mode == GameCore.MODE_BOON) {
             drawBoons(c);
+        } else if (s.mode == GameCore.MODE_TALENT) {
+            drawTalents(c);
         } else if (s.mode == GameCore.MODE_MAP) {
             drawMap(c);
         } else if (s.mode == GameCore.MODE_COMBAT) {
@@ -160,6 +162,8 @@ public final class GameView extends View {
             }
         } else if ("boon".equals(action)) {
             GameCore.chooseBoon(s, index);
+        } else if ("talent".equals(action)) {
+            GameCore.chooseTalent(s, index);
         } else if ("depth".equals(action)) {
             GameCore.chooseDepth(s, index);
         } else if ("deck".equals(action)) {
@@ -270,7 +274,7 @@ public final class GameView extends View {
     }
 
     private void drawTopBar(Canvas c) {
-        if (s.mode == GameCore.MODE_TITLE || s.mode == GameCore.MODE_ORIGIN || s.mode == GameCore.MODE_CLASS || s.mode == GameCore.MODE_BOON) {
+        if (s.mode == GameCore.MODE_TITLE || s.mode == GameCore.MODE_ORIGIN || s.mode == GameCore.MODE_CLASS || s.mode == GameCore.MODE_BOON || s.mode == GameCore.MODE_TALENT) {
             return;
         }
         int w = getWidth();
@@ -376,6 +380,30 @@ public final class GameView extends View {
         }
     }
 
+    private void drawTalents(Canvas c) {
+        int w = getWidth();
+        drawText(c, "选择职业专精", dp(24), dp(86), 30, 0xfff4d580, true);
+        drawText(c, s.origin + " / " + s.profession + " / 已领悟 " + s.talents.size() + " 项", dp(26), dp(116), 15, 0xffc9d2d2, false);
+        for (int i = 0; i < s.talentChoices.size(); i++) {
+            GameCore.TalentDef t = GameCore.talent(s.talentChoices.get(i));
+            float y = dp(154) + i * dp(128);
+            String prof = t == null ? "" : t.profession;
+            int color = prof == null || prof.length() == 0 ? 0xffd9b85f : GameCore.professionColor(prof);
+            p.setColor(0xcc121923);
+            c.drawRoundRect(new RectF(dp(24), y, w - dp(24), y + dp(104)), dp(8), dp(8), p);
+            p.setColor(color);
+            c.drawCircle(dp(58), y + dp(52), dp(25), p);
+            if (prof != null && prof.length() > 0) {
+                drawProfessionMark(c, prof, dp(58), y + dp(52), dp(17));
+            } else {
+                drawText(c, "专", dp(49), y + dp(59), 18, 0xff16130d, true);
+            }
+            drawText(c, t == null ? "" : t.name, dp(96), y + dp(34), 22, 0xfff5ead2, true);
+            drawWrapped(c, t == null ? "" : t.text, dp(96), y + dp(58), w - dp(218), 13, 0xffc5d0cf);
+            addButton(w - dp(112), y + dp(34), dp(86), dp(38), "领悟", "talent", i);
+        }
+    }
+
     private void drawMap(Canvas c) {
         int w = getWidth();
         int h = getHeight();
@@ -424,7 +452,7 @@ public final class GameView extends View {
         int h = getHeight();
         drawText(c, "能量 " + s.energy + "   格挡 " + s.block + "   回合 " + s.turn, dp(22), dp(82), 22, 0xfff2d373, true);
         String engines = "职业 " + (s.profession == null || s.profession.length() == 0 ? "未定" : s.profession)
-                + "  充能 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
+                + "  专精 " + s.talents.size() + "  充能 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
         if (s.burnPower > 0 || s.bindPower > 0) {
             engines += "  燃势 " + s.burnPower + "  束缚势 " + s.bindPower;
         }
@@ -628,7 +656,7 @@ public final class GameView extends View {
     private void drawCodex(Canvas c) {
         int w = getWidth();
         drawText(c, "图鉴", dp(24), dp(86), 30, 0xfff4d580, true);
-        drawText(c, "卡牌 " + GameCore.CARD_LIBRARY.size() + "   遗物 " + GameCore.RELIC_LIBRARY.size() + "   药剂 " + GameCore.POTION_LIBRARY.size(), dp(24), dp(118), 16, 0xffc9d2d2, false);
+        drawText(c, "卡牌 " + GameCore.CARD_LIBRARY.size() + "   遗物 " + GameCore.RELIC_LIBRARY.size() + "   药剂 " + GameCore.POTION_LIBRARY.size() + "   专精 " + GameCore.TALENT_LIBRARY.size(), dp(24), dp(118), 16, 0xffc9d2d2, false);
         float y = dp(152);
         for (int i = 0; i < Math.min(16, GameCore.CARD_LIBRARY.size()); i++) {
             GameCore.CardDef d = GameCore.CARD_LIBRARY.get(i);
