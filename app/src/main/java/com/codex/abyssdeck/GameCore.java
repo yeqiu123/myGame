@@ -54,6 +54,9 @@ public final class GameCore {
     public static final int QUEST_BLOODCOIN = 10;
     public static final int QUEST_FORGE = 11;
     public static final int QUEST_TREASURE = 12;
+    public static final int QUEST_CONFLUENCE = 13;
+    public static final int QUEST_MARK = 14;
+    public static final int QUEST_OVERLOAD = 15;
     public static final int EVENT_COUNT = 15;
     private static final int MILESTONE_GUARD = 1;
     private static final int MILESTONE_COMBO = 1 << 1;
@@ -668,6 +671,7 @@ public final class GameCore {
         trackPactAfterPlay(s, c, d, exhaust);
         trackQuestAfterPlay(s, c, d, exhaust);
         trackRunMilestones(s, c, d, exhaust);
+        updateQuestProgress(s);
         if (exhaust) {
             s.exhaust.add(c);
         } else {
@@ -768,6 +772,9 @@ public final class GameCore {
         s.professionSkillCharge = 0;
         s.professionSkillUsedThisTurn = true;
         addQuestProgress(s, QUEST_SKILL, 1);
+        if (overload > 0) {
+            addQuestProgress(s, QUEST_OVERLOAD, 1 + overload);
+        }
         if (PROF_WARDEN.equals(s.profession)) {
             gainBlock(s, 10 + s.act * 2 + s.steelEngine + overload * 4);
             damageEnemy(s, target, 8 + Math.min(40, s.block / 2 + overload * 4), true);
@@ -1909,6 +1916,9 @@ public final class GameCore {
         if (quest == QUEST_BLOODCOIN) return "血币";
         if (quest == QUEST_FORGE) return "工坊";
         if (quest == QUEST_TREASURE) return "寻宝";
+        if (quest == QUEST_CONFLUENCE) return "汇流";
+        if (quest == QUEST_MARK) return "标记";
+        if (quest == QUEST_OVERLOAD) return "过载";
         return "无";
     }
 
@@ -1926,6 +1936,9 @@ public final class GameCore {
         if (s.combatQuest == QUEST_BLOODCOIN) return "打出自损、裂伤或金币牌累计" + s.questTarget + "张。";
         if (s.combatQuest == QUEST_FORGE) return "打出升级、检视或锻造牌累计" + s.questTarget + "张。";
         if (s.combatQuest == QUEST_TREASURE) return "打出金币牌累计" + s.questTarget + "次。";
+        if (s.combatQuest == QUEST_CONFLUENCE) return "本场最高汇流链达到" + s.questTarget + "。";
+        if (s.combatQuest == QUEST_MARK) return "让任一敌人印记达到" + s.questTarget + "层。";
+        if (s.combatQuest == QUEST_OVERLOAD) return "释放带过载的职业技或累计过载进度" + s.questTarget + "。";
         return "完成特殊目标。";
     }
 
@@ -3524,6 +3537,9 @@ public final class GameCore {
         addSupportedCombatQuest(s, quests, QUEST_BLOODCOIN);
         addSupportedCombatQuest(s, quests, QUEST_FORGE);
         addSupportedCombatQuest(s, quests, QUEST_TREASURE);
+        addSupportedCombatQuest(s, quests, QUEST_CONFLUENCE);
+        addSupportedCombatQuest(s, quests, QUEST_MARK);
+        addSupportedCombatQuest(s, quests, QUEST_OVERLOAD);
     }
 
     private static void addSupportedCombatQuest(State s, ArrayList<Integer> quests, int quest) {
@@ -3560,6 +3576,21 @@ public final class GameCore {
                 || hasTalent(s, "t_merchant_monopoly") || hasRelic(s, "tithe_box") || hasRelic(s, "kingmaker_seal"))) {
             return true;
         }
+        if (quest == QUEST_CONFLUENCE && (hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear")
+                || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
+            return true;
+        }
+        if (quest == QUEST_MARK && (PROF_RANGER.equals(s.profession) || PROF_TUNER.equals(s.profession)
+                || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
+                || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
+                || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton"))) {
+            return true;
+        }
+        if (quest == QUEST_OVERLOAD && (s.profession != null && s.profession.length() > 0)
+                && (hasSkillRelic(s) || PROF_TUNER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
+                || PROF_ARCANIST.equals(s.profession) || PROF_WEAVER.equals(s.profession))) {
+            return true;
+        }
         for (Card c : s.deck) {
             CardDef d = card(c.id);
             if (d == null) {
@@ -3570,6 +3601,12 @@ public final class GameCore {
             if (quest == QUEST_BLOODCOIN && (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id))) return true;
             if (quest == QUEST_FORGE && (c.upgraded || d.upgradeRandom || d.scry > 0)) return true;
             if (quest == QUEST_TREASURE && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) return true;
+            if (quest == QUEST_CONFLUENCE && hybridFocusCount(d) >= 2) return true;
+            if (quest == QUEST_MARK && ("tuner_note".equals(d.id) || "tuner_harmonic".equals(d.id)
+                    || "tuner_overclock".equals(d.id) || "tuner_grand_cadence".equals(d.id)
+                    || "inscriber_codex".equals(d.id) || "ranger_overmark".equals(d.id)
+                    || "ranger_predator".equals(d.id))) return true;
+            if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
     }
@@ -3589,6 +3626,9 @@ public final class GameCore {
         if (quest == QUEST_BLOODCOIN) return 3 + s.act / 2 + boss * 2 + elite;
         if (quest == QUEST_FORGE) return 3 + s.act / 2 + boss * 2 + elite;
         if (quest == QUEST_TREASURE) return 2 + boss + elite;
+        if (quest == QUEST_CONFLUENCE) return 5 + Math.min(2, s.act / 2) + boss + elite;
+        if (quest == QUEST_MARK) return 5 + s.act * 2 + boss * 4 + elite * 2;
+        if (quest == QUEST_OVERLOAD) return 3 + s.act + boss * 3 + elite;
         return 0;
     }
 
@@ -5391,6 +5431,7 @@ public final class GameCore {
         if (hasRelic(s, "apex_compass") && d.bind > 0) {
             Enemy e = firstLiving(s);
             if (e != null && e.bind >= 5) {
+                e.mark += 1;
                 e.vulnerable += 1;
                 damageEnemy(s, e, 4 + s.act * 2 + Math.min(10, e.bind / 2), true);
             }
@@ -5468,6 +5509,7 @@ public final class GameCore {
         if (hasTalent(s, "t_ranger_apex") && d.bind > 0) {
             Enemy e = firstLiving(s);
             if (e != null && e.bind >= 6) {
+                e.mark += 1;
                 e.vulnerable += 1;
                 damageEnemy(s, e, 5 + s.act * 2 + Math.min(8, e.bind / 2), true);
                 addProfessionSkillCharge(s, 1);
@@ -5843,6 +5885,9 @@ public final class GameCore {
         if (d.createPotion) {
             addQuestProgress(s, QUEST_BREW, 1);
         }
+        if (d.skillChargeGain > 0) {
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, d.skillChargeGain));
+        }
     }
 
     private static void trackRunMilestones(State s, Card c, CardDef d, boolean exhausted) {
@@ -6055,6 +6100,25 @@ public final class GameCore {
             if (s.questProgress >= s.questTarget) {
                 s.questComplete = true;
             }
+        } else if (s.combatQuest == QUEST_CONFLUENCE) {
+            s.questProgress = Math.max(s.questProgress, s.confluenceChain);
+            if (s.questProgress >= s.questTarget) {
+                s.questComplete = true;
+            }
+        } else if (s.combatQuest == QUEST_MARK) {
+            int best = 0;
+            for (Enemy e : livingEnemies(s)) {
+                best = Math.max(best, e.mark);
+            }
+            s.questProgress = Math.max(s.questProgress, best);
+            if (s.questProgress >= s.questTarget) {
+                s.questComplete = true;
+            }
+        } else if (s.combatQuest == QUEST_OVERLOAD) {
+            s.questProgress = Math.max(s.questProgress, professionSkillOverload(s));
+            if (s.questProgress >= s.questTarget) {
+                s.questComplete = true;
+            }
         } else if (s.combatQuest == QUEST_UNHURT) {
             s.questComplete = s.questProgress <= s.questTarget;
         } else if (s.combatQuest == QUEST_SWIFT) {
@@ -6070,7 +6134,8 @@ public final class GameCore {
 
     private static boolean isCumulativeQuest(int quest) {
         return quest == QUEST_BREW || quest == QUEST_SKILL || quest == QUEST_ECHO
-                || quest == QUEST_BLOODCOIN || quest == QUEST_FORGE || quest == QUEST_TREASURE;
+                || quest == QUEST_BLOODCOIN || quest == QUEST_FORGE || quest == QUEST_TREASURE
+                || quest == QUEST_OVERLOAD;
     }
 
     private static void addQuestProgress(State s, int quest, int amount) {
@@ -6702,6 +6767,9 @@ public final class GameCore {
         if (s.combatQuest == QUEST_BLOODCOIN) return focus == BUILD_BLOOD || focus == BUILD_GOLD ? 10 : 0;
         if (s.combatQuest == QUEST_FORGE) return focus == BUILD_FORGE ? 12 : 0;
         if (s.combatQuest == QUEST_TREASURE) return focus == BUILD_GOLD ? 10 : 0;
+        if (s.combatQuest == QUEST_CONFLUENCE) return focus == BUILD_CYCLE || focus == BUILD_FORGE || focus == BUILD_STATUS ? 8 : 0;
+        if (s.combatQuest == QUEST_MARK) return focus == BUILD_STATUS || focus == BUILD_CYCLE ? 10 : 0;
+        if (s.combatQuest == QUEST_OVERLOAD) return focus == BUILD_OVERLOAD ? 14 : focus == BUILD_CYCLE ? 4 : 0;
         return 0;
     }
 

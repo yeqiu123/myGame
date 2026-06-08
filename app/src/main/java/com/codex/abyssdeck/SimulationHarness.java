@@ -405,6 +405,10 @@ public final class SimulationHarness {
                         && (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id))) score += 18;
                 if (s.combatQuest == GameCore.QUEST_FORGE && (c.upgraded || d.upgradeRandom || d.scry > 0)) score += 18;
                 if (s.combatQuest == GameCore.QUEST_TREASURE && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) score += 18;
+                if (s.combatQuest == GameCore.QUEST_CONFLUENCE && (isHybridCore(d) || isConfluenceCore(d))) score += 24;
+                if (s.combatQuest == GameCore.QUEST_MARK && (d.bind > 0 || d.vulnerable > 0 || d.comboDamage > 0
+                        || "tuner_note".equals(c.id) || "tuner_harmonic".equals(c.id) || "tuner_grand_cadence".equals(c.id))) score += 20;
+                if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
                 }
@@ -523,6 +527,9 @@ public final class SimulationHarness {
         if (!GameCore.professionSkillReady(s)) return false;
         int overload = GameCore.professionSkillOverload(s);
         if (s.combatQuest == GameCore.QUEST_SKILL) {
+            return true;
+        }
+        if (s.combatQuest == GameCore.QUEST_OVERLOAD && GameCore.professionSkillOverload(s) > 0) {
             return true;
         }
         if (s.hp < s.maxHp * 0.35f && (GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession))) {

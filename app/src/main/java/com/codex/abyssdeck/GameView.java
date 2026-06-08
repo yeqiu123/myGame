@@ -1339,6 +1339,9 @@ public final class GameView extends View {
         if (s.combatQuest == GameCore.QUEST_BLOODCOIN) return "血币 " + s.questProgress + "/" + s.questTarget;
         if (s.combatQuest == GameCore.QUEST_FORGE) return "工坊 " + s.questProgress + "/" + s.questTarget;
         if (s.combatQuest == GameCore.QUEST_TREASURE) return "寻宝 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_CONFLUENCE) return "汇流 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_MARK) return "标记 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_OVERLOAD) return "过载 " + s.questProgress + "/" + s.questTarget;
         return "";
     }
 
