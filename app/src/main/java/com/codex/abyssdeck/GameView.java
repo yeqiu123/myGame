@@ -1185,6 +1185,12 @@ public final class GameView extends View {
         if (s.combatQuest == GameCore.QUEST_GUARD) return "格挡 " + s.questProgress + "/" + s.questTarget;
         if (s.combatQuest == GameCore.QUEST_HEX) return "异常 " + s.questProgress + "/" + s.questTarget;
         if (s.combatQuest == GameCore.QUEST_LEAN) return "出牌 " + s.totalCardsPlayed + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_BREW) return "炼调 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_SKILL) return "权能 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_ECHO) return "回声 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_BLOODCOIN) return "血币 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_FORGE) return "工坊 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_TREASURE) return "寻宝 " + s.questProgress + "/" + s.questTarget;
         return "";
     }
 

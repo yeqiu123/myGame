@@ -299,6 +299,13 @@ public final class SimulationHarness {
                         + d.skillChargeGain * 7 + d.vulnerable * 5 + d.goldGain * 2 + (d.goldDamage ? 8 : 0)
                         + (d.goldBlock ? 8 : 0) + (d.exhaust ? 2 : 0) + (d.upgradeRandom ? 8 : 0)
                         + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0) - d.hpLoss * 2;
+                if (s.combatQuest == GameCore.QUEST_BREW && d.createPotion) score += 22;
+                if (s.combatQuest == GameCore.QUEST_SKILL && d.skillChargeGain > 0) score += 18;
+                if (s.combatQuest == GameCore.QUEST_ECHO && (d.exhaust || d.createEcho || c.temp)) score += 18;
+                if (s.combatQuest == GameCore.QUEST_BLOODCOIN
+                        && (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id))) score += 18;
+                if (s.combatQuest == GameCore.QUEST_FORGE && (c.upgraded || d.upgradeRandom || d.scry > 0)) score += 18;
+                if (s.combatQuest == GameCore.QUEST_TREASURE && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) score += 18;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
                 }
@@ -390,6 +397,9 @@ public final class SimulationHarness {
 
     private static boolean shouldUseProfessionSkill(GameCore.State s) {
         if (!GameCore.professionSkillReady(s)) return false;
+        if (s.combatQuest == GameCore.QUEST_SKILL) {
+            return true;
+        }
         if (s.hp < s.maxHp * 0.35f && (GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession))) {
             return true;
         }

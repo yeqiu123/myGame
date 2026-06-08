@@ -46,6 +46,12 @@ public final class GameCore {
     public static final int QUEST_GUARD = 4;
     public static final int QUEST_HEX = 5;
     public static final int QUEST_LEAN = 6;
+    public static final int QUEST_BREW = 7;
+    public static final int QUEST_SKILL = 8;
+    public static final int QUEST_ECHO = 9;
+    public static final int QUEST_BLOODCOIN = 10;
+    public static final int QUEST_FORGE = 11;
+    public static final int QUEST_TREASURE = 12;
     public static final int EVENT_COUNT = 12;
     private static final int MILESTONE_GUARD = 1;
     private static final int MILESTONE_COMBO = 1 << 1;
@@ -540,6 +546,7 @@ public final class GameCore {
         applyCard(s, c, d, target);
         triggerAfterPlay(s, c, d);
         trackPactAfterPlay(s, c, d, exhaust);
+        trackQuestAfterPlay(s, c, d, exhaust);
         trackRunMilestones(s, c, d, exhaust);
         if (exhaust) {
             s.exhaust.add(c);
@@ -602,6 +609,7 @@ public final class GameCore {
         }
         s.professionSkillCharge = 0;
         s.professionSkillUsedThisTurn = true;
+        addQuestProgress(s, QUEST_SKILL, 1);
         if (PROF_WARDEN.equals(s.profession)) {
             gainBlock(s, 10 + s.act * 2 + s.steelEngine);
             damageEnemy(s, target, 8 + Math.min(32, s.block / 2), true);
@@ -621,6 +629,7 @@ public final class GameCore {
             if (s.potions.size() < potionLimit(s)) {
                 PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
                 s.potions.add(p.id);
+                addQuestProgress(s, QUEST_BREW, 1);
                 log(s, "职业技调制药剂：" + p.name);
             }
         } else if (PROF_RANGER.equals(s.profession)) {
@@ -796,6 +805,7 @@ public final class GameCore {
             s.gold += 20;
         }
         s.pactPotionsUsed++;
+        addQuestProgress(s, QUEST_BREW, 1);
         if (PROF_ALCHEMIST.equals(s.profession)) {
             addProfessionSkillCharge(s, 2);
             draw(s, 1);
@@ -1446,6 +1456,12 @@ public final class GameCore {
         if (quest == QUEST_GUARD) return "铁壁";
         if (quest == QUEST_HEX) return "控场";
         if (quest == QUEST_LEAN) return "精算";
+        if (quest == QUEST_BREW) return "炼调";
+        if (quest == QUEST_SKILL) return "权能";
+        if (quest == QUEST_ECHO) return "回声";
+        if (quest == QUEST_BLOODCOIN) return "血币";
+        if (quest == QUEST_FORGE) return "工坊";
+        if (quest == QUEST_TREASURE) return "寻宝";
         return "无";
     }
 
@@ -1457,6 +1473,12 @@ public final class GameCore {
         if (s.combatQuest == QUEST_GUARD) return "单回合格挡达到" + s.questTarget + "。";
         if (s.combatQuest == QUEST_HEX) return "让任一敌人同时拥有燃/缚/易合计" + s.questTarget + "层。";
         if (s.combatQuest == QUEST_LEAN) return "胜利时总出牌不超过" + s.questTarget + "张。";
+        if (s.combatQuest == QUEST_BREW) return "使用药剂或打出制药牌累计" + s.questTarget + "次。";
+        if (s.combatQuest == QUEST_SKILL) return "释放职业技" + s.questTarget + "次。";
+        if (s.combatQuest == QUEST_ECHO) return "打出临时牌或消耗牌累计" + s.questTarget + "张。";
+        if (s.combatQuest == QUEST_BLOODCOIN) return "打出自损、裂伤或金币牌累计" + s.questTarget + "张。";
+        if (s.combatQuest == QUEST_FORGE) return "打出升级、检视或锻造牌累计" + s.questTarget + "张。";
+        if (s.combatQuest == QUEST_TREASURE) return "打出金币牌累计" + s.questTarget + "次。";
         return "完成特殊目标。";
     }
 
@@ -2417,19 +2439,77 @@ public final class GameCore {
     }
 
     private static int chooseCombatQuest(State s, char kind) {
+        ArrayList<Integer> quests = new ArrayList<>();
+        quests.add(QUEST_SWIFT);
+        quests.add(QUEST_UNHURT);
+        quests.add(QUEST_COMBO);
+        quests.add(QUEST_GUARD);
+        quests.add(QUEST_HEX);
         if (kind == 'B') {
-            int[] quests = {QUEST_SWIFT, QUEST_UNHURT, QUEST_COMBO, QUEST_GUARD, QUEST_HEX};
-            return quests[s.run.nextInt(quests.length)];
+            addSupportedCombatQuests(s, quests);
+            return quests.get(s.run.nextInt(quests.size()));
         }
-        if (kind == 'E') {
-            int[] quests = {QUEST_SWIFT, QUEST_UNHURT, QUEST_COMBO, QUEST_GUARD, QUEST_HEX, QUEST_LEAN};
-            return quests[s.run.nextInt(quests.length)];
-        }
-        if (s.run.nextInt(100) < 82) {
-            int[] quests = {QUEST_SWIFT, QUEST_UNHURT, QUEST_COMBO, QUEST_GUARD, QUEST_HEX, QUEST_LEAN};
-            return quests[s.run.nextInt(quests.length)];
+        quests.add(QUEST_LEAN);
+        addSupportedCombatQuests(s, quests);
+        if (kind == 'E' || s.run.nextInt(100) < 82) {
+            return quests.get(s.run.nextInt(quests.size()));
         }
         return QUEST_NONE;
+    }
+
+    private static void addSupportedCombatQuests(State s, ArrayList<Integer> quests) {
+        addSupportedCombatQuest(s, quests, QUEST_BREW);
+        addSupportedCombatQuest(s, quests, QUEST_SKILL);
+        addSupportedCombatQuest(s, quests, QUEST_ECHO);
+        addSupportedCombatQuest(s, quests, QUEST_BLOODCOIN);
+        addSupportedCombatQuest(s, quests, QUEST_FORGE);
+        addSupportedCombatQuest(s, quests, QUEST_TREASURE);
+    }
+
+    private static void addSupportedCombatQuest(State s, ArrayList<Integer> quests, int quest) {
+        if (supportsCombatQuest(s, quest)) {
+            quests.add(quest);
+        }
+    }
+
+    private static boolean supportsCombatQuest(State s, int quest) {
+        if (quest == QUEST_SKILL) {
+            return s.profession != null && s.profession.length() > 0;
+        }
+        if (quest == QUEST_BREW && (PROF_ALCHEMIST.equals(s.profession) || !s.potions.isEmpty()
+                || hasTalent(s, "t_alchemist_grandbrew") || hasRelic(s, "alchemist_case") || hasRelic(s, "glass_vials"))) {
+            return true;
+        }
+        if (quest == QUEST_ECHO && (PROF_ARCANIST.equals(s.profession) || PROF_SUMMONER.equals(s.profession)
+                || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
+                || hasRelic(s, "echo_prism") || hasRelic(s, "singularity_orb") || hasRelic(s, "spirit_processional"))) {
+            return true;
+        }
+        if (quest == QUEST_BLOODCOIN && (PROF_MERCHANT.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
+                || PROF_HEXER.equals(s.profession) || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
+                || hasTalent(s, "t_hexer_darkdeal") || hasRelic(s, "bloodcoin_broach") || hasRelic(s, "kingmaker_seal"))) {
+            return true;
+        }
+        if (quest == QUEST_FORGE && (PROF_WEAVER.equals(s.profession) || hasTalent(s, "t_weaver_grandpattern")
+                || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
+            return true;
+        }
+        if (quest == QUEST_TREASURE && (PROF_MERCHANT.equals(s.profession) || hasTalent(s, "t_merchant_interest")
+                || hasTalent(s, "t_merchant_monopoly") || hasRelic(s, "tithe_box") || hasRelic(s, "kingmaker_seal"))) {
+            return true;
+        }
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d == null) {
+                continue;
+            }
+            if (quest == QUEST_BREW && d.createPotion) return true;
+            if (quest == QUEST_ECHO && (d.exhaust || d.createEcho || c.temp)) return true;
+            if (quest == QUEST_BLOODCOIN && (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id))) return true;
+            if (quest == QUEST_FORGE && (c.upgraded || d.upgradeRandom || d.scry > 0)) return true;
+            if (quest == QUEST_TREASURE && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) return true;
+        }
+        return false;
     }
 
     private static int questTargetFor(State s, int quest, char kind) {
@@ -2441,6 +2521,12 @@ public final class GameCore {
         if (quest == QUEST_GUARD) return 22 + s.act * 6 + boss * 12 + elite * 6;
         if (quest == QUEST_HEX) return 8 + s.act * 3 + boss * 6 + elite * 3;
         if (quest == QUEST_LEAN) return 11 + boss * 7 + elite * 3;
+        if (quest == QUEST_BREW) return 1 + boss + elite;
+        if (quest == QUEST_SKILL) return 1 + boss;
+        if (quest == QUEST_ECHO) return 3 + s.act + boss * 2 + elite;
+        if (quest == QUEST_BLOODCOIN) return 3 + s.act / 2 + boss * 2 + elite;
+        if (quest == QUEST_FORGE) return 3 + s.act / 2 + boss * 2 + elite;
+        if (quest == QUEST_TREASURE) return 2 + boss + elite;
         return 0;
     }
 
@@ -4276,6 +4362,27 @@ public final class GameCore {
         }
     }
 
+    private static void trackQuestAfterPlay(State s, Card c, CardDef d, boolean exhausted) {
+        if (s.mode != MODE_COMBAT || d == null) {
+            return;
+        }
+        if (exhausted || c.temp || d.createEcho) {
+            addQuestProgress(s, QUEST_ECHO, 1);
+        }
+        if (d.hpLoss > 0 || d.goldGain > 0 || d.goldDamage || d.goldBlock || "wound".equals(c.id)) {
+            addQuestProgress(s, QUEST_BLOODCOIN, 1);
+        }
+        if (c.upgraded || d.upgradeRandom || d.scry > 0) {
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if (d.goldGain > 0 || d.goldDamage || d.goldBlock) {
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if (d.createPotion) {
+            addQuestProgress(s, QUEST_BREW, 1);
+        }
+    }
+
     private static void trackRunMilestones(State s, Card c, CardDef d, boolean exhausted) {
         if (s.mode != MODE_COMBAT) {
             return;
@@ -4494,6 +4601,23 @@ public final class GameCore {
         } else if (s.combatQuest == QUEST_LEAN) {
             s.questProgress = s.totalCardsPlayed;
             s.questComplete = s.totalCardsPlayed <= s.questTarget;
+        } else if (isCumulativeQuest(s.combatQuest) && s.questProgress >= s.questTarget) {
+            s.questComplete = true;
+        }
+    }
+
+    private static boolean isCumulativeQuest(int quest) {
+        return quest == QUEST_BREW || quest == QUEST_SKILL || quest == QUEST_ECHO
+                || quest == QUEST_BLOODCOIN || quest == QUEST_FORGE || quest == QUEST_TREASURE;
+    }
+
+    private static void addQuestProgress(State s, int quest, int amount) {
+        if (s == null || s.mode != MODE_COMBAT || s.combatQuest != quest || s.questComplete || amount <= 0) {
+            return;
+        }
+        s.questProgress += amount;
+        if (s.questProgress >= s.questTarget) {
+            s.questComplete = true;
         }
     }
 
