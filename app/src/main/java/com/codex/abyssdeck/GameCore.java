@@ -117,6 +117,7 @@ public final class GameCore {
     public static final String PROF_GARDENER = "园艺师";
     public static final String PROF_CHEF = "炊事师";
     public static final String PROF_BARD = "吟游诗人";
+    public static final String PROF_MIRRORIST = "镜术师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -124,7 +125,7 @@ public final class GameCore {
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
-            PROF_BARD
+            PROF_BARD, PROF_MIRRORIST
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -807,6 +808,7 @@ public final class GameCore {
         if (PROF_GARDENER.equals(profession)) return "萌发";
         if (PROF_CHEF.equals(profession)) return "开宴";
         if (PROF_BARD.equals(profession)) return "终曲";
+        if (PROF_MIRRORIST.equals(profession)) return "万镜";
         return "职业技";
     }
 
@@ -869,6 +871,7 @@ public final class GameCore {
         if (PROF_GARDENER.equals(profession)) return "满充能：消耗种子萌发，按治疗、格挡、束缚、状态转化、再生和过载造成穿透，治疗、抽牌并制造植牌。";
         if (PROF_CHEF.equals(profession)) return "满充能：消耗菜谱开宴，按药剂、治疗、燃灼、束缚、状态转化和过载造成穿透，治疗、抽牌并制造菜肴。";
         if (PROF_BARD.equals(profession)) return "满充能：消耗旋律终曲，按出牌节奏、临时牌、回声、印记和过载造成穿透，抽牌、格挡、返能并制造曲牌。";
+        if (PROF_MIRRORIST.equals(profession)) return "满充能：消耗镜纹万镜，按检视、升级牌、临时牌、汇流、印记和过载造成穿透，抽牌、格挡、升级并制造镜像牌。";
         return "选择职业后可用。";
     }
 
@@ -1595,6 +1598,49 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, melody / 2);
+        } else if (PROF_MIRRORIST.equals(s.profession)) {
+            int mirrors = Math.max(1, s.professionCharge);
+            int upgraded = Math.min(32, upgradedCardCount(s));
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int chain = s.confluenceChain;
+            int labels = target == null ? Math.max(1, bestEnemyPressure(s) / 5)
+                    : target.mark + target.vulnerable * 2 + target.bind + target.burn / 2;
+            int damage = 8 + s.act * 3 + Math.min(54, mirrors * 3 + upgraded * 2 + echoes * 4
+                    + chain * 5 + labels * 3) + overload * 6;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, mirrors / 3) + Math.min(3, upgraded / 6) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, chain / 4 + overload / 4);
+                if (target.mark >= 4 || upgraded >= 7 || chain >= 3 || target.hp <= 0) {
+                    draw(s, 1);
+                    addProfessionSkillCharge(s, 1 + overload / 2);
+                }
+            }
+            gainBlock(s, 5 + s.act * 2 + Math.min(28, mirrors * 2 + echoes * 3 + upgraded / 2 + chain * 3) + overload * 3);
+            draw(s, 1 + Math.min(2, mirrors / 5 + chain / 4) + overload / 4);
+            if (mirrors >= 5 || upgraded >= 8 || echoes >= 3 || chain >= 4 || overload >= 3) {
+                s.energy++;
+            }
+            if (upgraded >= 5 || chain >= 3 || overload >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            Card image = new Card(overload >= 4 || hasTalent(s, "t_mirrorist_grand") ? "mirrorist_grand_mirror" : "mirrorist_shard");
+            image.temp = true;
+            image.upgraded = upgraded >= 6 || hasTalent(s, "t_mirrorist_shard");
+            addToHand(s, image);
+            if (hasTalent(s, "t_mirrorist_grand")) {
+                Card reflect = new Card("mirrorist_reflect");
+                reflect.temp = true;
+                reflect.upgraded = true;
+                addToHand(s, reflect);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, upgraded / 6));
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.max(1, echoes));
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(3, chain / 2));
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, mirrors / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2876,6 +2922,9 @@ public final class GameCore {
         if (PROF_BARD.equals(profession)) {
             return "用低费、抽牌、临时牌和印记积累旋律，把曲牌、合唱和返能节奏转成终曲爆发。适合循环、回声、标链、守势和过载构筑。";
         }
+        if (PROF_MIRRORIST.equals(profession)) {
+            return "用检视、升级、临时镜像和汇流积累镜纹，把复制、校准与标记转成万镜爆发。适合工坊、汇流、回声、标链和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2960,6 +3009,9 @@ public final class GameCore {
         }
         if (PROF_BARD.equals(profession)) {
             return 0xfff6a6d8;
+        }
+        if (PROF_MIRRORIST.equals(profession)) {
+            return 0xffb9f0ef;
         }
         return 0xffd6c07a;
     }
@@ -3278,6 +3330,12 @@ public final class GameCore {
             s.maxHp += 1;
             s.hp += 1;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_MIRRORIST.equals(profession)) {
+            s.deck.add(new Card("mirrorist_shard"));
+            s.deck.add(new Card("mirrorist_guard"));
+            s.maxHp += 1;
+            s.hp += 1;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3326,6 +3384,7 @@ public final class GameCore {
         else if (PROF_GARDENER.equals(profession)) upgradeDeckCard(s, "gardener_sprout");
         else if (PROF_CHEF.equals(profession)) upgradeDeckCard(s, "chef_prep");
         else if (PROF_BARD.equals(profession)) upgradeDeckCard(s, "bard_note");
+        else if (PROF_MIRRORIST.equals(profession)) upgradeDeckCard(s, "mirrorist_shard");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3424,6 +3483,10 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_MIRRORIST.equals(profession)) {
+            addUpgradedDeckCard(s, "mirrorist_reflect");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3455,6 +3518,7 @@ public final class GameCore {
         if (PROF_GARDENER.equals(profession)) return "gardener_overgrowth";
         if (PROF_CHEF.equals(profession)) return "chef_overcook";
         if (PROF_BARD.equals(profession)) return "bard_overcrescendo";
+        if (PROF_MIRRORIST.equals(profession)) return "mirrorist_overimage";
         return "forge_signal";
     }
 
@@ -3852,6 +3916,21 @@ public final class GameCore {
         } else if ("t_bard_grand".equals(id)) {
             addUpgradedDeckCard(s, "bard_grand_finale");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_mirrorist_shard".equals(id)) {
+            addUpgradedDeckCard(s, "mirrorist_shard");
+            draw(s, s.mode == MODE_COMBAT ? 1 : 0);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_mirrorist_guard".equals(id)) {
+            addUpgradedDeckCard(s, "mirrorist_guard");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_mirrorist_reflect".equals(id)) {
+            addUpgradedDeckCard(s, "mirrorist_reflect");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_mirrorist_grand".equals(id)) {
+            addUpgradedDeckCard(s, "mirrorist_grand_mirror");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -3875,7 +3954,7 @@ public final class GameCore {
                 || "t_medium_grand".equals(id) || "t_tactician_grand".equals(id)
                 || "t_prismist_grand".equals(id) || "t_dreamwalker_grand".equals(id)
                 || "t_gardener_grand".equals(id) || "t_chef_grand".equals(id)
-                || "t_bard_grand".equals(id);
+                || "t_bard_grand".equals(id) || "t_mirrorist_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -3892,7 +3971,7 @@ public final class GameCore {
                 || "medium_grand_seance".equals(id) || "tactician_grand_strategy".equals(id)
                 || "prismist_grand_spectrum".equals(id) || "dreamwalker_grand_dream".equals(id)
                 || "gardener_grand_grove".equals(id) || "chef_grand_banquet".equals(id)
-                || "bard_grand_finale".equals(id);
+                || "bard_grand_finale".equals(id) || "mirrorist_grand_mirror".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -3909,7 +3988,7 @@ public final class GameCore {
                 || "ancestral_planchette".equals(id) || "grand_war_room".equals(id)
                 || "spectrum_crown".equals(id) || "oneiric_crown".equals(id)
                 || "verdant_crown".equals(id) || "banquet_crown".equals(id)
-                || "finale_crown".equals(id);
+                || "finale_crown".equals(id) || "mirror_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -4346,6 +4425,9 @@ public final class GameCore {
         else if (PROF_BARD.equals(s.profession) && d != null && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
                 || d.createEcho || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
                 || d.comboDamage > 0 || d.profession.equals(PROF_BARD))) amount++;
+        else if (PROF_MIRRORIST.equals(s.profession) && d != null && (d.scry > 0 || d.upgradeRandom
+                || d.createEcho || d.draw > 0 || d.skillChargeGain > 0 || d.vulnerable > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MIRRORIST))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -5076,6 +5158,29 @@ public final class GameCore {
             if (level >= 3 || tempo >= 4 || echoes >= 3 || overload >= 3) {
                 s.energy++;
             }
+        } else if (PROF_MIRRORIST.equals(s.profession)) {
+            int mirrors = Math.max(1, s.professionCharge);
+            int upgraded = upgradedCardCount(s);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int chain = s.confluenceChain;
+            s.professionCharge += level + 1 + Math.min(3, upgraded / 5 + chain / 3) + overload / 2;
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            gainBlock(s, 4 + level * 3 + Math.min(18, mirrors * 2 + echoes * 3 + upgraded / 2 + chain * 3));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card image = new Card(level >= 3 || overload >= 3 ? "mirrorist_overimage" : "mirrorist_shard");
+            image.temp = true;
+            image.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, image);
+            if (target != null) {
+                target.mark += level + 1 + overload / 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(24, mirrors * 2 + upgraded
+                        + echoes * 3 + chain * 4 + target.mark * 2), true);
+            }
+            if (level >= 3 || upgraded >= 7 || echoes >= 3 || chain >= 4 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -5547,6 +5652,39 @@ public final class GameCore {
                 target.vulnerable += 1;
             }
         }
+        if (hasRelic(s, "mirror_lens") && PROF_MIRRORIST.equals(s.profession)) {
+            int upgraded = upgradedCardCount(s);
+            int echoes = tempOrEchoHandCount(s);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + s.confluenceChain / 3));
+            gainBlock(s, 4 + s.act + Math.min(14, s.professionCharge + upgraded / 2 + echoes * 2 + s.confluenceChain * 2));
+            Card shard = new Card("mirrorist_shard");
+            shard.temp = true;
+            shard.upgraded = true;
+            addToHand(s, shard);
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(20, target.mark * 2
+                        + s.professionCharge * 2 + upgraded + s.confluenceChain * 3), true);
+            }
+        }
+        if (hasRelic(s, "mirror_crown") && PROF_MIRRORIST.equals(s.profession)) {
+            Card image = new Card("mirrorist_overimage");
+            image.temp = true;
+            image.upgraded = true;
+            addToHand(s, image);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || upgradedCardCount(s) >= 8 || s.confluenceChain >= 4 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -5602,6 +5740,9 @@ public final class GameCore {
         if (hasRelic(s, "songbook") && PROF_BARD.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.cardsPlayedThisTurn >= 3 || tempOrEchoHandCount(s) >= 2
                 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "mirror_lens") && PROF_MIRRORIST.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || upgradedCardCount(s) >= 5 || s.confluenceChain >= 2
+                || tempOrEchoHandCount(s) >= 2 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -5766,7 +5907,7 @@ public final class GameCore {
         if (quest == QUEST_ECHO && (PROF_ARCANIST.equals(s.profession) || PROF_SUMMONER.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_CHEF.equals(s.profession)
-                || PROF_BARD.equals(s.profession)
+                || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
                 || hasRelic(s, "echo_prism") || hasRelic(s, "echoflow_charm")
@@ -5786,6 +5927,7 @@ public final class GameCore {
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
                 || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
+                || PROF_MIRRORIST.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -5797,6 +5939,7 @@ public final class GameCore {
         }
         if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
+                || PROF_MIRRORIST.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
@@ -5810,7 +5953,7 @@ public final class GameCore {
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_CHEF.equals(s.profession)
-                || PROF_BARD.equals(s.profession)
+                || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -5825,7 +5968,8 @@ public final class GameCore {
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
-                || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession))) {
+                || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
+                || PROF_MIRRORIST.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -6846,6 +6990,34 @@ public final class GameCore {
                 song.temp = true;
                 song.upgraded = true;
                 addToHand(s, song);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_MIRRORIST.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(2, upgradedCardCount(s) / 5 + s.confluenceChain / 2);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+                firstLiving(s).vulnerable += hasTalent(s, "t_mirrorist_reflect") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_mirrorist_shard")) {
+                Card shard = new Card("mirrorist_shard");
+                shard.temp = true;
+                shard.upgraded = true;
+                addToHand(s, shard);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_mirrorist_guard")) {
+                gainBlock(s, 4 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_mirrorist_grand")) {
+                Card image = new Card("mirrorist_shard");
+                image.temp = true;
+                image.upgraded = true;
+                addToHand(s, image);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -8666,6 +8838,91 @@ public final class GameCore {
             }
             if (overloadNow >= 2 || echoes >= 3 || tempo >= 4 || c.upgraded) {
                 draw += 1;
+            }
+        }
+        if ("mirrorist_shard".equals(d.id) && target != null) {
+            int mirrors = Math.max(0, s.professionCharge);
+            int upgraded = upgradedCardCount(s);
+            damage += Math.min(c.upgraded ? 21 : 14, mirrors * 2 + upgraded / 2 + s.confluenceChain * 2 + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            if (c.upgraded || c.temp || s.confluenceChain >= 2) {
+                draw += 1;
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("mirrorist_guard".equals(d.id)) {
+            int mirrors = Math.max(0, s.professionCharge);
+            int upgraded = upgradedCardCount(s);
+            block += Math.min(c.upgraded ? 24 : 16, mirrors * 2 + upgraded / 2 + tempOrEchoHandCount(s) * 3);
+            if (c.upgraded || upgraded >= 5 || s.confluenceChain >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            if (target != null) {
+                target.mark += 1 + (c.upgraded ? 1 : 0);
+            }
+        }
+        if ("mirrorist_reflect".equals(d.id)) {
+            int mirrors = Math.max(0, s.professionCharge);
+            int upgraded = upgradedCardCount(s);
+            block += Math.min(c.upgraded ? 18 : 12, mirrors * 2 + upgraded / 2 + s.confluenceChain * 3);
+            if (c.upgraded || upgraded >= 4 || s.confluenceChain >= 2) {
+                draw += 1;
+                upgradeRandomHandCard(s);
+            }
+            if (s.confluenceChain >= 3 || tempOrEchoHandCount(s) >= 2 || c.upgraded) {
+                Card shard = new Card("mirrorist_shard");
+                shard.temp = true;
+                shard.upgraded = c.upgraded || upgraded >= 5;
+                addToHand(s, shard);
+            }
+            if (target != null) {
+                target.mark += 1;
+            }
+        }
+        if ("mirrorist_prismcut".equals(d.id) && target != null) {
+            int pressure = target.mark * 3 + target.vulnerable * 3 + target.bind * 2 + target.burn;
+            damage += Math.min(c.upgraded ? 36 : 25, pressure + s.professionCharge * 2
+                    + upgradedCardCount(s) + s.confluenceChain * 4);
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            if (target.mark >= 4 || s.confluenceChain >= 3 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("mirrorist_overimage".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int mirrors = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + (c.temp ? 1 : 0);
+            block += Math.min(c.upgraded ? 31 : 21, mirrors * 2 + overloadNow * 6 + echoes * 4
+                    + upgradedCardCount(s) / 2 + s.confluenceChain * 3);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 42 : 29, overloadNow * 7 + target.mark * 3
+                        + mirrors * 2 + echoes * 4 + upgradedCardCount(s) + s.confluenceChain * 3);
+            }
+            if (overloadNow >= 2 || echoes >= 2 || s.confluenceChain >= 3 || c.upgraded) {
+                draw += 1;
+                upgradeRandomHandCard(s);
+            }
+        }
+        if ("mirrorist_grand_mirror".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int mirrors = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + (c.temp ? 1 : 0);
+            int upgraded = upgradedCardCount(s);
+            damage += Math.min(c.upgraded ? 66 : 48, mirrors * 4 + upgraded * 2 + echoes * 6
+                    + s.confluenceChain * 7 + overloadNow * 8 + bestEnemyPressure(s));
+            block += Math.min(c.upgraded ? 45 : 32, mirrors * 3 + upgraded + echoes * 5
+                    + s.confluenceChain * 5 + overloadNow * 5);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+            if (overloadNow >= 2 || echoes >= 3 || s.confluenceChain >= 4 || upgraded >= 8 || c.upgraded) {
+                draw += 1;
+                upgradeRandomHandCard(s);
             }
         }
         if ("hybrid_coinwall".equals(d.id)) {
@@ -11165,6 +11422,86 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_MIRRORIST.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.createEcho || c.temp
+                || d.draw > 0 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.block > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MIRRORIST))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            int echoes = tempOrEchoHandCount(s);
+            int upgraded = upgradedCardCount(s);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.scry > 0 || d.upgradeRandom || d.profession.equals(PROF_MIRRORIST)) {
+                    e.mark += 1;
+                }
+                if (d.vulnerable > 0 || hybridFocusCount(d) >= 2) {
+                    e.vulnerable += 1;
+                }
+                if (s.professionCharge >= 4 || upgraded >= 7 || echoes >= 3 || s.confluenceChain >= 3 || e.mark >= 3) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(25, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge * 2 + upgraded / 2 + echoes * 2 + s.confluenceChain * 3), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(15, s.professionCharge + upgraded / 2 + echoes * 2 + s.confluenceChain * 2));
+                if (d.upgradeRandom || upgraded >= 6 || hasTalent(s, "t_mirrorist_reflect")) {
+                    upgradeRandomHandCard(s);
+                }
+                if (s.confluenceChain >= 3 || echoes >= 2 || hasTalent(s, "t_mirrorist_reflect")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_mirrorist_shard") && (d.cost == 0 || d.scry > 0 || c.temp
+                || d.profession.equals(PROF_MIRRORIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(20, e.mark * 2 + s.professionCharge * 2
+                        + tempOrEchoHandCount(s) * 2 + s.confluenceChain * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_mirrorist_guard") && (d.block > 0 || d.type == 1 || d.upgradeRandom
+                || d.profession.equals(PROF_MIRRORIST))) {
+            gainBlock(s, 3 + s.act + Math.min(11, s.professionCharge + upgradedCardCount(s) / 2
+                    + buildFocusDeckCards(s, BUILD_GUARD)));
+            if (s.cardsPlayedThisTurn == 3 || upgradedCardCount(s) >= 7 || s.block >= 20 + s.act * 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_mirrorist_reflect") && (d.scry > 0 || d.upgradeRandom || d.createEcho || c.temp
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MIRRORIST))) {
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+            if ((hybridFocusCount(d) >= 2 || tempOrEchoHandCount(s) >= 3) && s.cardsPlayedThisTurn <= 4) {
+                s.energy++;
+            }
+        }
+        if (hasTalent(s, "t_mirrorist_grand") && (d.scry > 0 || d.upgradeRandom || d.createEcho || c.temp
+                || d.vulnerable > 0 || d.skillChargeGain > 0 || d.rarity == 2 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_MIRRORIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.professionCharge >= 4 || upgradedCardCount(s) >= 7 || s.confluenceChain >= 3
+                    || tempOrEchoHandCount(s) >= 3)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(28, e.mark * 2 + e.vulnerable * 2
+                        + s.professionCharge * 2 + upgradedCardCount(s) / 2 + tempOrEchoHandCount(s) * 2
+                        + s.confluenceChain * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -11510,6 +11847,41 @@ public final class GameCore {
                 if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || s.professionCharge >= 4) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(24, e.mark * 2 + e.vulnerable * 2
                             + e.bind + s.professionCharge + tempOrEchoHandCount(s) * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "mirror_lens") && (d.scry > 0 || d.upgradeRandom || d.createEcho || c.temp
+                || d.draw > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_MIRRORIST))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(8, s.professionCharge + upgradedCardCount(s) / 2 + s.confluenceChain));
+                upgradeRandomHandCard(s);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.upgradeRandom || d.scry > 0 || e.mark >= 4 || s.professionCharge >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(22, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge * 2 + upgradedCardCount(s) / 2 + s.confluenceChain * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "mirror_crown") && (d.scry > 0 || d.upgradeRandom || c.temp || d.createEcho
+                || d.skillChargeGain > 0 || d.rarity == 2 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_MIRRORIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || upgradedCardCount(s) >= 7 || s.confluenceChain >= 4 || s.professionCharge >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(25, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge + upgradedCardCount(s) + tempOrEchoHandCount(s) * 2), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -12722,6 +13094,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_ECHO ? 16 : focus == BUILD_OVERLOAD ? 14
                     : focus == BUILD_STATUS ? 12 : focus == BUILD_GUARD ? 8 : focus == BUILD_FORGE ? 6 : 0;
         }
+        if (PROF_MIRRORIST.equals(s.profession)) {
+            return focus == BUILD_FORGE ? 18 : focus == BUILD_CYCLE ? 16 : focus == BUILD_ECHO ? 14
+                    : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_STATUS ? 12 : focus == BUILD_GUARD ? 10 : 0;
+        }
         return 0;
     }
 
@@ -12790,6 +13166,9 @@ public final class GameCore {
         }
         if (PROF_BARD.equals(d.profession)) {
             return bardFocusCardValue(d, focus);
+        }
+        if (PROF_MIRRORIST.equals(d.profession)) {
+            return mirroristFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -13271,6 +13650,45 @@ public final class GameCore {
         return 0;
     }
 
+    private static int mirroristFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + (d.upgradeRandom ? 3 : 0) + (d.createEcho ? 3 : 0)
+                    + ("mirrorist_shard".equals(d.id) ? 6 : 0) + ("mirrorist_prismcut".equals(d.id) ? 8 : 0)
+                    + ("mirrorist_overimage".equals(d.id) ? 14 : 0) + ("mirrorist_grand_mirror".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + d.draw * 3 + d.scry * 2 + (d.cost == 0 ? 5 : 0)
+                    + ("mirrorist_shard".equals(d.id) ? 8 : 0) + ("mirrorist_guard".equals(d.id) ? 10 : 0)
+                    + ("mirrorist_reflect".equals(d.id) ? 14 : 0) + ("mirrorist_overimage".equals(d.id) ? 12 : 0)
+                    + ("mirrorist_grand_mirror".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.scry * 3 + d.skillChargeGain * 2 + (d.rarity == 2 ? 2 : 0)
+                    + ("mirrorist_guard".equals(d.id) ? 14 : 0) + ("mirrorist_reflect".equals(d.id) ? 16 : 0)
+                    + ("mirrorist_overimage".equals(d.id) ? 12 : 0) + ("mirrorist_grand_mirror".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 7 + d.bind * 4 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("mirrorist_shard".equals(d.id) ? 8 : 0) + ("mirrorist_prismcut".equals(d.id) ? 16 : 0)
+                    + ("mirrorist_overimage".equals(d.id) ? 14 : 0) + ("mirrorist_grand_mirror".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 6 : 0) + d.scry * 2 + d.skillChargeGain * 2
+                    + (d.createEcho ? 4 : 0) + ("mirrorist_shard".equals(d.id) ? 14 : 0)
+                    + ("mirrorist_reflect".equals(d.id) ? 14 : 0) + ("mirrorist_overimage".equals(d.id) ? 10 : 0)
+                    + ("mirrorist_grand_mirror".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + d.scry * 2 + (d.upgradeRandom ? 3 : 0)
+                    + ("mirrorist_guard".equals(d.id) ? 16 : 0) + ("mirrorist_reflect".equals(d.id) ? 10 : 0)
+                    + ("mirrorist_overimage".equals(d.id) ? 14 : 0) + ("mirrorist_grand_mirror".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return ("mirrorist_prismcut".equals(d.id) ? 4 : 0) + ("mirrorist_grand_mirror".equals(d.id) ? 4 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -13537,6 +13955,15 @@ public final class GameCore {
         else if ("t_bard_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_CYCLE) * 2
                 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_mirrorist_shard".equals(id)) bonus += zeroCost * 2 + tempOrEchoDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + professionCards;
+        else if ("t_mirrorist_guard".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + upgraded + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_mirrorist_reflect".equals(id)) bonus += upgraded * 2 + tempOrEchoDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_ECHO) + professionCards;
+        else if ("t_mirrorist_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_FORGE) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_ECHO)
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -13556,7 +13983,7 @@ public final class GameCore {
                     "t_prismist_spill", "t_prismist_grand", "t_dreamwalker_lucid",
                     "t_dreamwalker_grand", "t_gardener_compost", "t_gardener_grand",
                     "t_chef_spice", "t_chef_grand", "t_bard_chorus", "t_bard_grand",
-                    "t_shared_longnight") ? 3 : 0;
+                    "t_mirrorist_reflect", "t_mirrorist_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -13569,7 +13996,8 @@ public final class GameCore {
                     "t_prismist_lens", "t_prismist_grand", "t_dreamwalker_drift",
                     "t_dreamwalker_veil", "t_dreamwalker_lucid", "t_dreamwalker_grand",
                     "t_gardener_sprout", "t_gardener_grand", "t_chef_stew",
-                    "t_chef_grand", "t_bard_ballad", "t_bard_chorus", "t_bard_grand") ? 3 : 0;
+                    "t_chef_grand", "t_bard_ballad", "t_bard_chorus", "t_bard_grand",
+                    "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -13596,7 +14024,8 @@ public final class GameCore {
                     "t_tactician_grand", "t_prismist_lens", "t_prismist_anchor",
                     "t_prismist_grand", "t_dreamwalker_lucid", "t_dreamwalker_grand",
                     "t_gardener_compost", "t_gardener_grand", "t_chef_spice",
-                    "t_chef_grand", "t_bard_grand") ? 3 : 0;
+                    "t_chef_grand", "t_bard_grand", "t_mirrorist_guard",
+                    "t_mirrorist_reflect", "t_mirrorist_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -13615,7 +14044,8 @@ public final class GameCore {
                     "t_prismist_grand", "t_dreamwalker_drift", "t_dreamwalker_lucid",
                     "t_dreamwalker_grand", "t_gardener_sprout", "t_gardener_compost",
                     "t_gardener_grand", "t_chef_prep", "t_chef_spice", "t_chef_grand",
-                    "t_bard_note", "t_bard_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_bard_note", "t_bard_grand", "t_mirrorist_shard",
+                    "t_mirrorist_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -13634,6 +14064,7 @@ public final class GameCore {
                     "t_gardener_sprout", "t_gardener_compost", "t_gardener_grand",
                     "t_chef_prep", "t_chef_stew", "t_chef_grand",
                     "t_bard_note", "t_bard_chorus", "t_bard_grand",
+                    "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -13647,7 +14078,8 @@ public final class GameCore {
                     "t_medium_grand", "t_tactician_bulwark", "t_tactician_grand",
                     "t_prismist_anchor", "t_prismist_grand", "t_dreamwalker_veil",
                     "t_dreamwalker_grand", "t_gardener_rootwall", "t_gardener_grand",
-                    "t_chef_stew", "t_chef_grand", "t_bard_ballad", "t_bard_grand") ? 3 : 0;
+                    "t_chef_stew", "t_chef_grand", "t_bard_ballad", "t_bard_grand",
+                    "t_mirrorist_guard", "t_mirrorist_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -13862,6 +14294,18 @@ public final class GameCore {
         if (isAny(id, "t_bard_chorus", "t_bard_grand")
                 && (tempOrEchoDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_ECHO) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
             return "副歌回响";
+        }
+        if (isAny(id, "t_mirrorist_shard", "t_mirrorist_grand")
+                && (zeroCostDeckCards(s) >= 2 || tempOrEchoDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3)) {
+            return "碎镜连映";
+        }
+        if (isAny(id, "t_mirrorist_guard", "t_mirrorist_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || upgradedDeckCards(s) >= 5 || s.hp < s.maxHp)) {
+            return "镜壁防线";
+        }
+        if (isAny(id, "t_mirrorist_reflect", "t_mirrorist_grand")
+                && (upgradedDeckCards(s) >= 4 || tempOrEchoDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_FORGE) >= 2 || buildFocusDeckCards(s, BUILD_ECHO) >= 2)) {
+            return "映照转写";
         }
         return "";
     }
@@ -14093,14 +14537,16 @@ public final class GameCore {
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
+                    "mirror_lens", "mirror_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
                     "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "spirit_bell", "spirit_processional", "void_anchor",
                     "echoflow_charm", "shadow_sash", "eclipse_mask", "spirit_planchette", "ancestral_planchette", "echo_crown",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
+                    "mirror_lens", "mirror_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
@@ -14123,7 +14569,8 @@ public final class GameCore {
                     "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "pattern_spool", "engraver_stylus", "gyro_wrench", "clockwork_core", "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
                     "ability_crown", "time_engine", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "finale_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "finale_crown",
+                    "mirror_lens", "mirror_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -14133,7 +14580,8 @@ public final class GameCore {
                     "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "warden_brand", "markchain_seal",
                     "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger", "spirit_planchette", "ancestral_planchette",
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
+                    "mirror_lens", "mirror_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -14142,7 +14590,8 @@ public final class GameCore {
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
+                    "mirror_lens", "mirror_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -14152,7 +14601,8 @@ public final class GameCore {
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
-                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
+                    "mirror_lens", "mirror_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -14184,7 +14634,8 @@ public final class GameCore {
                 || (PROF_DREAMWALKER.equals(s.profession) && "dreamcatcher_charm".equals(id))
                 || (PROF_GARDENER.equals(s.profession) && "seed_satchel".equals(id))
                 || (PROF_CHEF.equals(s.profession) && "recipe_book".equals(id))
-                || (PROF_BARD.equals(s.profession) && "songbook".equals(id));
+                || (PROF_BARD.equals(s.profession) && "songbook".equals(id))
+                || (PROF_MIRRORIST.equals(s.profession) && "mirror_lens".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -14225,6 +14676,7 @@ public final class GameCore {
                 || hasRelic(s, "seed_satchel") || hasRelic(s, "verdant_crown")
                 || hasRelic(s, "recipe_book") || hasRelic(s, "banquet_crown")
                 || hasRelic(s, "songbook") || hasRelic(s, "finale_crown")
+                || hasRelic(s, "mirror_lens") || hasRelic(s, "mirror_crown")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
@@ -14395,6 +14847,11 @@ public final class GameCore {
                 || d.profession.equals(PROF_BARD))) {
             return 4;
         }
+        if (PROF_MIRRORIST.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.createEcho || d.draw > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_MIRRORIST))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -14427,7 +14884,8 @@ public final class GameCore {
                     || "dreamwalker_grand_dream".equals(d.id) || "gardener_thornbloom".equals(d.id)
                     || "gardener_grand_grove".equals(d.id) || "chef_spice".equals(d.id)
                     || "chef_sizzle".equals(d.id) || "chef_grand_banquet".equals(d.id)
-                    || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)) bonus += 4;
+                    || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)
+                    || "mirrorist_prismcut".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
@@ -14446,7 +14904,9 @@ public final class GameCore {
                     || "gardener_compost".equals(d.id) || "gardener_overgrowth".equals(d.id)
                     || "chef_prep".equals(d.id) || "chef_stew".equals(d.id)
                     || "chef_overcook".equals(d.id) || "bard_note".equals(d.id)
-                    || "bard_chorus".equals(d.id) || "bard_overcrescendo".equals(d.id)) bonus += 4;
+                    || "bard_chorus".equals(d.id) || "bard_overcrescendo".equals(d.id)
+                    || "mirrorist_shard".equals(d.id) || "mirrorist_reflect".equals(d.id)
+                    || "mirrorist_overimage".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -14463,7 +14923,9 @@ public final class GameCore {
                     || "chef_stew".equals(d.id) || "chef_overcook".equals(d.id)
                     || "chef_grand_banquet".equals(d.id) || "bard_ballad".equals(d.id)
                     || "bard_chorus".equals(d.id) || "bard_overcrescendo".equals(d.id)
-                    || "bard_grand_finale".equals(d.id)) bonus += 4;
+                    || "bard_grand_finale".equals(d.id) || "mirrorist_guard".equals(d.id)
+                    || "mirrorist_reflect".equals(d.id) || "mirrorist_overimage".equals(d.id)
+                    || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -14497,7 +14959,9 @@ public final class GameCore {
                     || "chef_prep".equals(d.id) || "chef_spice".equals(d.id)
                     || "chef_sizzle".equals(d.id) || "chef_overcook".equals(d.id)
                     || "chef_grand_banquet".equals(d.id) || "bard_note".equals(d.id)
-                    || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)) bonus += 4;
+                    || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)
+                    || "mirrorist_shard".equals(d.id) || "mirrorist_prismcut".equals(d.id)
+                    || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -14512,7 +14976,9 @@ public final class GameCore {
                     || "dreamwalker_lucid".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)
                     || "gardener_compost".equals(d.id) || "gardener_grand_grove".equals(d.id)
                     || "chef_spice".equals(d.id) || "chef_grand_banquet".equals(d.id)
-                    || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)) bonus += 4;
+                    || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)
+                    || "mirrorist_guard".equals(d.id) || "mirrorist_reflect".equals(d.id)
+                    || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -14528,7 +14994,9 @@ public final class GameCore {
                     || "gardener_overgrowth".equals(d.id) || "chef_prep".equals(d.id)
                     || "chef_stew".equals(d.id) || "chef_overcook".equals(d.id)
                     || "bard_note".equals(d.id) || "bard_ballad".equals(d.id)
-                    || "bard_chorus".equals(d.id) || "bard_overcrescendo".equals(d.id)) bonus += 4;
+                    || "bard_chorus".equals(d.id) || "bard_overcrescendo".equals(d.id)
+                    || "mirrorist_shard".equals(d.id) || "mirrorist_guard".equals(d.id)
+                    || "mirrorist_reflect".equals(d.id) || "mirrorist_overimage".equals(d.id)) bonus += 4;
         } else if ("spec_markchain".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -14553,7 +15021,9 @@ public final class GameCore {
                     || "chef_spice".equals(d.id) || "chef_sizzle".equals(d.id)
                     || "chef_overcook".equals(d.id) || "chef_grand_banquet".equals(d.id)
                     || "bard_note".equals(d.id) || "bard_discord".equals(d.id)
-                    || "bard_overcrescendo".equals(d.id) || "bard_grand_finale".equals(d.id)) bonus += 4;
+                    || "bard_overcrescendo".equals(d.id) || "bard_grand_finale".equals(d.id)
+                    || "mirrorist_shard".equals(d.id) || "mirrorist_prismcut".equals(d.id)
+                    || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
         }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
@@ -14585,7 +15055,9 @@ public final class GameCore {
                 || "chef_prep".equals(id) || "chef_stew".equals(id)
                 || "chef_overcook".equals(id) || "bard_note".equals(id)
                 || "bard_ballad".equals(id) || "bard_chorus".equals(id)
-                || "bard_overcrescendo".equals(id);
+                || "bard_overcrescendo".equals(id) || "mirrorist_shard".equals(id)
+                || "mirrorist_guard".equals(id) || "mirrorist_reflect".equals(id)
+                || "mirrorist_overimage".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -14765,6 +15237,14 @@ public final class GameCore {
                 || d.rarity == 2 || d.vulnerable > 0 || d.profession.equals(PROF_BARD))) {
             bonus += 5;
         }
+        if (hasRelic(s, "mirror_lens") && (d.scry > 0 || d.upgradeRandom || d.createEcho || d.draw > 0
+                || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MIRRORIST))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "mirror_crown") && (d.scry > 0 || d.upgradeRandom || d.createEcho || d.skillChargeGain > 0
+                || d.rarity == 2 || hybridFocusCount(d) >= 2 || d.vulnerable > 0 || d.profession.equals(PROF_MIRRORIST))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -14798,7 +15278,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -14826,6 +15306,7 @@ public final class GameCore {
         if (PROF_GARDENER.equals(s.profession)) return "seed_satchel";
         if (PROF_CHEF.equals(s.profession)) return "recipe_book";
         if (PROF_BARD.equals(s.profession)) return "songbook";
+        if (PROF_MIRRORIST.equals(s.profession)) return "mirror_lens";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -15038,6 +15519,16 @@ public final class GameCore {
         if (PROF_BARD.equals(s.profession) && "finale_crown".equals(id)) {
             return 4;
         }
+        if (PROF_MIRRORIST.equals(s.profession) && ("mirror_lens".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "starforge_lens".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "mosaic_core".equals(id) || "tempo_metronome".equals(id)
+                || "echo_ledger".equals(id) || "echoflow_charm".equals(id) || "markchain_seal".equals(id)
+                || "overload_etch".equals(id) || "discipline_chart".equals(id) || "stormglass_seal".equals(id))) {
+            return 2;
+        }
+        if (PROF_MIRRORIST.equals(s.profession) && "mirror_crown".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession)
                 || PROF_SUMMONER.equals(s.profession) || PROF_CHEF.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
@@ -15080,7 +15571,7 @@ public final class GameCore {
                 || PROF_MEDIUM.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
                 || PROF_PRISMIST.equals(s.profession) || PROF_DREAMWALKER.equals(s.profession)
                 || PROF_GARDENER.equals(s.profession) || PROF_CHEF.equals(s.profession)
-                || PROF_BARD.equals(s.profession))
+                || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -15452,6 +15943,17 @@ public final class GameCore {
         } else if ("finale_crown".equals(id)) {
             addUpgradedDeckCard(s, "bard_grand_finale");
             addUpgradedDeckCard(s, "bard_note");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 4;
+            s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("mirror_lens".equals(id)) {
+            addUpgradedDeckCard(s, "mirrorist_reflect");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("mirror_crown".equals(id)) {
+            addUpgradedDeckCard(s, "mirrorist_grand_mirror");
+            addUpgradedDeckCard(s, "mirrorist_shard");
             upgradeRandomDeckCard(s);
             s.maxHp += 4;
             s.hp += 4;
@@ -16106,6 +16608,19 @@ public final class GameCore {
         c = addCard("bard_grand_finale", "终局终曲", "通用", 2, 2, 0, 9, 13, 9, 13, "造成伤害并获得格挡；按旋律、临时牌、出牌节奏、印记和过载追加终局收益。", "更高伤害、格挡和曲牌返还。");
         c.profession = PROF_BARD; c.draw = c.drawUp = 1; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.createEcho = true; c.echoCardId = "bard_note"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("mirrorist_shard", "折镜碎片", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张并登记印记；检视、升级和汇流会追加镜纹收益。", "更高伤害、更多印记和充能。");
+        c.profession = PROF_MIRRORIST; c.draw = c.drawUp = 1; c.scry = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("mirrorist_guard", "镜面护壁", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、检视并制造临时碎片；镜纹和升级牌会加厚防线。", "更多格挡、检视和升级窗口。");
+        c.profession = PROF_MIRRORIST; c.draw = c.drawUp = 1; c.scry = 2; c.createEcho = true; c.echoCardId = "mirrorist_shard"; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("mirrorist_reflect", "映照手法", "通用", 1, 1, 1, 0, 0, 5, 8, "获得格挡、检视、抽牌并升级手牌；汇流足够时复制临时碎片。", "更多格挡、抽牌和镜像复制。");
+        c.profession = PROF_MIRRORIST; c.draw = c.drawUp = 1; c.scry = 3; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "mirrorist_shard"; c.skillChargeGain = 1;
+        c = addCard("mirrorist_prismcut", "棱切反射", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，施加易伤和印记；目标印记、升级牌和汇流会追加爆发。", "更高伤害、控制和标链收益。");
+        c.profession = PROF_MIRRORIST; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("mirrorist_overimage", "过载镜像", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和职业技充能；制造临时棱切，过载会放大镜像。", "更多格挡、抽牌和职业技充能。");
+        c.profession = PROF_MIRRORIST; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "mirrorist_prismcut"; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("mirrorist_grand_mirror", "终局万镜", "通用", 2, 2, 0, 9, 13, 9, 13, "造成伤害并获得格挡；按镜纹、升级牌、临时牌、汇流、印记和过载追加终局收益。", "更高伤害、格挡和镜像返还。");
+        c.profession = PROF_MIRRORIST; c.draw = c.drawUp = 1; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.createEcho = true; c.echoCardId = "mirrorist_shard"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -16342,6 +16857,7 @@ public final class GameCore {
         addRelicDef("seed_satchel", "种囊", "园艺师治疗、格挡、束缚、再生和腐殖牌更快推动职业技；释放后制造育芽并把种子转为治疗与扎根。");
         addRelicDef("recipe_book", "菜谱书", "炊事师药剂、治疗、燃灼、束缚和状态转化牌更快推动职业技；释放后补料、制造备餐并把菜谱转为治疗与火候。");
         addRelicDef("songbook", "行旅歌本", "吟游诗人低费、抽牌、临时和印记牌更快推动职业技；释放后制造音符并把旋律转为格挡与标记。");
+        addRelicDef("mirror_lens", "映镜透镜", "镜术师检视、升级、临时和汇流牌更快推动职业技；释放后制造碎片、升级手牌并把镜纹转为标记。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -16369,6 +16885,7 @@ public final class GameCore {
         addRelicDef("verdant_crown", "青庭冠", "获得升级终局青庭；园艺师治疗、格挡、束缚、再生、充能和稀有牌会滚动扎根、抽牌、升级与萌发追击。");
         addRelicDef("banquet_crown", "盛宴冠", "获得升级终局盛宴；炊事师药剂、治疗、异常、充能和稀有牌会滚动火候、抽牌、升级与宴席追击。");
         addRelicDef("finale_crown", "终曲冠", "获得升级终局终曲；吟游诗人低费、临时、抽牌、充能和稀有牌会滚动印记、抽牌、升级与终曲追击。");
+        addRelicDef("mirror_crown", "万镜冠", "获得升级终局万镜；镜术师检视、升级、临时、汇流、充能和稀有牌会滚动印记、抽牌、升级与万镜追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -16578,6 +17095,9 @@ public final class GameCore {
         addTalent("t_bard_note", PROF_BARD, "快板循环", "获得升级快板音符；低费、抽牌、临时和曲牌追加印记，并把旋律转成穿透追击。");
         addTalent("t_bard_ballad", PROF_BARD, "护心叙事", "获得生命和升级护心叙事曲；格挡、技能、回声和曲牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_bard_chorus", PROF_BARD, "副歌回响", "获得升级副歌合唱；临时、回声、抽牌和返能牌会转成抽牌、能量和旋律。");
+        addTalent("t_mirrorist_shard", PROF_MIRRORIST, "碎镜连映", "获得升级折镜碎片；低费、检视、临时和镜像牌追加印记，并把镜纹转成穿透追击。");
+        addTalent("t_mirrorist_guard", PROF_MIRRORIST, "镜壁防线", "获得生命和升级镜面护壁；格挡、技能、升级和镜像牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_mirrorist_reflect", PROF_MIRRORIST, "映照转写", "获得升级映照手法并升级牌组；检视、升级、临时和汇流牌会转成抽牌、能量和镜纹。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -16605,6 +17125,7 @@ public final class GameCore {
         addTalent("t_gardener_grand", PROF_GARDENER, "终局青庭", "获得升级终局青庭；治疗、格挡、束缚、再生与过载牌持续抽牌、升级并把扎根印记转为萌发裁切。");
         addTalent("t_chef_grand", PROF_CHEF, "终局盛宴", "获得升级终局盛宴；药剂、治疗、燃灼、束缚与过载牌持续抽牌、升级并把火候印记转为宴席裁切。");
         addTalent("t_bard_grand", PROF_BARD, "终局终曲", "获得升级终局终曲；低费、临时、回声、印记与过载牌持续抽牌、升级并把旋律印记转为终曲裁切。");
+        addTalent("t_mirrorist_grand", PROF_MIRRORIST, "终局万镜", "获得升级终局万镜；检视、升级、临时、汇流与过载牌持续抽牌、升级并把镜纹印记转为万镜裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

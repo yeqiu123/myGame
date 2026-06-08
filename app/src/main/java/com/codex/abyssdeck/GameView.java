@@ -1363,6 +1363,24 @@ public final class GameView extends View {
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx - size * 0.58f, cy + size * 0.42f, size * 0.22f, p);
             c.drawCircle(cx + size * 0.18f, cy + size * 0.66f, size * 0.22f, p);
+        } else if (GameCore.PROF_MIRRORIST.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            Path mirror = new Path();
+            mirror.moveTo(cx, cy - size * 0.96f);
+            mirror.lineTo(cx + size * 0.72f, cy - size * 0.34f);
+            mirror.lineTo(cx + size * 0.48f, cy + size * 0.82f);
+            mirror.lineTo(cx - size * 0.48f, cy + size * 0.82f);
+            mirror.lineTo(cx - size * 0.72f, cy - size * 0.34f);
+            mirror.close();
+            c.drawPath(mirror, p);
+            c.drawOval(new RectF(cx - size * 0.42f, cy - size * 0.58f, cx + size * 0.42f, cy + size * 0.48f), p);
+            c.drawLine(cx - size * 0.58f, cy - size * 0.2f, cx + size * 0.42f, cy - size * 0.62f, p);
+            c.drawLine(cx - size * 0.34f, cy + size * 0.48f, cx + size * 0.56f, cy + size * 0.1f, p);
+            c.drawLine(cx, cy - size * 0.96f, cx, cy + size * 0.82f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx + size * 0.58f, cy - size * 0.52f, size * 0.12f, p);
+            c.drawCircle(cx - size * 0.58f, cy + size * 0.54f, size * 0.1f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
