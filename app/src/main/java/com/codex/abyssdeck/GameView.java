@@ -470,7 +470,9 @@ public final class GameView extends View {
                 drawText(c, "专", dp(49), y + dp(59), 18, 0xff16130d, true);
             }
             drawText(c, t == null ? "" : t.name, dp(96), y + dp(34), 22, 0xfff5ead2, true);
-            drawWrapped(c, t == null ? "" : t.text, dp(96), y + dp(58), w - dp(218), 13, 0xffc5d0cf);
+            String hint = t == null ? "" : GameCore.talentSynergyHint(s, t.id);
+            drawText(c, fitText(hint, 11, w - dp(218)), dp(96), y + dp(52), 11, 0xff9fd5c5, true);
+            drawWrappedLines(c, t == null ? "" : t.text, dp(96), y + dp(70), w - dp(218), 12, 0xffc5d0cf, 2);
             addButton(w - dp(112), y + dp(34), dp(86), dp(38), "领悟", "talent", i);
         }
     }
@@ -1231,6 +1233,34 @@ public final class GameView extends View {
             }
         }
         if (line.length() > 0) {
+            c.drawText(line, x, yy, text);
+        }
+    }
+
+    private void drawWrappedLines(Canvas c, String body, float x, float y, float width, float size, int color, int maxLines) {
+        if (body == null || maxLines <= 0) return;
+        text.setTextSize(size);
+        text.setColor(color);
+        text.setFakeBoldText(false);
+        String line = "";
+        float yy = y;
+        int lines = 0;
+        for (int i = 0; i < body.length(); i++) {
+            String next = line + body.charAt(i);
+            if (text.measureText(next) > width && line.length() > 0) {
+                boolean last = lines + 1 >= maxLines;
+                c.drawText(last ? fitText(line + body.substring(i), size, width) : line, x, yy, text);
+                lines++;
+                if (last) {
+                    return;
+                }
+                yy += size * 1.22f;
+                line = String.valueOf(body.charAt(i));
+            } else {
+                line = next;
+            }
+        }
+        if (line.length() > 0 && lines < maxLines) {
             c.drawText(line, x, yy, text);
         }
     }

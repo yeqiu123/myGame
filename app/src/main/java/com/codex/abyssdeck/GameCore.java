@@ -3,6 +3,7 @@ package com.codex.abyssdeck;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -1563,6 +1564,35 @@ public final class GameCore {
             detail += (detail.length() == 0 ? "" : " / ") + part;
         }
         return detail.length() == 0 ? "多拿带构筑标签的牌会逐步形成方向。" : detail;
+    }
+
+    public static String talentSynergyHint(State s, String id) {
+        TalentDef t = talent(id);
+        if (s == null || t == null) {
+            return "";
+        }
+        String tags = "";
+        int[] top = topBuildFocuses(s, 3);
+        for (int i = 0; i < top.length; i++) {
+            int focus = top[i];
+            if (talentFocusValue(id, focus) > 0) {
+                tags = appendHint(tags, BUILD_FOCUS_NAMES[focus]);
+            }
+        }
+        String hint = tags.length() > 0 ? "契合 " + tags : "";
+        if (t.profession.length() > 0 && t.profession.equals(s.profession)) {
+            hint = appendHint(hint, "职业专精");
+        } else if (t.profession.length() == 0) {
+            hint = appendHint(hint, "通用专精");
+        }
+        if (isAdvancedTalent(id)) {
+            hint = appendHint(hint, "进阶");
+        }
+        String reason = talentReason(s, id);
+        if (reason.length() > 0) {
+            hint = appendHint(hint, reason);
+        }
+        return hint.length() == 0 ? "泛用补强" : hint;
     }
 
     private static int depthShopSurcharge(State s, int basePrice) {
@@ -5319,6 +5349,12 @@ public final class GameCore {
             }
         }
         Collections.shuffle(pool, s.run);
+        Collections.sort(pool, new Comparator<TalentDef>() {
+            @Override
+            public int compare(TalentDef a, TalentDef b) {
+                return talentSynergyScore(s, b.id) - talentSynergyScore(s, a.id);
+            }
+        });
         for (int i = 0; i < 3 && i < pool.size(); i++) {
             s.talentChoices.add(pool.get(i).id);
         }
@@ -5729,6 +5765,257 @@ public final class GameCore {
                     + (d.burnToBlock ? 4 : 0);
         }
         return 0;
+    }
+
+    public static int talentSynergyScore(State s, String id) {
+        if (s == null || id == null) {
+            return 0;
+        }
+        TalentDef t = talent(id);
+        if (t == null) {
+            return 0;
+        }
+        int score = 8;
+        if (t.profession.length() == 0) {
+            score += 10;
+        } else if (t.profession.equals(s.profession)) {
+            score += isAdvancedTalent(id) ? 24 : 18;
+        } else {
+            score -= 20;
+        }
+        int[] top = topBuildFocuses(s, 3);
+        for (int i = 0; i < top.length; i++) {
+            int focus = top[i];
+            int value = talentFocusValue(id, focus);
+            if (value <= 0) {
+                continue;
+            }
+            score += value * (i == 0 ? 7 : i == 1 ? 5 : 3);
+        }
+        score += talentContextBonus(s, id);
+        if (isAdvancedTalent(id)) {
+            score += 5 + s.act * 2;
+        }
+        return score;
+    }
+
+    private static int talentContextBonus(State s, String id) {
+        int bonus = 0;
+        int upgraded = upgradedDeckCards(s);
+        int status = statusDeckCards(s);
+        int zeroCost = zeroCostDeckCards(s);
+        int professionCards = professionDeckCards(s);
+        int potionsOpen = potionLimit(s) - s.potions.size();
+        if ("t_shared_masterwork".equals(id)) bonus += upgraded < 4 ? 12 : 5;
+        else if ("t_shared_hunter".equals(id)) bonus += professionCards >= 5 ? 9 : 4;
+        else if ("t_shared_longnight".equals(id)) bonus += s.deck.size() >= 24 ? 10 : 3;
+        else if ("t_shared_wayfarer".equals(id)) bonus += s.hp < s.maxHp * 0.7f ? 8 : 5;
+        else if ("t_shared_apothecary".equals(id)) bonus += potionsOpen > 0 ? 10 + potionsOpen * 3 : 2;
+        else if ("t_warden_bastion".equals(id)) bonus += s.hp < s.maxHp * 0.7f ? 10 : 4;
+        else if ("t_warden_counter".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2;
+        else if ("t_warden_armory".equals(id)) bonus += upgraded < 5 ? 8 : 3;
+        else if ("t_duelist_tempo".equals(id)) bonus += zeroCost * 4;
+        else if ("t_duelist_execution".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2;
+        else if ("t_duelist_gambit".equals(id)) bonus += buildFocusDeckCards(s, BUILD_CYCLE) * 2;
+        else if ("t_alchemist_reserve".equals(id)) bonus += potionsOpen > 0 ? 12 : 2;
+        else if ("t_alchemist_plague".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2;
+        else if ("t_alchemist_distiller".equals(id)) bonus += potionCards(s) * 4 + potionsOpen * 2;
+        else if ("t_ranger_quarry".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2;
+        else if ("t_ranger_net".equals(id)) bonus += bindDeckCards(s) * 3;
+        else if ("t_ranger_wildpath".equals(id)) bonus += s.deck.size() >= 24 ? 6 : 3;
+        else if ("t_arcanist_rewrite".equals(id)) bonus += buildFocusDeckCards(s, BUILD_ECHO) * 2;
+        else if ("t_arcanist_overflow".equals(id)) bonus += buildFocusDeckCards(s, BUILD_CYCLE) * 2;
+        else if ("t_arcanist_archive".equals(id)) bonus += exhaustDeckCards(s) * 3;
+        else if ("t_merchant_interest".equals(id)) bonus += s.gold >= 120 ? 10 : 4;
+        else if ("t_merchant_contract".equals(id)) bonus += s.gold >= 100 ? 8 : 4;
+        else if ("t_merchant_blackmarket".equals(id)) bonus += s.gold >= 140 ? 8 : 5;
+        else if ("t_bloodbound_scar".equals(id)) bonus += s.hp < s.maxHp * 0.75f ? 10 : 4;
+        else if ("t_bloodbound_feast".equals(id)) bonus += s.hp < s.maxHp * 0.65f ? 12 : 4;
+        else if ("t_bloodbound_crimson".equals(id)) bonus += status <= 2 ? 6 : 2;
+        else if ("t_weaver_setup".equals(id)) bonus += upgraded < 5 ? 8 : 4;
+        else if ("t_weaver_mastery".equals(id)) bonus += upgraded * 2;
+        else if ("t_weaver_quicksilver".equals(id)) bonus += buildFocusDeckCards(s, BUILD_CYCLE) * 2;
+        else if ("t_summoner_court".equals(id)) bonus += buildFocusDeckCards(s, BUILD_ECHO) * 2;
+        else if ("t_summoner_bond".equals(id)) bonus += s.hp < s.maxHp * 0.75f ? 9 : 4;
+        else if ("t_summoner_swarm".equals(id)) bonus += tempOrEchoDeckCards(s) * 3;
+        else if ("t_hexer_darkdeal".equals(id)) bonus += status * 3 + Math.min(8, s.gold / 40);
+        else if ("t_hexer_malediction".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2;
+        else if ("t_hexer_cleanse".equals(id)) bonus += status * 5;
+        else if ("t_warden_vanguard".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2;
+        else if ("t_duelist_masterstep".equals(id)) bonus += zeroCost * 3 + buildFocusDeckCards(s, BUILD_CYCLE);
+        else if ("t_alchemist_grandbrew".equals(id)) bonus += potionCards(s) * 4 + buildFocusDeckCards(s, BUILD_STATUS);
+        else if ("t_ranger_apex".equals(id)) bonus += bindDeckCards(s) * 3;
+        else if ("t_arcanist_singularity".equals(id)) bonus += exhaustDeckCards(s) * 3 + tempOrEchoDeckCards(s) * 2;
+        else if ("t_merchant_monopoly".equals(id)) bonus += Math.min(14, s.gold / 25) + buildFocusDeckCards(s, BUILD_GOLD) * 2;
+        else if ("t_bloodbound_hemocraft".equals(id)) bonus += status * 2 + buildFocusDeckCards(s, BUILD_BLOOD) * 2;
+        else if ("t_weaver_grandpattern".equals(id)) bonus += upgraded * 2 + buildFocusDeckCards(s, BUILD_FORGE) * 2;
+        else if ("t_summoner_overflow".equals(id)) bonus += tempOrEchoDeckCards(s) * 3;
+        else if ("t_hexer_abysscurse".equals(id)) bonus += status * 3 + buildFocusDeckCards(s, BUILD_STATUS) * 2;
+        return Math.min(36, bonus);
+    }
+
+    private static int talentFocusValue(String id, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
+                    "t_arcanist_singularity", "t_merchant_monopoly", "t_weaver_grandpattern",
+                    "t_shared_longnight") ? 3 : 0;
+        }
+        if (focus == BUILD_ECHO) {
+            return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
+                    "t_arcanist_singularity", "t_summoner_court", "t_summoner_swarm",
+                    "t_summoner_overflow", "t_weaver_quicksilver") ? 3 : 0;
+        }
+        if (focus == BUILD_BREW) {
+            return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
+                    "t_alchemist_distiller", "t_alchemist_grandbrew") ? 3 : 0;
+        }
+        if (focus == BUILD_GOLD) {
+            return isAny(id, "t_shared_hunter", "t_shared_wayfarer", "t_merchant_interest",
+                    "t_merchant_contract", "t_merchant_blackmarket", "t_merchant_monopoly",
+                    "t_hexer_darkdeal") ? 3 : 0;
+        }
+        if (focus == BUILD_BLOOD) {
+            return isAny(id, "t_bloodbound_scar", "t_bloodbound_feast", "t_bloodbound_crimson",
+                    "t_bloodbound_hemocraft", "t_hexer_darkdeal", "t_hexer_abysscurse") ? 3 : 0;
+        }
+        if (focus == BUILD_FORGE) {
+            return isAny(id, "t_shared_masterwork", "t_warden_armory", "t_weaver_setup",
+                    "t_weaver_mastery", "t_weaver_grandpattern") ? 3 : 0;
+        }
+        if (focus == BUILD_STATUS) {
+            return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
+                    "t_ranger_quarry", "t_ranger_net", "t_ranger_wildpath", "t_ranger_apex",
+                    "t_hexer_darkdeal", "t_hexer_malediction", "t_hexer_cleanse",
+                    "t_hexer_abysscurse", "t_duelist_execution") ? 3 : 0;
+        }
+        if (focus == BUILD_CYCLE) {
+            return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
+                    "t_arcanist_overflow", "t_weaver_setup", "t_weaver_quicksilver",
+                    "t_shared_longnight") ? 3 : 0;
+        }
+        if (focus == BUILD_GUARD) {
+            return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
+                    "t_warden_vanguard", "t_ranger_net", "t_bloodbound_scar",
+                    "t_summoner_bond", "t_weaver_grandpattern") ? 3 : 0;
+        }
+        return 0;
+    }
+
+    private static String talentReason(State s, String id) {
+        if (isAny(id, "t_shared_masterwork", "t_weaver_mastery", "t_weaver_grandpattern") && upgradedDeckCards(s) >= 4) {
+            return "升级牌多";
+        }
+        if (isAny(id, "t_hexer_cleanse", "t_hexer_darkdeal", "t_hexer_abysscurse") && statusDeckCards(s) > 0) {
+            return "状态牌可转化";
+        }
+        if (isAny(id, "t_duelist_tempo", "t_duelist_masterstep") && zeroCostDeckCards(s) >= 2) {
+            return "低费连打";
+        }
+        if (isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_distiller", "t_alchemist_grandbrew")
+                && s.potions.size() < potionLimit(s)) {
+            return "药剂位可用";
+        }
+        if (isAny(id, "t_merchant_interest", "t_merchant_contract", "t_merchant_blackmarket", "t_merchant_monopoly")
+                && s.gold >= 120) {
+            return "金币充足";
+        }
+        if (isAny(id, "t_bloodbound_scar", "t_bloodbound_feast", "t_summoner_bond", "t_shared_wayfarer")
+                && s.hp < s.maxHp * 0.75f) {
+            return "补足生存";
+        }
+        if (isAny(id, "t_arcanist_archive", "t_arcanist_singularity") && exhaustDeckCards(s) >= 2) {
+            return "消耗牌多";
+        }
+        if (isAny(id, "t_summoner_swarm", "t_summoner_overflow", "t_summoner_court") && tempOrEchoDeckCards(s) >= 2) {
+            return "临时牌多";
+        }
+        return "";
+    }
+
+    private static int upgradedDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            if (c.upgraded) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int statusDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            if ("wound".equals(c.id) || "daze".equals(c.id)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int zeroCostDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && d.cost == 0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int professionDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && d.profession.equals(s.profession)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int potionCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && d.createPotion) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int bindDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && (d.bind > 0 || d.bindToDraw)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int exhaustDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && (d.exhaust || d.exhaustTopDiscard || d.exhaustForDamage)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int tempOrEchoDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (c.temp || (d != null && (d.createEcho || "summoner_sprite".equals(d.echoCardId)))) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static String rewardCardHint(State s, CardDef d) {

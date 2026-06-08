@@ -65,7 +65,7 @@ public final class SimulationHarness {
                 GameCore.skipReward(s);
             }
         } else if (s.mode == GameCore.MODE_TALENT) {
-            GameCore.chooseTalent(s, 0);
+            GameCore.chooseTalent(s, chooseTalent(s));
         } else if (s.mode == GameCore.MODE_SHOP) {
             if (!s.shopRelics.isEmpty() && s.gold >= GameCore.shopRelicPrice(s)) {
                 GameCore.shopBuyRelic(s, 0);
@@ -278,6 +278,19 @@ public final class SimulationHarness {
             if (GameCore.PROF_SUMMONER.equals(s.profession) && "pact_summon".equals(id)) score += 20;
             if (GameCore.PROF_HEXER.equals(s.profession) && "pact_hex".equals(id)) score += 20;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
+            if (score > bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private static int chooseTalent(GameCore.State s) {
+        int best = 0;
+        int bestScore = -9999;
+        for (int i = 0; i < s.talentChoices.size(); i++) {
+            int score = GameCore.talentSynergyScore(s, s.talentChoices.get(i));
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
