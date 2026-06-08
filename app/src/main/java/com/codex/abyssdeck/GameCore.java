@@ -98,10 +98,11 @@ public final class GameCore {
     public static final String PROF_SUMMONER = "唤灵师";
     public static final String PROF_HEXER = "咒术师";
     public static final String PROF_INSCRIBER = "刻印师";
+    public static final String PROF_TUNER = "调律师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
-            PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER
+            PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -704,6 +705,7 @@ public final class GameCore {
         if (PROF_SUMMONER.equals(profession)) return "唤潮";
         if (PROF_HEXER.equals(profession)) return "咒环";
         if (PROF_INSCRIBER.equals(profession)) return "刻痕";
+        if (PROF_TUNER.equals(profession)) return "调律";
         return "职业技";
     }
 
@@ -750,6 +752,7 @@ public final class GameCore {
         if (PROF_SUMMONER.equals(profession)) return "满充能：召来灵潮，制造临时牌并让敌人承受束缚。";
         if (PROF_HEXER.equals(profession)) return "满充能：施加群体诅咒，污染牌组但抽牌并获得能量。";
         if (PROF_INSCRIBER.equals(profession)) return "满充能：铭刻手牌，施加易伤与束缚，并把状态转为资源。";
+        if (PROF_TUNER.equals(profession)) return "满充能：调律目标，按本回合节奏与敌人印记造成穿透，抽牌并返还能量。";
         return "选择职业后可用。";
     }
 
@@ -873,6 +876,24 @@ public final class GameCore {
                 s.energy++;
             }
             addStatusCard(s, overload >= 4 ? "wound" : "daze");
+        } else if (PROF_TUNER.equals(s.profession)) {
+            int played = Math.max(1, s.cardsPlayedThisTurn);
+            int mark = target == null ? 0 : target.mark;
+            int damage = 10 + s.act * 3 + played * 3 + mark * 3 + overload * 4;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + overload / 2;
+                target.vulnerable += 1 + overload / 4;
+            }
+            draw(s, 1 + Math.min(2, played / 4) + overload / 4);
+            if (played >= 3 || overload >= 2) {
+                s.energy++;
+            }
+            if (overload >= 4) {
+                Card note = new Card("tuner_note");
+                note.temp = true;
+                addToHand(s, note);
+            }
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2039,6 +2060,9 @@ public final class GameCore {
         if (PROF_INSCRIBER.equals(profession)) {
             return "用升级牌刻写节奏，把易伤、束缚和状态牌转成充能与资源。适合锻造、异常和过载混合构筑。";
         }
+        if (PROF_TUNER.equals(profession)) {
+            return "用低费、抽牌和充能牌校准节奏，把印记转成职业技爆发。适合循环、过载、回声和异常混合构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2075,6 +2099,9 @@ public final class GameCore {
         }
         if (PROF_INSCRIBER.equals(profession)) {
             return 0xff72d7b4;
+        }
+        if (PROF_TUNER.equals(profession)) {
+            return 0xfff1d36d;
         }
         return 0xffd6c07a;
     }
@@ -2289,6 +2316,11 @@ public final class GameCore {
             s.deck.add(new Card("inscriber_mark"));
             s.deck.add(new Card("inscriber_tablet"));
             upgradeRandomDeckCard(s);
+        } else if (PROF_TUNER.equals(profession)) {
+            s.deck.add(new Card("tuner_note"));
+            s.deck.add(new Card("tuner_pulse"));
+            s.maxHp += 2;
+            s.hp += 2;
         }
     }
 
@@ -2321,6 +2353,7 @@ public final class GameCore {
         else if (PROF_SUMMONER.equals(profession)) upgradeDeckCard(s, "summoner_wisp");
         else if (PROF_HEXER.equals(profession)) upgradeDeckCard(s, "hexer_hexmark");
         else if (PROF_INSCRIBER.equals(profession)) upgradeDeckCard(s, "inscriber_mark");
+        else if (PROF_TUNER.equals(profession)) upgradeDeckCard(s, "tuner_note");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -2357,6 +2390,9 @@ public final class GameCore {
         } else if (PROF_INSCRIBER.equals(profession)) {
             addUpgradedDeckCard(s, "inscriber_tablet");
             upgradeRandomDeckCard(s);
+        } else if (PROF_TUNER.equals(profession)) {
+            addUpgradedDeckCard(s, "tuner_pulse");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -2372,6 +2408,7 @@ public final class GameCore {
         if (PROF_SUMMONER.equals(profession)) return "summoner_overcall";
         if (PROF_HEXER.equals(profession)) return "hexer_overcurse";
         if (PROF_INSCRIBER.equals(profession)) return "inscriber_overseal";
+        if (PROF_TUNER.equals(profession)) return "tuner_overclock";
         return "forge_signal";
     }
 
@@ -2527,6 +2564,12 @@ public final class GameCore {
         } else if ("t_inscriber_archive".equals(id)) {
             addUpgradedDeckCard(s, "inscriber_palimp");
             removeStatusCard(s);
+        } else if ("t_tuner_meter".equals(id)) {
+            addUpgradedDeckCard(s, "tuner_pulse");
+        } else if ("t_tuner_counterpoint".equals(id)) {
+            addUpgradedDeckCard(s, "tuner_harmonic");
+        } else if ("t_tuner_resonance".equals(id)) {
+            addUpgradedDeckCard(s, "tuner_loop");
         } else if ("t_warden_vanguard".equals(id)) {
             s.maxHp += 5;
             s.hp += 5;
@@ -2562,6 +2605,9 @@ public final class GameCore {
             s.hp += 4;
             addUpgradedDeckCard(s, "inscriber_codex");
             upgradeRandomDeckCard(s);
+        } else if ("t_tuner_grand".equals(id)) {
+            addUpgradedDeckCard(s, "tuner_grand_cadence");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -2577,7 +2623,7 @@ public final class GameCore {
                 || "t_arcanist_singularity".equals(id) || "t_merchant_monopoly".equals(id)
                 || "t_bloodbound_hemocraft".equals(id) || "t_weaver_grandpattern".equals(id)
                 || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id)
-                || "t_inscriber_grandcodex".equals(id);
+                || "t_inscriber_grandcodex".equals(id) || "t_tuner_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -2586,7 +2632,7 @@ public final class GameCore {
                 || "arcanist_eventhorizon".equals(id) || "merchant_kingmaker".equals(id)
                 || "blood_apotheosis".equals(id) || "weaver_clockwork".equals(id)
                 || "summoner_procession".equals(id) || "hexer_crownfall".equals(id)
-                || "inscriber_codex".equals(id);
+                || "inscriber_codex".equals(id) || "tuner_grand_cadence".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -2595,7 +2641,7 @@ public final class GameCore {
                 || "singularity_orb".equals(id) || "kingmaker_seal".equals(id)
                 || "blood_crown".equals(id) || "clockwork_loom".equals(id)
                 || "spirit_processional".equals(id) || "fallen_crown".equals(id)
-                || "living_codex".equals(id);
+                || "living_codex".equals(id) || "conductor_baton".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -2958,6 +3004,8 @@ public final class GameCore {
         else if (PROF_HEXER.equals(s.profession) && d != null && (d.vulnerable > 0 || d.addStatusToEnemy || d.createWound || "wound".equals(d.id) || "daze".equals(d.id))) amount++;
         else if (PROF_INSCRIBER.equals(s.profession) && d != null && (d.upgradeRandom || d.scry > 0 || d.vulnerable > 0 || d.bind > 0
                 || d.addStatusToEnemy || d.createWound || d.skillChargeGain > 0 || "wound".equals(d.id) || "daze".equals(d.id))) amount++;
+        else if (PROF_TUNER.equals(s.profession) && d != null && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0
+                || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -3233,6 +3281,17 @@ public final class GameCore {
                 draw(s, 1);
                 addProfessionSkillCharge(s, 1);
             }
+        } else if (PROF_TUNER.equals(s.profession)) {
+            draw(s, 1);
+            addProfessionSkillCharge(s, level + overload / 2);
+            if (target != null) {
+                target.mark += level + 1 + overload / 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(18, target.mark * 2), true);
+            }
+            if (level >= 3 || s.cardsPlayedThisTurn >= 4) {
+                s.energy++;
+            }
         }
     }
 
@@ -3302,6 +3361,14 @@ public final class GameCore {
             }
             addProfessionSkillCharge(s, 2);
         }
+        if (hasRelic(s, "tuning_fork") && PROF_TUNER.equals(s.profession)) {
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2);
+            if (target != null) {
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(12, target.mark * 2), true);
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -3319,6 +3386,7 @@ public final class GameCore {
         if (hasRelic(s, "spirit_bell") && PROF_SUMMONER.equals(s.profession) && amount > 0 && s.hand.size() >= 5) amount++;
         if (hasRelic(s, "hex_tablet") && PROF_HEXER.equals(s.profession) && amount > 0 && firstLiving(s) != null && firstLiving(s).vulnerable > 0) amount++;
         if (hasRelic(s, "engraver_stylus") && PROF_INSCRIBER.equals(s.profession) && amount > 0 && upgradedCardCount(s) >= 3) amount++;
+        if (hasRelic(s, "tuning_fork") && PROF_TUNER.equals(s.profession) && amount > 0 && s.cardsPlayedThisTurn >= 3) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -3969,6 +4037,25 @@ public final class GameCore {
                 draw(s, 1);
             }
             if (hasTalent(s, "t_inscriber_grandcodex")) {
+                addProfessionSkillCharge(s, 2);
+            }
+        }
+        if (PROF_TUNER.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 2);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            if (hasTalent(s, "t_tuner_meter")) {
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_tuner_resonance")) {
+                s.energy++;
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_tuner_grand")) {
+                Card note = new Card("tuner_note");
+                note.temp = true;
+                addToHand(s, note);
                 addProfessionSkillCharge(s, 2);
             }
         }
@@ -4825,6 +4912,23 @@ public final class GameCore {
         if ("weaver_clockwork".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, upgradedCardCount(s) * 2);
         }
+        if ("tuner_pulse".equals(d.id) && target != null && target.mark > 0) {
+            addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            block += Math.min(c.upgraded ? 10 : 7, target.mark * 2);
+        }
+        if ("tuner_harmonic".equals(d.id) && target != null) {
+            target.mark += c.upgraded ? 2 : 1;
+            damage += Math.min(c.upgraded ? 16 : 10, target.mark * 2);
+        }
+        if ("tuner_overclock".equals(d.id) && firstLiving(s) != null) {
+            firstLiving(s).mark += c.upgraded ? 3 : 2;
+        }
+        if ("tuner_grand_cadence".equals(d.id) && target != null) {
+            damage += Math.min(c.upgraded ? 32 : 24, target.mark * (c.upgraded ? 4 : 3));
+            if (target.mark >= 4) {
+                draw += 1;
+            }
+        }
 
         if (damage > 0) {
             if (d.aoe) {
@@ -5600,6 +5704,57 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3 || s.cardsPlayedThisTurn == 6) {
                 upgradeRandomHandCard(s);
                 addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_TUNER.equals(s.profession) && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0 || d.createEcho)) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += d.cost == 0 || d.skillChargeGain > 0 ? 1 : 0;
+                if (s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(12, e.mark * 2), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                draw(s, 1);
+                if (s.cardsPlayedThisTurn >= 4) {
+                    s.energy++;
+                }
+                if (e != null) {
+                    e.vulnerable += 1;
+                }
+                s.professionCharge = 0;
+            }
+        }
+        if (hasTalent(s, "t_tuner_counterpoint") && (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(10, e.mark), true);
+            }
+        }
+        if (hasTalent(s, "t_tuner_meter") && s.cardsPlayedThisTurn == 4) {
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2);
+        }
+        if (hasTalent(s, "t_tuner_grand") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || c.temp)) {
+            if (s.cardsPlayedThisTurn % 3 == 0) {
+                s.energy++;
+                addProfessionSkillCharge(s, 1);
+            }
+            Enemy e = firstLiving(s);
+            if (e != null && e.mark >= 3) {
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(14, e.mark * 2), true);
+            }
+        }
+        if (hasRelic(s, "tuning_fork") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || c.temp)) {
+            if (s.cardsPlayedThisTurn == 3 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1;
+                }
             }
         }
         if (s.steelEngine > 0 && d.type == 1) {
@@ -6496,6 +6651,9 @@ public final class GameCore {
         if (PROF_INSCRIBER.equals(s.profession)) {
             return focus == BUILD_FORGE ? 18 : focus == BUILD_STATUS ? 14 : focus == BUILD_OVERLOAD || focus == BUILD_CYCLE ? 7 : 0;
         }
+        if (PROF_TUNER.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_STATUS || focus == BUILD_ECHO ? 7 : 0;
+        }
         return 0;
     }
 
@@ -6535,13 +6693,15 @@ public final class GameCore {
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
                     + ("hybrid_guard_conduit".equals(d.id) ? 10 : 0) + ("hybrid_rift_engine".equals(d.id) ? 8 : 0)
                     + ("hybrid_echo_step".equals(d.id) ? 4 : 0) + ("hybrid_forgebrand".equals(d.id) ? 4 : 0)
+                    + ("tuner_overclock".equals(d.id) ? 12 : 0) + ("tuner_note".equals(d.id) ? 5 : 0)
+                    + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_overseal".equals(d.id) ? 4 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
         }
         if (focus == BUILD_ECHO) {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
                     + (d.exhaustForDamage ? 6 : 0) + ("summoner_sprite".equals(d.echoCardId) ? 3 : 0)
                     + ("echo_matrix".equals(d.id) ? 10 : 0) + ("hybrid_echo_step".equals(d.id) ? 10 : 0)
-                    + ("hybrid_rift_engine".equals(d.id) ? 8 : 0);
+                    + ("hybrid_rift_engine".equals(d.id) ? 8 : 0) + ("tuner_loop".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 5 : 0)
@@ -6566,12 +6726,15 @@ public final class GameCore {
             return d.burn * 2 + d.bind * 2 + d.vulnerable * 5 + (d.addStatusToEnemy ? 7 : 0)
                     + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0) + ("plague_vector".equals(d.id) ? 10 : 0)
                     + ("hybrid_forgebrand".equals(d.id) ? 10 : 0) + ("hybrid_plague_brew".equals(d.id) ? 12 : 0)
+                    + ("tuner_harmonic".equals(d.id) ? 8 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_glyphstorm".equals(d.id) ? 5 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
         }
         if (focus == BUILD_CYCLE) {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
                     + ("cycle_metronome".equals(d.id) ? 10 : 0) + ("hybrid_echo_step".equals(d.id) ? 10 : 0)
                     + ("hybrid_guard_conduit".equals(d.id) ? 4 : 0) + ("hybrid_rift_engine".equals(d.id) ? 10 : 0)
+                    + ("tuner_note".equals(d.id) ? 10 : 0) + ("tuner_pulse".equals(d.id) ? 8 : 0)
+                    + ("tuner_loop".equals(d.id) ? 12 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_palimp".equals(d.id) ? 4 : 0);
         }
         if (focus == BUILD_GUARD) {
@@ -6672,6 +6835,9 @@ public final class GameCore {
         else if ("t_inscriber_rubbing".equals(id)) bonus += upgraded < 5 ? 10 : 4;
         else if ("t_inscriber_etching".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2;
         else if ("t_inscriber_archive".equals(id)) bonus += status * 4 + exhaustDeckCards(s) * 2;
+        else if ("t_tuner_meter".equals(id)) bonus += zeroCost * 3 + buildFocusDeckCards(s, BUILD_CYCLE);
+        else if ("t_tuner_counterpoint".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2;
+        else if ("t_tuner_resonance".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_ECHO);
         else if ("t_warden_vanguard".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2;
         else if ("t_duelist_masterstep".equals(id)) bonus += zeroCost * 3 + buildFocusDeckCards(s, BUILD_CYCLE);
         else if ("t_alchemist_grandbrew".equals(id)) bonus += potionCards(s) * 4 + buildFocusDeckCards(s, BUILD_STATUS);
@@ -6683,6 +6849,7 @@ public final class GameCore {
         else if ("t_summoner_overflow".equals(id)) bonus += tempOrEchoDeckCards(s) * 3;
         else if ("t_hexer_abysscurse".equals(id)) bonus += status * 3 + buildFocusDeckCards(s, BUILD_STATUS) * 2;
         else if ("t_inscriber_grandcodex".equals(id)) bonus += upgraded * 2 + status * 2 + buildFocusDeckCards(s, BUILD_FORGE) * 2;
+        else if ("t_tuner_grand".equals(id)) bonus += zeroCost * 2 + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -6690,12 +6857,12 @@ public final class GameCore {
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
                     "t_arcanist_singularity", "t_merchant_monopoly", "t_weaver_grandpattern",
-                    "t_inscriber_grandcodex", "t_shared_longnight") ? 3 : 0;
+                    "t_inscriber_grandcodex", "t_tuner_resonance", "t_tuner_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
                     "t_arcanist_singularity", "t_summoner_court", "t_summoner_swarm",
-                    "t_summoner_overflow", "t_weaver_quicksilver") ? 3 : 0;
+                    "t_summoner_overflow", "t_weaver_quicksilver", "t_tuner_resonance") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -6720,12 +6887,12 @@ public final class GameCore {
                     "t_ranger_quarry", "t_ranger_net", "t_ranger_wildpath", "t_ranger_apex",
                     "t_hexer_darkdeal", "t_hexer_malediction", "t_hexer_cleanse",
                     "t_hexer_abysscurse", "t_inscriber_etching", "t_inscriber_archive",
-                    "t_inscriber_grandcodex", "t_duelist_execution") ? 3 : 0;
+                    "t_inscriber_grandcodex", "t_tuner_counterpoint", "t_tuner_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
                     "t_arcanist_overflow", "t_weaver_setup", "t_weaver_quicksilver",
-                    "t_inscriber_archive", "t_shared_longnight") ? 3 : 0;
+                    "t_inscriber_archive", "t_tuner_meter", "t_tuner_resonance", "t_tuner_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
@@ -6764,6 +6931,12 @@ public final class GameCore {
         }
         if (isAny(id, "t_summoner_swarm", "t_summoner_overflow", "t_summoner_court") && tempOrEchoDeckCards(s) >= 2) {
             return "临时牌多";
+        }
+        if (isAny(id, "t_tuner_meter", "t_tuner_resonance", "t_tuner_grand") && zeroCostDeckCards(s) >= 2) {
+            return "低费节奏";
+        }
+        if (isAny(id, "t_tuner_counterpoint", "t_tuner_grand") && buildFocusDeckCards(s, BUILD_STATUS) >= 2) {
+            return "标记异常";
         }
         return "";
     }
@@ -6945,11 +7118,11 @@ public final class GameCore {
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
                     "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet",
                     "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
-                    "split_anvil", "echo_ledger", "confluence_map", "ability_crown") ? 3 : 0;
+                    "tuning_fork", "conductor_baton", "split_anvil", "echo_ledger", "confluence_map", "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
-                    "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "spirit_bell", "spirit_processional", "void_anchor",
+                    "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "tuning_fork", "spirit_bell", "spirit_processional", "void_anchor",
                     "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
@@ -6972,12 +7145,12 @@ public final class GameCore {
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
                     "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
-                    "split_anvil", "bloodspark_contract", "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
+                    "split_anvil", "bloodspark_contract", "tuning_fork", "conductor_baton", "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
                     "fallen_crown", "engraver_stylus", "living_codex", "hex_moon") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
-                    "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "flash_heel", "pattern_spool",
+                    "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "tuning_fork", "conductor_baton", "flash_heel", "pattern_spool",
                     "tempo_spindle", "finale_rapier", "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -6999,7 +7172,8 @@ public final class GameCore {
                 || (PROF_WEAVER.equals(s.profession) && "pattern_spool".equals(id))
                 || (PROF_SUMMONER.equals(s.profession) && "spirit_bell".equals(id))
                 || (PROF_HEXER.equals(s.profession) && "hex_tablet".equals(id))
-                || (PROF_INSCRIBER.equals(s.profession) && "engraver_stylus".equals(id));
+                || (PROF_INSCRIBER.equals(s.profession) && "engraver_stylus".equals(id))
+                || (PROF_TUNER.equals(s.profession) && "tuning_fork".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -7028,7 +7202,7 @@ public final class GameCore {
         return hasRelic(s, "command_banner") || hasRelic(s, "flash_heel") || hasRelic(s, "catalyst_pump")
                 || hasRelic(s, "hawk_fletching") || hasRelic(s, "echo_prism") || hasRelic(s, "ledger_stamp")
                 || hasRelic(s, "crimson_seal") || hasRelic(s, "pattern_spool") || hasRelic(s, "spirit_bell")
-                || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus");
+                || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus") || hasRelic(s, "tuning_fork");
     }
 
     private static CardDef randomOverloadCard(State s, boolean allowRare) {
@@ -7123,6 +7297,10 @@ public final class GameCore {
                 || d.addStatusToEnemy || d.createWound || d.exhaustTopDiscard || d.skillChargeGain > 0)) {
             return 4;
         }
+        if (PROF_TUNER.equals(s.profession) && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0
+                || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -7205,6 +7383,12 @@ public final class GameCore {
         if (hasRelic(s, "confluence_map") && hybridFocusCount(d) >= 2) {
             bonus += 5;
         }
+        if (hasRelic(s, "tuning_fork") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0 || d.createEcho)) {
+            bonus += 3;
+        }
+        if (hasRelic(s, "conductor_baton") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.comboDamage > 0)) {
+            bonus += 4;
+        }
         return bonus;
     }
 
@@ -7232,7 +7416,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -7244,6 +7428,7 @@ public final class GameCore {
         if (PROF_SUMMONER.equals(s.profession)) return "spirit_bell";
         if (PROF_HEXER.equals(s.profession)) return "hex_tablet";
         if (PROF_INSCRIBER.equals(s.profession)) return "engraver_stylus";
+        if (PROF_TUNER.equals(s.profession)) return "tuning_fork";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -7315,6 +7500,13 @@ public final class GameCore {
         if (PROF_INSCRIBER.equals(s.profession) && "living_codex".equals(id)) {
             return 4;
         }
+        if (PROF_TUNER.equals(s.profession) && ("tuning_fork".equals(id) || "tempo_metronome".equals(id)
+                || "amber_quill".equals(id) || "echo_ledger".equals(id) || "confluence_map".equals(id))) {
+            return 2;
+        }
+        if (PROF_TUNER.equals(s.profession) && "conductor_baton".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -7371,6 +7563,9 @@ public final class GameCore {
         if (ORIGIN_WILD.equals(s.origin) && ("bloodspark_contract".equals(id) || "confluence_map".equals(id))) {
             return 1;
         }
+        if ((ORIGIN_VOID.equals(s.origin) || ORIGIN_STEEL.equals(s.origin)) && "tuning_fork".equals(id)) {
+            return 1;
+        }
         return 0;
     }
 
@@ -7387,10 +7582,10 @@ public final class GameCore {
         if ("spec_sustain".equals(spec.id) && "vigil_bloom".equals(id)) return 5;
         if ("spec_resonance".equals(spec.id) && "resonance_lens".equals(id)) return 5;
         if ("spec_mastery".equals(spec.id) && "mastery_badge".equals(id)) return 5;
-        if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark")) return 1;
-        if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger")) return 1;
+        if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark", "conductor_baton")) return 1;
+        if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork")) return 1;
         if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist", "bloodspark_contract")) return 1;
-        if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown", "confluence_map", "split_anvil")) return 1;
+        if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown", "confluence_map", "split_anvil", "conductor_baton")) return 1;
         if ("spec_mastery".equals(spec.id) && isSkillRelicForProfession(s, id)) return 2;
         return 0;
     }
@@ -7507,6 +7702,9 @@ public final class GameCore {
             addUpgradedDeckCard(s, "inscriber_codex");
             upgradeRandomDeckCard(s);
             addStatusCard(s, "daze");
+        } else if ("conductor_baton".equals(id)) {
+            addUpgradedDeckCard(s, "tuner_grand_cadence");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         } else if ("split_anvil".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_forgebrand");
             upgradeRandomDeckCard(s);
@@ -7865,6 +8063,19 @@ public final class GameCore {
         c = addCard("inscriber_codex", "无名刻典", "通用", 2, 2, 2, 0, 0, 9, 13, "获得格挡，升级手牌，敌群易伤束缚，职业技充能+3。", "更多格挡与控制，职业技充能+4。");
         c.profession = PROF_INSCRIBER; c.upgradeRandom = true; c.vulnerable = 1; c.bind = 2; c.bindUp = 3; c.skillChargeGain = 3; c.targetEnemy = true;
 
+        c = addCard("tuner_note", "校音符", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张，职业技充能+1。", "更高伤害，抽1张，职业技充能+2。");
+        c.profession = PROF_TUNER; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("tuner_pulse", "节拍脉冲", "通用", 0, 1, 1, 0, 0, 5, 8, "获得格挡，抽1张；若目标有印记，职业技充能更快。", "更多格挡，抽2张。");
+        c.profession = PROF_TUNER; c.draw = 1; c.drawUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("tuner_harmonic", "和声叠印", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，施加易伤，职业技充能+2。", "更高伤害与易伤，职业技充能+3。");
+        c.profession = PROF_TUNER; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("tuner_loop", "回拍循环", "通用", 2, 0, 2, 0, 0, 0, 0, "抽2张，获得1能量，制造临时校音符，消耗。", "抽3张，获得1能量，制造临时校音符。");
+        c.profession = PROF_TUNER; c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.createEcho = true; c.echoCardId = "tuner_note"; c.exhaust = true;
+        c = addCard("tuner_overclock", "过载定拍", "通用", 1, 1, 2, 0, 0, 4, 7, "获得格挡，抽1张，职业技充能+3，给首个敌人追加印记。", "更多格挡，职业技充能+4。");
+        c.profession = PROF_TUNER; c.draw = c.drawUp = 1; c.skillChargeGain = 3;
+        c = addCard("tuner_grand_cadence", "终局大调", "通用", 2, 1, 0, 9, 13, 0, 0, "造成伤害，抽1张，施加易伤；印记越多越强，职业技充能+2。", "更高伤害与节奏收益。");
+        c.profession = PROF_TUNER; c.draw = c.drawUp = 1; c.vulnerable = 1; c.skillChargeGain = 2; c.comboDamage = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -8075,6 +8286,7 @@ public final class GameCore {
         addRelicDef("spirit_bell", "灵铃", "唤灵师手牌充足时职业技更快充能；释放后制造临时灵火并获得格挡。");
         addRelicDef("hex_tablet", "咒碑", "咒术师面对易伤敌人时职业技更快充能；释放后追加控制与穿透伤害。");
         addRelicDef("engraver_stylus", "活刻笔", "刻印师升级牌较多时职业技更快充能；释放后升级手牌、抽牌并追加刻痕控制。");
+        addRelicDef("tuning_fork", "定音叉", "调律师连打后职业技更快充能；释放后抽牌、追加印记和穿透伤害。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -8086,6 +8298,7 @@ public final class GameCore {
         addRelicDef("spirit_processional", "百灵仪仗", "获得升级百灵巡游；召唤和临时牌提供格挡、束缚并续接灵火。");
         addRelicDef("fallen_crown", "坠落咒冠", "获得升级咒冠坠落；异常与状态牌扩散易伤，状态牌额外格挡。");
         addRelicDef("living_codex", "活页刻典", "获得升级无名刻典；升级、刻印和状态牌扩散易伤束缚，并定期升级手牌。");
+        addRelicDef("conductor_baton", "指挥棒", "获得升级终局大调；节奏、充能和印记牌会推动调律师形成终局爆发。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -8241,6 +8454,9 @@ public final class GameCore {
         addTalent("t_inscriber_rubbing", PROF_INSCRIBER, "拓印工法", "获得升级刻板抄录并升级牌组；升级牌提供格挡和职业技充能。");
         addTalent("t_inscriber_etching", PROF_INSCRIBER, "裂纹蚀刻", "获得升级符雨；刻印异常会追加伤害，并把易伤与束缚扩散到敌群。");
         addTalent("t_inscriber_archive", PROF_INSCRIBER, "残页归档", "获得升级重写羊皮卷并净化状态；消耗状态牌时获得能量、抽牌和充能。");
+        addTalent("t_tuner_meter", PROF_TUNER, "稳拍计", "首回合抽牌；每回合第4张牌抽牌并获得职业技充能。");
+        addTalent("t_tuner_counterpoint", PROF_TUNER, "对位标记", "获得升级和声叠印；异常与易伤牌会追加印记和穿透伤害。");
+        addTalent("t_tuner_resonance", PROF_TUNER, "共鸣调弦", "获得升级回拍循环；首回合获得能量和职业技充能。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -8252,6 +8468,7 @@ public final class GameCore {
         addTalent("t_summoner_overflow", PROF_SUMMONER, "满溢灵潮", "获得升级灵庭；首回合临时游魂引，召唤与临时牌持续束缚并续接灵火。");
         addTalent("t_hexer_abysscurse", PROF_HEXER, "深渊咒冠", "获得升级恶咒并加入眩光；异常与状态牌会向敌群扩散易伤、束缚和穿透伤害。");
         addTalent("t_inscriber_grandcodex", PROF_INSCRIBER, "活页宗典", "获得最大生命和升级无名刻典；升级、刻印与状态牌持续给职业技、格挡和抽牌。");
+        addTalent("t_tuner_grand", PROF_TUNER, "终局指挥", "获得升级终局大调；节奏牌定期返还能量，印记目标承受追加穿透。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

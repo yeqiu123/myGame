@@ -390,7 +390,9 @@ public final class GameView extends View {
                 "自损裂伤 / 压血爆发",
                 "预视升级 / 牌序重织",
                 "灵体临牌 / 召唤控场",
-                "状态诅咒 / 易伤压制"
+                "状态诅咒 / 易伤压制",
+                "升级刻印 / 异常过载",
+                "低费调律 / 印记爆发"
         };
         int rows = (GameCore.PROFESSIONS.length + cols - 1) / cols;
         float startY = dp(126);
@@ -1169,6 +1171,12 @@ public final class GameView extends View {
             c.drawLine(cx - size * 0.45f, cy, cx + size * 0.45f, cy, p);
             c.drawLine(cx - size * 0.45f, cy + size * 0.42f, cx + size * 0.45f, cy + size * 0.42f, p);
             c.drawLine(cx + size * 0.15f, cy - size * 0.86f, cx - size * 0.48f, cy + size * 0.86f, p);
+        } else if (GameCore.PROF_TUNER.equals(profession)) {
+            c.drawCircle(cx, cy, size * 0.95f, p);
+            c.drawLine(cx - size * 0.8f, cy, cx + size * 0.8f, cy, p);
+            c.drawLine(cx - size * 0.45f, cy - size * 0.55f, cx + size * 0.45f, cy + size * 0.55f, p);
+            c.drawLine(cx - size * 0.45f, cy + size * 0.55f, cx + size * 0.45f, cy - size * 0.55f, p);
+            c.drawCircle(cx, cy, size * 0.24f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

@@ -175,7 +175,10 @@ public final class SimulationHarness {
             if (GameCore.PROF_HEXER.equals(s.profession) && (d.vulnerable > 0 || d.createWound || d.addStatusToEnemy || d.spreadStatus)) score += 12;
             if (GameCore.PROF_INSCRIBER.equals(s.profession) && (d.upgradeRandom || d.scry > 0 || d.vulnerable > 0 || d.bind > 0
                     || d.addStatusToEnemy || d.createWound || d.exhaustTopDiscard || d.skillChargeGain > 0)) score += 12;
+            if (GameCore.PROF_TUNER.equals(s.profession) && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0
+                    || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) score += 12;
             if (isHybridCore(d)) score += 14;
+            if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -212,6 +215,8 @@ public final class SimulationHarness {
             if (GameCore.PROF_HEXER.equals(s.profession) && ("fallen_crown".equals(id) || "hex_tablet".equals(id) || "curse_censer".equals(id))) score += 34;
             if (GameCore.PROF_INSCRIBER.equals(s.profession) && ("living_codex".equals(id) || "engraver_stylus".equals(id)
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "curse_censer".equals(id) || "stormglass_seal".equals(id))) score += 34;
+            if (GameCore.PROF_TUNER.equals(s.profession) && ("conductor_baton".equals(id) || "tuning_fork".equals(id)
+                    || "tempo_metronome".equals(id) || "echo_ledger".equals(id) || "confluence_map".equals(id))) score += 34;
             if ("confluence_map".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession))) score += 28;
@@ -301,6 +306,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_SUMMONER.equals(s.profession) && "pact_summon".equals(id)) score += 20;
             if (GameCore.PROF_HEXER.equals(s.profession) && "pact_hex".equals(id)) score += 20;
             if (GameCore.PROF_INSCRIBER.equals(s.profession) && ("pact_forge".equals(id) || "pact_hex".equals(id) || "pact_sprinter".equals(id))) score += 18;
+            if (GameCore.PROF_TUNER.equals(s.profession) && ("pact_sprinter".equals(id) || "pact_void".equals(id) || "pact_hunter".equals(id))) score += 18;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -413,6 +419,10 @@ public final class SimulationHarness {
                         || d.addStatusToEnemy || d.createWound || d.exhaustTopDiscard || "wound".equals(c.id) || "daze".equals(c.id))) {
                     score += 12;
                 }
+                if (GameCore.PROF_TUNER.equals(s.profession) && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0
+                        || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) {
+                    score += 12;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -440,6 +450,7 @@ public final class SimulationHarness {
                 if ("summoner_procession".equals(c.id)) score += 14;
                 if ("hexer_crownfall".equals(c.id)) score += 14;
                 if ("inscriber_codex".equals(c.id)) score += 14;
+                if ("tuner_grand_cadence".equals(c.id) || "tuner_loop".equals(c.id) || "tuner_overclock".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
                 if (s.relics.contains("loom_shuttle") && d.scry > 0) score += 6;
@@ -485,6 +496,8 @@ public final class SimulationHarness {
                 if (s.relics.contains("spirit_processional") && (d.createEcho || c.temp || d.bind > 0)) score += 10;
                 if (s.relics.contains("fallen_crown") && (d.vulnerable > 0 || d.createWound || "wound".equals(c.id) || "daze".equals(c.id))) score += 10;
                 if (s.relics.contains("living_codex") && (c.upgraded || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || "wound".equals(c.id) || "daze".equals(c.id))) score += 10;
+                if (s.relics.contains("tuning_fork") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || c.temp)) score += 10;
+                if (s.relics.contains("conductor_baton") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.vulnerable > 0)) score += 12;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -533,7 +546,8 @@ public final class SimulationHarness {
                 || s.relics.contains("spirit_processional") || s.relics.contains("fallen_crown")
                 || s.relics.contains("engraver_stylus") || s.relics.contains("living_codex")
                 || s.relics.contains("split_anvil") || s.relics.contains("echo_ledger")
-                || s.relics.contains("bloodspark_contract") || s.relics.contains("confluence_map");
+                || s.relics.contains("bloodspark_contract") || s.relics.contains("confluence_map")
+                || s.relics.contains("tuning_fork") || s.relics.contains("conductor_baton");
     }
 
     private static boolean isOffPoolCard(GameCore.State s, GameCore.CardDef d) {
