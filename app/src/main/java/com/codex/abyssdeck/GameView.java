@@ -461,8 +461,12 @@ public final class GameView extends View {
         if (s.encounterModifier != GameCore.MOD_NONE) {
             drawText(c, "词缀：" + GameCore.modifierName(s.encounterModifier) + " - " + GameCore.modifierText(s.encounterModifier), dp(22), dp(122), 13, 0xffc9d7d3, false);
         }
+        if (s.combatQuest != GameCore.QUEST_NONE) {
+            String q = "目标：" + GameCore.questName(s.combatQuest) + "  " + questProgressText();
+            drawText(c, q, dp(22), dp(140), 13, s.questComplete ? 0xfff5d276 : 0xffb9d7d0, true);
+        }
         if (s.vulnerable > 0) {
-            drawText(c, "易伤 " + s.vulnerable, dp(22), dp(140), 15, 0xffff8d75, true);
+            drawText(c, "易伤 " + s.vulnerable, dp(22), dp(158), 15, 0xffff8d75, true);
         }
         float enemyTop = dp(144);
         float gap = w / (s.enemies.size() + 1f);
@@ -658,7 +662,7 @@ public final class GameView extends View {
         int w = getWidth();
         drawText(c, "图鉴", dp(24), dp(86), 30, 0xfff4d580, true);
         drawText(c, "卡牌 " + GameCore.CARD_LIBRARY.size() + "   遗物 " + GameCore.RELIC_LIBRARY.size() + "   药剂 " + GameCore.POTION_LIBRARY.size() + "   专精 " + GameCore.TALENT_LIBRARY.size(), dp(24), dp(118), 16, 0xffc9d2d2, false);
-        drawText(c, "记录：旅程 " + s.meta.runs + " / 胜利 " + s.meta.wins + " / 最高难度 " + s.meta.highestDepth + " / 最大金币 " + s.meta.maxGold, dp(24), dp(142), 13, 0xffd7c994, true);
+        drawText(c, "记录：旅程 " + s.meta.runs + " / 胜利 " + s.meta.wins + " / 目标 " + s.meta.questCompletions + " / 最大金币 " + s.meta.maxGold, dp(24), dp(142), 13, 0xffd7c994, true);
         float y = dp(152);
         for (int i = 0; i < Math.min(10, GameCore.CARD_LIBRARY.size()); i++) {
             GameCore.CardDef d = GameCore.CARD_LIBRARY.get(i);
@@ -666,7 +670,7 @@ public final class GameView extends View {
         }
         float ay = y + dp(260);
         drawText(c, "成就", dp(24), ay, 17, 0xfff0d486, true);
-        String[] achievements = {"first_run", "first_win", "all_professions", "collector", "high_depth", "talent_master", "rich"};
+        String[] achievements = {"first_run", "first_win", "all_professions", "collector", "high_depth", "talent_master", "rich", "quest_hunter"};
         for (int i = 0; i < achievements.length; i++) {
             String id = achievements[i];
             String mark = GameCore.hasAchievement(s, id) ? "*" : "-";
@@ -681,7 +685,7 @@ public final class GameView extends View {
         drawText(c, victory ? "抵达无光尽头" : "旅程终止", dp(30), h * 0.25f, 34, victory ? 0xfff6d780 : 0xffff8d75, true);
         drawText(c, s.origin + " " + s.profession + " / Act " + s.act + " / 层 " + s.floor + " / 牌组 " + s.deck.size() + " 张 / 遗物 " + s.relics.size(), dp(32), h * 0.25f + dp(44), 16, 0xffd8ded8, false);
         drawText(c, s.lastRunSummary, dp(32), h * 0.25f + dp(68), 14, 0xffd7c994, true);
-        drawText(c, "历史：旅程 " + s.meta.runs + "  胜利 " + s.meta.wins + "  最深 " + s.meta.highestFloor + "层  最高难度 " + s.meta.highestDepth, dp(32), h * 0.25f + dp(92), 13, 0xffc3d0cc, false);
+        drawText(c, "历史：旅程 " + s.meta.runs + "  胜利 " + s.meta.wins + "  最深 " + s.meta.highestFloor + "层  目标 " + s.meta.questCompletions, dp(32), h * 0.25f + dp(92), 13, 0xffc3d0cc, false);
         float ay = h * 0.25f + dp(122);
         if (!s.newAchievements.isEmpty()) {
             drawText(c, "新成就", dp(32), ay, 17, 0xfff0d486, true);
@@ -910,6 +914,16 @@ public final class GameView extends View {
 
     private String rarity(int r) {
         return r == 2 ? "稀有" : r == 1 ? "进阶" : "普通";
+    }
+
+    private String questProgressText() {
+        if (s.combatQuest == GameCore.QUEST_SWIFT) return "回合 " + s.turn + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_UNHURT) return "受伤 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_COMBO) return "连携 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_GUARD) return "格挡 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_HEX) return "异常 " + s.questProgress + "/" + s.questTarget;
+        if (s.combatQuest == GameCore.QUEST_LEAN) return "出牌 " + s.totalCardsPlayed + "/" + s.questTarget;
+        return "";
     }
 
     private String eventTitle() {

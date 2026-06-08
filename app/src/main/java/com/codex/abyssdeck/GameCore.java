@@ -38,6 +38,14 @@ public final class GameCore {
     public static final int MOD_BOUNTY = 4;
     public static final int MOD_TURBULENT = 5;
 
+    public static final int QUEST_NONE = 0;
+    public static final int QUEST_SWIFT = 1;
+    public static final int QUEST_UNHURT = 2;
+    public static final int QUEST_COMBO = 3;
+    public static final int QUEST_GUARD = 4;
+    public static final int QUEST_HEX = 5;
+    public static final int QUEST_LEAN = 6;
+
     public static final String ORIGIN_STEEL = "钢律";
     public static final String ORIGIN_ASH = "烬火";
     public static final String ORIGIN_WILD = "森息";
@@ -264,6 +272,7 @@ public final class GameCore {
         s.energy -= costOf(s, c, d);
         s.cardsPlayedThisTurn++;
         s.totalCardsPlayed++;
+        updateQuestProgress(s);
         boolean exhaust = c.temp || d.exhaust;
         applyCard(s, c, d, target);
         triggerAfterPlay(s, c, d);
@@ -871,6 +880,32 @@ public final class GameCore {
         return "标准遭遇。";
     }
 
+    public static String questName(int quest) {
+        if (quest == QUEST_SWIFT) return "速战";
+        if (quest == QUEST_UNHURT) return "无创";
+        if (quest == QUEST_COMBO) return "连携";
+        if (quest == QUEST_GUARD) return "铁壁";
+        if (quest == QUEST_HEX) return "控场";
+        if (quest == QUEST_LEAN) return "精算";
+        return "无";
+    }
+
+    public static String questText(State s) {
+        if (s == null || s.combatQuest == QUEST_NONE) return "无额外目标。";
+        if (s.combatQuest == QUEST_SWIFT) return "在" + s.questTarget + "回合内获胜。";
+        if (s.combatQuest == QUEST_UNHURT) return "本场累计受伤不超过" + s.questTarget + "。";
+        if (s.combatQuest == QUEST_COMBO) return "单回合打出至少" + s.questTarget + "张牌。";
+        if (s.combatQuest == QUEST_GUARD) return "单回合格挡达到" + s.questTarget + "。";
+        if (s.combatQuest == QUEST_HEX) return "让任一敌人同时拥有燃/缚/易合计" + s.questTarget + "层。";
+        if (s.combatQuest == QUEST_LEAN) return "胜利时总出牌不超过" + s.questTarget + "张。";
+        return "完成特殊目标。";
+    }
+
+    public static String questRewardText(State s) {
+        if (s == null || s.combatQuest == QUEST_NONE) return "";
+        return "奖励：金币、奖励质量和少量长期记录。";
+    }
+
     public static int originColor(String origin) {
         if (ORIGIN_STEEL.equals(origin)) {
             return 0xff9fb0ba;
@@ -956,6 +991,7 @@ public final class GameCore {
         if ("high_depth".equals(id)) return "无光行者";
         if ("talent_master".equals(id)) return "专精大师";
         if ("rich".equals(id)) return "裂币盈囊";
+        if ("quest_hunter".equals(id)) return "悬赏老手";
         return id;
     }
 
@@ -969,6 +1005,10 @@ public final class GameCore {
         s.deckView = 0;
         s.combatKind = 'C';
         s.encounterModifier = MOD_NONE;
+        s.combatQuest = QUEST_NONE;
+        s.questTarget = 0;
+        s.questProgress = 0;
+        s.questComplete = false;
         s.currentNode = -1;
         s.runFinished = false;
         s.lastRunSummary = "";
@@ -1211,6 +1251,10 @@ public final class GameCore {
         s.nextEnergyPenalty = 0;
         s.professionCharge = 0;
         s.professionUsedThisTurn = 0;
+        s.combatQuest = chooseCombatQuest(s, kind);
+        s.questTarget = questTargetFor(s, s.combatQuest, kind);
+        s.questProgress = 0;
+        s.questComplete = false;
         s.playerTurn = true;
         s.cardsPlayedThisTurn = 0;
         s.totalCardsPlayed = 0;
@@ -1243,6 +1287,37 @@ public final class GameCore {
             addToHand(s, glyph);
         }
         log(s, (kind == 'B' ? "深渊领主现身。" : kind == 'E' ? "精英挡住去路。" : "遭遇敌群。") + " 词缀：" + modifierName(s.encounterModifier));
+        if (s.combatQuest != QUEST_NONE) {
+            log(s, "战斗目标：" + questName(s.combatQuest) + " - " + questText(s));
+        }
+    }
+
+    private static int chooseCombatQuest(State s, char kind) {
+        if (kind == 'B') {
+            int[] quests = {QUEST_SWIFT, QUEST_UNHURT, QUEST_COMBO, QUEST_GUARD, QUEST_HEX};
+            return quests[s.run.nextInt(quests.length)];
+        }
+        if (kind == 'E') {
+            int[] quests = {QUEST_SWIFT, QUEST_UNHURT, QUEST_COMBO, QUEST_GUARD, QUEST_HEX, QUEST_LEAN};
+            return quests[s.run.nextInt(quests.length)];
+        }
+        if (s.run.nextInt(100) < 82) {
+            int[] quests = {QUEST_SWIFT, QUEST_UNHURT, QUEST_COMBO, QUEST_GUARD, QUEST_HEX, QUEST_LEAN};
+            return quests[s.run.nextInt(quests.length)];
+        }
+        return QUEST_NONE;
+    }
+
+    private static int questTargetFor(State s, int quest, char kind) {
+        int boss = kind == 'B' ? 1 : 0;
+        int elite = kind == 'E' ? 1 : 0;
+        if (quest == QUEST_SWIFT) return 5 + boss + elite;
+        if (quest == QUEST_UNHURT) return 8 + s.act * 3 + boss * 8 + elite * 4;
+        if (quest == QUEST_COMBO) return 5 + Math.min(2, s.act / 2);
+        if (quest == QUEST_GUARD) return 22 + s.act * 6 + boss * 12 + elite * 6;
+        if (quest == QUEST_HEX) return 8 + s.act * 3 + boss * 6 + elite * 3;
+        if (quest == QUEST_LEAN) return 11 + boss * 7 + elite * 3;
+        return 0;
     }
 
     private static int chooseEncounterModifier(State s, char kind) {
@@ -1745,6 +1820,9 @@ public final class GameCore {
                 s.block -= blocked;
                 int taken = damage - blocked;
                 s.hp -= taken;
+                if (taken > 0 && s.combatQuest == QUEST_UNHURT) {
+                    s.questProgress += taken;
+                }
                 log(s, e.name + " 造成 " + taken + " 点伤害。");
             } else if (e.intent == ENEMY_BUFF) {
                 e.strength += e.intentValue;
@@ -2173,6 +2251,7 @@ public final class GameCore {
         if (hasRelic(s, "steel_oath") && amount >= 10) {
             s.block += 2;
         }
+        updateQuestProgress(s);
     }
 
     private static void draw(State s, int count) {
@@ -2198,6 +2277,69 @@ public final class GameCore {
             s.discard.add(c);
         } else {
             s.hand.add(c);
+        }
+    }
+
+    private static void updateQuestProgress(State s) {
+        if (s.combatQuest == QUEST_NONE || s.questComplete) {
+            return;
+        }
+        if (s.combatQuest == QUEST_COMBO) {
+            s.questProgress = Math.max(s.questProgress, s.cardsPlayedThisTurn);
+            if (s.questProgress >= s.questTarget) {
+                s.questComplete = true;
+            }
+        } else if (s.combatQuest == QUEST_GUARD) {
+            s.questProgress = Math.max(s.questProgress, s.block);
+            if (s.questProgress >= s.questTarget) {
+                s.questComplete = true;
+            }
+        } else if (s.combatQuest == QUEST_HEX) {
+            int best = 0;
+            for (Enemy e : livingEnemies(s)) {
+                best = Math.max(best, e.burn + e.bind + e.vulnerable);
+            }
+            s.questProgress = Math.max(s.questProgress, best);
+            if (s.questProgress >= s.questTarget) {
+                s.questComplete = true;
+            }
+        } else if (s.combatQuest == QUEST_UNHURT) {
+            s.questComplete = s.questProgress <= s.questTarget;
+        } else if (s.combatQuest == QUEST_SWIFT) {
+            s.questProgress = s.turn;
+            s.questComplete = s.turn <= s.questTarget;
+        } else if (s.combatQuest == QUEST_LEAN) {
+            s.questProgress = s.totalCardsPlayed;
+            s.questComplete = s.totalCardsPlayed <= s.questTarget;
+        }
+    }
+
+    private static boolean questSucceeded(State s) {
+        if (s.combatQuest == QUEST_NONE) {
+            return false;
+        }
+        updateQuestProgress(s);
+        if (s.combatQuest == QUEST_SWIFT) return s.turn <= s.questTarget;
+        if (s.combatQuest == QUEST_UNHURT) return s.questProgress <= s.questTarget;
+        if (s.combatQuest == QUEST_LEAN) return s.totalCardsPlayed <= s.questTarget;
+        return s.questComplete;
+    }
+
+    private static void awardQuest(State s) {
+        if (!questSucceeded(s)) {
+            log(s, "战斗目标未完成：" + questName(s.combatQuest));
+            return;
+        }
+        int bonus = 16 + s.act * 6 + (s.combatKind == 'B' ? 30 : s.combatKind == 'E' ? 18 : 0);
+        s.gold += bonus;
+        s.meta.questCompletions++;
+        if (s.meta.questCompletions >= 10) {
+            unlockAchievement(s, "quest_hunter");
+        }
+        log(s, "完成目标：" + questName(s.combatQuest) + "，额外获得 " + bonus + " 金币。");
+        if (s.combatKind == 'E' || s.combatKind == 'B' || s.run.nextInt(100) < 22) {
+            upgradeRandomDeckCard(s);
+            log(s, "目标奖励升级了一张牌。");
         }
     }
 
@@ -2290,6 +2432,7 @@ public final class GameCore {
             gold += 32 + s.act * 8;
         }
         s.gold += gold;
+        awardQuest(s);
         if (hasRelic(s, "cup_of_mist")) {
             s.hp = Math.min(s.maxHp, s.hp + 4);
         }
@@ -3040,8 +3183,12 @@ public final class GameCore {
         public boolean cardRewardSkipped;
         public boolean playerTurn;
         public boolean runFinished;
+        public boolean questComplete;
         public char combatKind;
         public int encounterModifier;
+        public int combatQuest;
+        public int questTarget;
+        public int questProgress;
         public int turn;
         public int energy;
         public int block;
@@ -3097,6 +3244,7 @@ public final class GameCore {
         public int highestDepth;
         public int maxGold;
         public int maxDeck;
+        public int questCompletions;
         public int[] professionWins = new int[PROFESSIONS.length];
         public ArrayList<String> achievements = new ArrayList<>();
 
