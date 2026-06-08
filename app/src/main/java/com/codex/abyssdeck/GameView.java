@@ -553,8 +553,10 @@ public final class GameView extends View {
         int h = getHeight();
         drawText(c, "能量 " + s.energy + "   格挡 " + s.block + "   回合 " + s.turn, dp(22), dp(82), 22, 0xfff2d373, true);
         String job = s.profession == null || s.profession.length() == 0 ? "未定" : s.profession;
+        int overload = GameCore.professionSkillOverload(s);
         String engines = job + "  专精 " + s.talents.size() + "  职技 " + GameCore.professionSkillName(s.profession)
-                + " " + s.professionSkillCharge + "/" + GameCore.PROF_SKILL_MAX + (GameCore.professionSkillReady(s) ? " 可释放" : "");
+                + " " + s.professionSkillCharge + "/" + GameCore.PROF_SKILL_MAX
+                + (overload > 0 ? " 过载+" + overload : "") + (GameCore.professionSkillReady(s) ? " 可释放" : "");
         drawText(c, engines, dp(22), dp(104), 13, GameCore.professionSkillReady(s) ? 0xfff5d276 : 0xffd6dfda, true);
         String powers = "被动 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
         if (s.burnPower > 0 || s.bindPower > 0) {
@@ -610,7 +612,7 @@ public final class GameView extends View {
         String skill = GameCore.professionSkillName(s.profession);
         String skillLabel = skill + " " + s.professionSkillCharge + "/" + GameCore.PROF_SKILL_MAX;
         if (GameCore.professionSkillReady(s)) {
-            skillLabel = skill + "!";
+            skillLabel = overload > 0 ? skill + "+" + overload : skill + "!";
         } else if (s.professionSkillUsedThisTurn) {
             skillLabel = skill + "*";
         }

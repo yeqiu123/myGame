@@ -397,6 +397,7 @@ public final class SimulationHarness {
 
     private static boolean shouldUseProfessionSkill(GameCore.State s) {
         if (!GameCore.professionSkillReady(s)) return false;
+        int overload = GameCore.professionSkillOverload(s);
         if (s.combatQuest == GameCore.QUEST_SKILL) {
             return true;
         }
@@ -405,6 +406,9 @@ public final class SimulationHarness {
         }
         if (GameCore.PROF_MERCHANT.equals(s.profession) && s.gold < 25) {
             return false;
+        }
+        if (overload >= 3) {
+            return true;
         }
         return hasSkillRelic(s) || s.turn >= 2 || s.enemies.size() > 1 || s.combatKind == 'E' || s.combatKind == 'B';
     }

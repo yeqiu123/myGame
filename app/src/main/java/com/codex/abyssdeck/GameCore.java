@@ -68,6 +68,7 @@ public final class GameCore {
     public static final int ROUTE_AMBUSH = 5;
     public static final int ROUTE_FORGE = 6;
     public static final int PROF_SKILL_MAX = 10;
+    public static final int PROF_SKILL_OVERLOAD_MAX = 6;
 
     public static final String ORIGIN_STEEL = "钢律";
     public static final String ORIGIN_ASH = "烬火";
@@ -566,6 +567,13 @@ public final class GameCore {
                 && s.professionSkillCharge >= PROF_SKILL_MAX && firstLiving(s) != null;
     }
 
+    public static int professionSkillOverload(State s) {
+        if (s == null) {
+            return 0;
+        }
+        return Math.max(0, Math.min(PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge - PROF_SKILL_MAX));
+    }
+
     public static String professionSkillName(String profession) {
         if (PROF_WARDEN.equals(profession)) return "盾阵";
         if (PROF_DUELIST.equals(profession)) return "终步";
@@ -582,7 +590,12 @@ public final class GameCore {
 
     public static String professionSkillText(State s) {
         String profession = s == null ? "" : s.profession;
-        return professionSkillTextFor(profession);
+        String text = professionSkillTextFor(profession);
+        int overload = professionSkillOverload(s);
+        if (overload > 0) {
+            return text + " 当前过载+" + overload + "。";
+        }
+        return text + " 满充能后可继续积蓄过载。";
     }
 
     public static String professionSkillTextFor(String profession) {
@@ -607,24 +620,27 @@ public final class GameCore {
         if (enemyIndex >= 0 && enemyIndex < s.enemies.size() && s.enemies.get(enemyIndex).hp > 0) {
             target = s.enemies.get(enemyIndex);
         }
+        int overload = professionSkillOverload(s);
         s.professionSkillCharge = 0;
         s.professionSkillUsedThisTurn = true;
         addQuestProgress(s, QUEST_SKILL, 1);
         if (PROF_WARDEN.equals(s.profession)) {
-            gainBlock(s, 10 + s.act * 2 + s.steelEngine);
-            damageEnemy(s, target, 8 + Math.min(32, s.block / 2), true);
+            gainBlock(s, 10 + s.act * 2 + s.steelEngine + overload * 4);
+            damageEnemy(s, target, 8 + Math.min(40, s.block / 2 + overload * 4), true);
         } else if (PROF_DUELIST.equals(s.profession)) {
-            int damage = 14 + s.act * 3 + Math.min(18, s.cardsPlayedThisTurn * 3);
+            int damage = 14 + s.act * 3 + Math.min(24, s.cardsPlayedThisTurn * 3 + overload * 5);
             damageEnemy(s, target, damage, true);
             if (target.hp <= 0) {
                 s.energy++;
                 draw(s, 1);
+            } else if (overload >= 4) {
+                draw(s, 1);
             }
         } else if (PROF_ALCHEMIST.equals(s.profession)) {
             for (Enemy e : livingEnemies(s)) {
-                e.burn += 3 + s.burnPower + s.act;
-                e.bind += 2 + s.bindPower;
-                e.vulnerable += 1;
+                e.burn += 3 + s.burnPower + s.act + overload;
+                e.bind += 2 + s.bindPower + overload / 2;
+                e.vulnerable += 1 + overload / 4;
             }
             if (s.potions.size() < potionLimit(s)) {
                 PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
@@ -632,56 +648,75 @@ public final class GameCore {
                 addQuestProgress(s, QUEST_BREW, 1);
                 log(s, "职业技调制药剂：" + p.name);
             }
+            if (overload >= 4 && s.potions.size() < potionLimit(s)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                addQuestProgress(s, QUEST_BREW, 1);
+                log(s, "过载调制药剂：" + p.name);
+            }
         } else if (PROF_RANGER.equals(s.profession)) {
-            target.bind += 5 + s.bindPower + s.act;
-            target.vulnerable += 2;
-            target.mark += 2;
-            draw(s, 1);
+            target.bind += 5 + s.bindPower + s.act + overload * 2;
+            target.vulnerable += 2 + overload / 3;
+            target.mark += 2 + overload / 2;
+            draw(s, 1 + overload / 4);
         } else if (PROF_ARCANIST.equals(s.profession)) {
-            draw(s, 2 + Math.min(2, s.voidEngine));
-            s.energy++;
+            draw(s, 2 + Math.min(2, s.voidEngine) + overload / 3);
+            s.energy += 1 + overload / 5;
             Card cut = new Card("quick_cut");
             cut.temp = true;
             addToHand(s, cut);
+            if (overload >= 3) {
+                Card glyph = new Card("arcanist_glyph");
+                glyph.temp = true;
+                addToHand(s, glyph);
+            }
         } else if (PROF_MERCHANT.equals(s.profession)) {
-            int spend = Math.min(s.gold, 18 + s.act * 4);
+            int spend = Math.min(s.gold, 18 + s.act * 4 + overload * 5);
             s.gold -= spend;
-            gainBlock(s, 8 + spend / 2);
-            damageEnemy(s, target, 10 + spend, false);
+            gainBlock(s, 8 + spend / 2 + overload * 3);
+            damageEnemy(s, target, 10 + spend + overload * 4, false);
         } else if (PROF_BLOODBOUND.equals(s.profession)) {
             int loss = Math.min(4, Math.max(1, s.hp - 1));
             s.hp = Math.max(1, s.hp - loss);
             int missing = Math.max(0, s.maxHp - s.hp);
-            damageEnemy(s, target, 12 + s.act * 3 + missing / 5, true);
-            s.hp = Math.min(s.maxHp, s.hp + 5 + (hasTalent(s, "t_bloodbound_feast") ? 3 : 0));
+            damageEnemy(s, target, 12 + s.act * 3 + missing / 5 + overload * 5, true);
+            s.hp = Math.min(s.maxHp, s.hp + 5 + overload * 2 + (hasTalent(s, "t_bloodbound_feast") ? 3 : 0));
         } else if (PROF_WEAVER.equals(s.profession)) {
-            upgradeRandomHandCard(s);
-            upgradeRandomHandCard(s);
-            draw(s, 1 + (hasTalent(s, "t_weaver_mastery") ? 1 : 0));
-            s.energy++;
+            int upgrades = 2 + overload / 2;
+            for (int i = 0; i < upgrades; i++) {
+                upgradeRandomHandCard(s);
+            }
+            draw(s, 1 + overload / 4 + (hasTalent(s, "t_weaver_mastery") ? 1 : 0));
+            s.energy += 1 + overload / 5;
         } else if (PROF_SUMMONER.equals(s.profession)) {
-            Card spirit = new Card("summoner_sprite");
-            spirit.temp = true;
-            addToHand(s, spirit);
+            int spirits = 1 + overload / 3;
+            for (int i = 0; i < spirits; i++) {
+                Card spirit = new Card("summoner_sprite");
+                spirit.temp = true;
+                addToHand(s, spirit);
+            }
             Card echo = new Card(hasTalent(s, "t_summoner_court") ? "summoner_wisp" : "quick_cut");
             echo.temp = true;
             addToHand(s, echo);
             for (Enemy e : livingEnemies(s)) {
-                e.bind += 2 + s.bindPower;
+                e.bind += 2 + s.bindPower + overload / 2;
             }
-            gainBlock(s, 7 + s.act * 2 + Math.min(8, s.professionCharge));
+            gainBlock(s, 7 + s.act * 2 + Math.min(8, s.professionCharge) + overload * 3);
         } else if (PROF_HEXER.equals(s.profession)) {
             for (Enemy e : livingEnemies(s)) {
-                e.vulnerable += 2;
-                e.bind += 2 + s.bindPower;
-                e.mark += 1;
+                e.vulnerable += 2 + overload / 3;
+                e.bind += 2 + s.bindPower + overload / 2;
+                e.mark += 1 + overload / 4;
             }
             addStatusCard(s, hasTalent(s, "t_hexer_darkdeal") ? "wound" : "daze");
-            draw(s, 2);
-            s.energy++;
+            if (overload >= 3) {
+                addStatusCard(s, "wound");
+            }
+            draw(s, 2 + overload / 4);
+            s.energy += 1 + overload / 5;
         }
         applyProfessionSkillRelics(s, target);
-        log(s, "释放职业技：" + professionSkillName(s.profession));
+        log(s, "释放职业技：" + professionSkillName(s.profession) + (overload > 0 ? " 过载+" + overload : ""));
         updateQuestProgress(s);
         if (checkPlayerDefeated(s)) {
             return;
@@ -2360,7 +2395,7 @@ public final class GameCore {
         if (hasRelic(s, "pattern_spool") && PROF_WEAVER.equals(s.profession) && s.hand.size() >= 5 && amount > 0) amount++;
         if (hasRelic(s, "spirit_bell") && PROF_SUMMONER.equals(s.profession) && amount > 0 && s.hand.size() >= 5) amount++;
         if (hasRelic(s, "hex_tablet") && PROF_HEXER.equals(s.profession) && amount > 0 && firstLiving(s) != null && firstLiving(s).vulnerable > 0) amount++;
-        s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX, s.professionSkillCharge + amount));
+        s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
     private static void startCombat(State s, char kind) {
