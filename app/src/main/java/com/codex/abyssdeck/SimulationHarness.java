@@ -179,11 +179,15 @@ public final class SimulationHarness {
                     || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) score += 12;
             if (GameCore.PROF_ADJUDICATOR.equals(s.profession) && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
                     || d.upgradeRandom || d.scry > 0 || d.draw > 0 || d.type == 1)) score += 12;
+            if (GameCore.PROF_ASTROLOGER.equals(s.profession) && (d.scry > 0 || d.draw > 0 || d.createEcho
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.energyGain > 0 || d.cost == 0)) score += 12;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
             if ("adjudicator_final_decree".equals(d.id) || "adjudicator_overrule".equals(d.id)
                     || "adjudicator_audit".equals(d.id)) score += 12;
+            if ("astrologer_grand_orrery".equals(d.id) || "astrologer_overstar".equals(d.id)
+                    || "astrologer_ephemeris".equals(d.id)) score += 12;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -225,6 +229,9 @@ public final class SimulationHarness {
                     || "tempo_metronome".equals(id) || "echo_ledger".equals(id) || "confluence_map".equals(id))) score += 34;
             if (GameCore.PROF_ADJUDICATOR.equals(s.profession) && ("judgment_codex".equals(id) || "verdict_seal".equals(id)
                     || "stormglass_seal".equals(id) || "tempo_metronome".equals(id) || "confluence_map".equals(id))) score += 34;
+            if (GameCore.PROF_ASTROLOGER.equals(s.profession) && ("celestial_orrery".equals(id) || "star_compass".equals(id)
+                    || "echo_ledger".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
+                    || "tempo_metronome".equals(id) || "tuning_fork".equals(id))) score += 34;
             if ("confluence_map".equals(id) || "prism_gear".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession))) score += 28;
@@ -317,6 +324,8 @@ public final class SimulationHarness {
             if (GameCore.PROF_TUNER.equals(s.profession) && ("pact_sprinter".equals(id) || "pact_void".equals(id) || "pact_hunter".equals(id))) score += 18;
             if (GameCore.PROF_ADJUDICATOR.equals(s.profession) && ("pact_guardian".equals(id) || "pact_forge".equals(id)
                     || "pact_hunter".equals(id) || "pact_sprinter".equals(id))) score += 18;
+            if (GameCore.PROF_ASTROLOGER.equals(s.profession) && ("pact_sprinter".equals(id) || "pact_void".equals(id)
+                    || "pact_forge".equals(id) || "pact_hunter".equals(id))) score += 18;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -441,6 +450,10 @@ public final class SimulationHarness {
                         || d.upgradeRandom || d.scry > 0 || d.draw > 0 || d.type == 1)) {
                     score += 12;
                 }
+                if (GameCore.PROF_ASTROLOGER.equals(s.profession) && (d.scry > 0 || d.draw > 0 || d.createEcho || c.temp
+                        || d.skillChargeGain > 0 || d.upgradeRandom || d.energyGain > 0 || d.cost == 0)) {
+                    score += 12;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -471,6 +484,8 @@ public final class SimulationHarness {
                 if ("tuner_grand_cadence".equals(c.id) || "tuner_loop".equals(c.id) || "tuner_overclock".equals(c.id)) score += 14;
                 if ("adjudicator_final_decree".equals(c.id) || "adjudicator_overrule".equals(c.id)
                         || "adjudicator_audit".equals(c.id) || "adjudicator_writ".equals(c.id)) score += 14;
+                if ("astrologer_grand_orrery".equals(c.id) || "astrologer_overstar".equals(c.id)
+                        || "astrologer_ephemeris".equals(c.id) || "astrologer_chart".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -522,6 +537,8 @@ public final class SimulationHarness {
                 if (s.relics.contains("conductor_baton") && (d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.vulnerable > 0)) score += 12;
                 if (s.relics.contains("verdict_seal") && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.draw > 0 || d.type == 1)) score += 10;
                 if (s.relics.contains("judgment_codex") && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || c.upgraded)) score += 12;
+                if (s.relics.contains("star_compass") && (d.scry > 0 || d.draw > 0 || d.createEcho || c.temp || d.skillChargeGain > 0)) score += 10;
+                if (s.relics.contains("celestial_orrery") && (d.scry > 0 || d.createEcho || c.temp || d.upgradeRandom || c.upgraded)) score += 12;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -575,7 +592,8 @@ public final class SimulationHarness {
                 || s.relics.contains("split_anvil") || s.relics.contains("echo_ledger")
                 || s.relics.contains("bloodspark_contract") || s.relics.contains("confluence_map") || s.relics.contains("prism_gear")
                 || s.relics.contains("tuning_fork") || s.relics.contains("conductor_baton")
-                || s.relics.contains("verdict_seal") || s.relics.contains("judgment_codex");
+                || s.relics.contains("verdict_seal") || s.relics.contains("judgment_codex")
+                || s.relics.contains("star_compass") || s.relics.contains("celestial_orrery");
     }
 
     private static boolean isOffPoolCard(GameCore.State s, GameCore.CardDef d) {

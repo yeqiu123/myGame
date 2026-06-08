@@ -103,11 +103,12 @@ public final class GameCore {
     public static final String PROF_INSCRIBER = "刻印师";
     public static final String PROF_TUNER = "调律师";
     public static final String PROF_ADJUDICATOR = "裁定官";
+    public static final String PROF_ASTROLOGER = "星象师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
-            PROF_ADJUDICATOR
+            PROF_ADJUDICATOR, PROF_ASTROLOGER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -713,6 +714,7 @@ public final class GameCore {
         if (PROF_INSCRIBER.equals(profession)) return "刻痕";
         if (PROF_TUNER.equals(profession)) return "调律";
         if (PROF_ADJUDICATOR.equals(profession)) return "裁令";
+        if (PROF_ASTROLOGER.equals(profession)) return "星盘";
         return "职业技";
     }
 
@@ -761,6 +763,7 @@ public final class GameCore {
         if (PROF_INSCRIBER.equals(profession)) return "满充能：铭刻手牌，施加易伤与束缚，并把状态转为资源。";
         if (PROF_TUNER.equals(profession)) return "满充能：调律目标，按本回合节奏与敌人印记造成穿透，抽牌并返还能量。";
         if (PROF_ADJUDICATOR.equals(profession)) return "满充能：按战斗目标进度与誓约兑现裁决目标，目标完成后返还资源。";
+        if (PROF_ASTROLOGER.equals(profession)) return "满充能：观测星轨，按检视、临时牌与汇流链抽牌、加固并标记敌人。";
         return "选择职业后可用。";
     }
 
@@ -942,6 +945,35 @@ public final class GameCore {
                     draw(s, 1);
                 }
             }
+        } else if (PROF_ASTROLOGER.equals(s.profession)) {
+            int star = Math.max(1, s.professionCharge);
+            int chain = Math.max(0, s.confluenceChain);
+            int echo = Math.max(0, s.voidEngine);
+            int damage = 10 + s.act * 3 + Math.min(24, star * 2 + chain * 3 + echo * 2) + overload * 4;
+            int block = 6 + s.act * 2 + Math.min(18, star * 2 + chain * 2 + echo * 2) + overload * 3;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(3, chain / 2) + overload / 2;
+                target.vulnerable += 1 + overload / 4;
+            }
+            gainBlock(s, block);
+            draw(s, 1 + Math.min(2, star / 4) + overload / 4);
+            if (chain >= 3 || overload >= 3 || hasTalent(s, "t_astrologer_ephemeris")) {
+                s.energy++;
+            }
+            Card omen = new Card(hasTalent(s, "t_astrologer_grand") || overload >= 4 ? "astrologer_comet" : "astrologer_orbit");
+            omen.temp = true;
+            if (overload >= 3 || hasTalent(s, "t_astrologer_chart")) {
+                omen.upgraded = true;
+            }
+            addToHand(s, omen);
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain)));
+            if (hasTalent(s, "t_astrologer_grand")) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            s.professionCharge = Math.max(0, s.professionCharge / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2128,6 +2160,9 @@ public final class GameCore {
         if (PROF_ADJUDICATOR.equals(profession)) {
             return "围绕战斗目标、誓约兑现和过载裁令滚动优势，能把任务进度转化为格挡、抽牌、印记和终局爆发。";
         }
+        if (PROF_ASTROLOGER.equals(profession)) {
+            return "用检视、抽牌、临时星轨和汇流链观测战局，把牌序工程转化为印记、格挡、充能和连续爆发。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2170,6 +2205,9 @@ public final class GameCore {
         }
         if (PROF_ADJUDICATOR.equals(profession)) {
             return 0xffe8a86f;
+        }
+        if (PROF_ASTROLOGER.equals(profession)) {
+            return 0xff8dd7ff;
         }
         return 0xffd6c07a;
     }
@@ -2395,6 +2433,12 @@ public final class GameCore {
             s.maxHp += 4;
             s.hp += 4;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_ASTROLOGER.equals(profession)) {
+            s.deck.add(new Card("astrologer_chart"));
+            s.deck.add(new Card("astrologer_orbit"));
+            s.maxHp += 1;
+            s.hp += 1;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -2429,6 +2473,7 @@ public final class GameCore {
         else if (PROF_INSCRIBER.equals(profession)) upgradeDeckCard(s, "inscriber_mark");
         else if (PROF_TUNER.equals(profession)) upgradeDeckCard(s, "tuner_note");
         else if (PROF_ADJUDICATOR.equals(profession)) upgradeDeckCard(s, "adjudicator_writ");
+        else if (PROF_ASTROLOGER.equals(profession)) upgradeDeckCard(s, "astrologer_chart");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -2471,6 +2516,9 @@ public final class GameCore {
         } else if (PROF_ADJUDICATOR.equals(profession)) {
             addUpgradedDeckCard(s, "adjudicator_audit");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_ASTROLOGER.equals(profession)) {
+            addUpgradedDeckCard(s, "astrologer_ephemeris");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -2488,6 +2536,7 @@ public final class GameCore {
         if (PROF_INSCRIBER.equals(profession)) return "inscriber_overseal";
         if (PROF_TUNER.equals(profession)) return "tuner_overclock";
         if (PROF_ADJUDICATOR.equals(profession)) return "adjudicator_overrule";
+        if (PROF_ASTROLOGER.equals(profession)) return "astrologer_overstar";
         return "forge_signal";
     }
 
@@ -2699,6 +2748,17 @@ public final class GameCore {
         } else if ("t_adjudicator_grand".equals(id)) {
             addUpgradedDeckCard(s, "adjudicator_final_decree");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_astrologer_chart".equals(id)) {
+            addUpgradedDeckCard(s, "astrologer_chart");
+            upgradeRandomDeckCard(s);
+        } else if ("t_astrologer_constellation".equals(id)) {
+            addUpgradedDeckCard(s, "astrologer_comet");
+        } else if ("t_astrologer_ephemeris".equals(id)) {
+            addUpgradedDeckCard(s, "astrologer_ephemeris");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_astrologer_grand".equals(id)) {
+            addUpgradedDeckCard(s, "astrologer_grand_orrery");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -2715,7 +2775,7 @@ public final class GameCore {
                 || "t_bloodbound_hemocraft".equals(id) || "t_weaver_grandpattern".equals(id)
                 || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id)
                 || "t_inscriber_grandcodex".equals(id) || "t_tuner_grand".equals(id)
-                || "t_adjudicator_grand".equals(id);
+                || "t_adjudicator_grand".equals(id) || "t_astrologer_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -2725,7 +2785,7 @@ public final class GameCore {
                 || "blood_apotheosis".equals(id) || "weaver_clockwork".equals(id)
                 || "summoner_procession".equals(id) || "hexer_crownfall".equals(id)
                 || "inscriber_codex".equals(id) || "tuner_grand_cadence".equals(id)
-                || "adjudicator_final_decree".equals(id);
+                || "adjudicator_final_decree".equals(id) || "astrologer_grand_orrery".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -2735,7 +2795,7 @@ public final class GameCore {
                 || "blood_crown".equals(id) || "clockwork_loom".equals(id)
                 || "spirit_processional".equals(id) || "fallen_crown".equals(id)
                 || "living_codex".equals(id) || "conductor_baton".equals(id)
-                || "judgment_codex".equals(id);
+                || "judgment_codex".equals(id) || "celestial_orrery".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -3102,6 +3162,8 @@ public final class GameCore {
                 || d.vulnerable > 0 || d.createEcho || d.comboDamage > 0)) amount++;
         else if (PROF_ADJUDICATOR.equals(s.profession) && d != null && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
                 || d.upgradeRandom || d.scry > 0 || d.draw > 0 || d.type == 1 || d.profession.equals(PROF_ADJUDICATOR))) amount++;
+        else if (PROF_ASTROLOGER.equals(s.profession) && d != null && (d.scry > 0 || d.draw > 0 || d.createEcho
+                || d.skillChargeGain > 0 || d.upgradeRandom || d.energyGain > 0 || d.cost == 0 || d.profession.equals(PROF_ASTROLOGER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -3401,6 +3463,23 @@ public final class GameCore {
                 draw(s, 1);
                 s.energy += overload >= 3 ? 1 : 0;
             }
+        } else if (PROF_ASTROLOGER.equals(s.profession)) {
+            draw(s, 1);
+            gainBlock(s, 3 + level * 3 + Math.min(10, s.professionCharge + s.confluenceChain));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card orbit = new Card("astrologer_orbit");
+            orbit.temp = true;
+            if (level >= 3 || overload >= 3) {
+                orbit.upgraded = true;
+            }
+            addToHand(s, orbit);
+            if (target != null) {
+                target.mark += level + 1 + overload / 2;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(18, target.mark * 2 + s.confluenceChain * 2), true);
+            }
+            if (level >= 3 || s.confluenceChain >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -3496,6 +3575,24 @@ public final class GameCore {
                 s.energy++;
             }
         }
+        if (hasRelic(s, "star_compass") && PROF_ASTROLOGER.equals(s.profession)) {
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.confluenceChain / 2));
+            if (target != null) {
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(14, s.professionCharge + s.confluenceChain), true);
+            }
+        }
+        if (hasRelic(s, "celestial_orrery") && PROF_ASTROLOGER.equals(s.profession)) {
+            upgradeRandomHandCard(s);
+            Card comet = new Card("astrologer_comet");
+            comet.temp = true;
+            comet.upgraded = true;
+            addToHand(s, comet);
+            if (s.confluenceChain >= 3) {
+                s.energy++;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -3516,6 +3613,8 @@ public final class GameCore {
         if (hasRelic(s, "tuning_fork") && PROF_TUNER.equals(s.profession) && amount > 0 && s.cardsPlayedThisTurn >= 3) amount++;
         if (hasRelic(s, "verdict_seal") && PROF_ADJUDICATOR.equals(s.profession) && amount > 0
                 && (adjudicatorQuestProgress(s) >= Math.max(1, s.questTarget / 2) || s.pactFulfilled > 0)) amount++;
+        if (hasRelic(s, "star_compass") && PROF_ASTROLOGER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.confluenceChain >= 2 || s.voidEngine > 0)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -4244,6 +4343,27 @@ public final class GameCore {
                 Card writ = new Card("adjudicator_writ");
                 writ.temp = true;
                 addToHand(s, writ);
+                addProfessionSkillCharge(s, 2);
+            }
+        }
+        if (PROF_ASTROLOGER.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 1;
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            if (hasTalent(s, "t_astrologer_chart")) {
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_astrologer_ephemeris")) {
+                s.energy++;
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_astrologer_grand")) {
+                Card orbit = new Card("astrologer_orbit");
+                orbit.temp = true;
+                orbit.upgraded = true;
+                addToHand(s, orbit);
                 addProfessionSkillCharge(s, 2);
             }
         }
@@ -5160,6 +5280,44 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("astrologer_chart".equals(d.id)) {
+            block += Math.min(c.upgraded ? 10 : 6, s.professionCharge + s.confluenceChain + s.voidEngine);
+            if (s.confluenceChain >= 2 || s.professionCharge >= 3) {
+                draw += 1;
+            }
+        }
+        if ("astrologer_orbit".equals(d.id) && target != null) {
+            damage += Math.min(c.upgraded ? 16 : 10, s.cardsPlayedThisTurn * 2 + s.professionCharge + s.confluenceChain);
+            target.mark += c.upgraded ? 2 : 1;
+        }
+        if ("astrologer_ephemeris".equals(d.id)) {
+            block += Math.min(c.upgraded ? 16 : 10, s.confluenceChain * 3 + s.voidEngine * 2);
+            if (s.confluenceChain >= 3) {
+                draw += 1;
+            }
+        }
+        if ("astrologer_comet".equals(d.id) && target != null) {
+            damage += Math.min(c.upgraded ? 30 : 22, target.mark * (c.upgraded ? 4 : 3) + s.confluenceChain * 3);
+            if (target.mark >= 4 || s.confluenceChain >= 4) {
+                draw += 1;
+            }
+        }
+        if ("astrologer_overstar".equals(d.id) && target != null) {
+            int overloadNow = professionSkillOverload(s);
+            damage += Math.min(c.upgraded ? 24 : 16, s.professionCharge * 2 + overloadNow * 5 + s.confluenceChain * 2);
+            target.mark += c.upgraded ? 3 : 2;
+        }
+        if ("astrologer_grand_orrery".equals(d.id)) {
+            damage += Math.min(c.upgraded ? 40 : 30, s.confluenceChain * 5 + s.professionCharge * 2);
+            block += Math.min(c.upgraded ? 28 : 20, s.confluenceChain * 3 + upgradedCardCount(s) / 2);
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.vulnerable += 1;
+            }
+            if (s.confluenceChain >= 4 || c.upgraded) {
+                draw += 1;
+            }
+        }
 
         if (damage > 0) {
             if (d.aoe) {
@@ -5385,6 +5543,38 @@ public final class GameCore {
             }
             if (c.upgraded) {
                 upgradeRandomHandCard(s);
+            }
+        }
+        if ("astrologer_chart".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            if (s.combatQuest == QUEST_CONFLUENCE || s.combatQuest == QUEST_FORGE) {
+                addQuestProgress(s, s.combatQuest, 1);
+            }
+        }
+        if ("astrologer_ephemeris".equals(d.id)) {
+            addQuestProgress(s, QUEST_CONFLUENCE, c.upgraded ? 2 : 1);
+            if (s.confluenceChain >= 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("astrologer_comet".equals(d.id) && target != null) {
+            target.mark += 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+        }
+        if ("astrologer_overstar".equals(d.id)) {
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            if (s.confluenceChain >= 3) {
+                s.energy++;
+            }
+        }
+        if ("astrologer_grand_orrery".equals(d.id)) {
+            upgradeRandomHandCard(s);
+            Card orbit = new Card("astrologer_orbit");
+            orbit.temp = true;
+            orbit.upgraded = c.upgraded;
+            addToHand(s, orbit);
+            if (s.confluenceChain >= 4) {
+                s.energy++;
             }
         }
         if (d.retainBlock) {
@@ -6090,6 +6280,80 @@ public final class GameCore {
             }
             if (s.questComplete && s.cardsPlayedThisTurn == 3) {
                 s.energy++;
+            }
+        }
+        if (PROF_ASTROLOGER.equals(s.profession) && (d.scry > 0 || d.draw > 0 || d.createEcho || c.temp
+                || d.skillChargeGain > 0 || d.upgradeRandom || d.energyGain > 0 || "astrologer_chart".equals(c.id))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.scry > 0 || d.createEcho || c.temp || d.skillChargeGain > 0) {
+                    e.mark += 1;
+                }
+                if (s.confluenceChain >= 3 || e.mark >= 3) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(12, e.mark * 2 + s.confluenceChain), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                draw(s, 1);
+                gainBlock(s, 4 + s.act + Math.min(8, s.confluenceChain + s.voidEngine));
+                if (s.cardsPlayedThisTurn >= 4 || hasTalent(s, "t_astrologer_ephemeris")) {
+                    s.energy++;
+                }
+                if (e != null) {
+                    e.vulnerable += 1;
+                }
+                s.professionCharge = 0;
+            }
+        }
+        if (hasTalent(s, "t_astrologer_chart") && (d.scry > 0 || d.upgradeRandom)) {
+            gainBlock(s, 3 + s.act);
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                draw(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_astrologer_constellation") && (d.createEcho || c.temp || d.draw > 0)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 3 + s.act * 2 + Math.min(12, e.mark * 2), true);
+            }
+        }
+        if (hasTalent(s, "t_astrologer_ephemeris") && (d.skillChargeGain > 0 || d.energyGain > 0 || s.confluenceChain >= 2)) {
+            if (s.cardsPlayedThisTurn % 3 == 0) {
+                addProfessionSkillCharge(s, 2);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasTalent(s, "t_astrologer_grand") && (d.scry > 0 || d.createEcho || c.temp || d.skillChargeGain > 0 || d.upgradeRandom)) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.confluenceChain >= 3)) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(16, e.mark * 2 + s.confluenceChain * 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasRelic(s, "star_compass") && (d.scry > 0 || d.draw > 0 || d.createEcho || c.temp || d.skillChargeGain > 0)) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2 && s.confluenceChain >= 2) {
+                gainBlock(s, 3 + s.act);
+                s.relicTriggersThisTurn++;
+            }
+        }
+        if (hasRelic(s, "celestial_orrery") && (d.scry > 0 || d.createEcho || c.temp || d.upgradeRandom || c.upgraded)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(18, e.mark * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                upgradeRandomHandCard(s);
             }
         }
         if (s.steelEngine > 0 && d.type == 1) {
@@ -7093,6 +7357,9 @@ public final class GameCore {
         if (PROF_ADJUDICATOR.equals(s.profession)) {
             return focus == BUILD_OVERLOAD ? 18 : focus == BUILD_STATUS ? 12 : focus == BUILD_GUARD || focus == BUILD_CYCLE ? 8 : focus == BUILD_FORGE ? 5 : 0;
         }
+        if (PROF_ASTROLOGER.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_ECHO ? 14 : focus == BUILD_OVERLOAD || focus == BUILD_FORGE ? 10 : focus == BUILD_STATUS ? 6 : 0;
+        }
         return 0;
     }
 
@@ -7141,14 +7408,18 @@ public final class GameCore {
                     + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_overseal".equals(d.id) ? 4 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0)
                     + ("adjudicator_writ".equals(d.id) ? 6 : 0) + ("adjudicator_audit".equals(d.id) ? 8 : 0)
-                    + ("adjudicator_overrule".equals(d.id) ? 12 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0);
+                    + ("adjudicator_overrule".equals(d.id) ? 12 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0)
+                    + ("astrologer_chart".equals(d.id) ? 6 : 0) + ("astrologer_ephemeris".equals(d.id) ? 8 : 0)
+                    + ("astrologer_overstar".equals(d.id) ? 12 : 0) + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_ECHO) {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
                     + (d.exhaustForDamage ? 6 : 0) + ("summoner_sprite".equals(d.echoCardId) ? 3 : 0)
                     + ("echo_matrix".equals(d.id) ? 10 : 0) + ("hybrid_echo_step".equals(d.id) ? 10 : 0)
                     + ("hybrid_rift_engine".equals(d.id) ? 8 : 0) + ("confluence_chord".equals(d.id) ? 4 : 0)
-                    + ("tuner_loop".equals(d.id) ? 8 : 0) + ("adjudicator_audit".equals(d.id) ? 4 : 0);
+                    + ("tuner_loop".equals(d.id) ? 8 : 0) + ("adjudicator_audit".equals(d.id) ? 4 : 0)
+                    + ("astrologer_orbit".equals(d.id) ? 10 : 0) + ("astrologer_ephemeris".equals(d.id) ? 6 : 0)
+                    + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 5 : 0)
@@ -7178,7 +7449,9 @@ public final class GameCore {
                     + ("tuner_harmonic".equals(d.id) ? 8 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_glyphstorm".equals(d.id) ? 5 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0)
                     + ("adjudicator_clause".equals(d.id) ? 8 : 0) + ("adjudicator_bond".equals(d.id) ? 6 : 0)
-                    + ("adjudicator_overrule".equals(d.id) ? 8 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0);
+                    + ("adjudicator_overrule".equals(d.id) ? 8 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0)
+                    + ("astrologer_orbit".equals(d.id) ? 6 : 0) + ("astrologer_comet".equals(d.id) ? 8 : 0)
+                    + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_CYCLE) {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
@@ -7188,7 +7461,10 @@ public final class GameCore {
                     + ("tuner_note".equals(d.id) ? 10 : 0) + ("tuner_pulse".equals(d.id) ? 8 : 0)
                     + ("tuner_loop".equals(d.id) ? 12 : 0) + ("tuner_grand_cadence".equals(d.id) ? 8 : 0)
                     + ("inscriber_palimp".equals(d.id) ? 4 : 0)
-                    + ("adjudicator_writ".equals(d.id) ? 10 : 0) + ("adjudicator_audit".equals(d.id) ? 10 : 0);
+                    + ("adjudicator_writ".equals(d.id) ? 10 : 0) + ("adjudicator_audit".equals(d.id) ? 10 : 0)
+                    + ("astrologer_chart".equals(d.id) ? 12 : 0) + ("astrologer_orbit".equals(d.id) ? 10 : 0)
+                    + ("astrologer_ephemeris".equals(d.id) ? 12 : 0) + ("astrologer_overstar".equals(d.id) ? 8 : 0)
+                    + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
@@ -7397,6 +7673,10 @@ public final class GameCore {
         else if ("t_adjudicator_clause".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2 + bindDeckCards(s);
         else if ("t_adjudicator_oath".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2 + Math.min(12, s.pactFulfilled * 5 + s.act * 2);
         else if ("t_adjudicator_grand".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) * 2 + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
+        else if ("t_astrologer_chart".equals(id)) bonus += buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_CYCLE) + (upgraded < 5 ? 8 : 3);
+        else if ("t_astrologer_constellation".equals(id)) bonus += tempOrEchoDeckCards(s) * 3 + buildFocusDeckCards(s, BUILD_STATUS);
+        else if ("t_astrologer_ephemeris".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_ECHO);
+        else if ("t_astrologer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_FORGE);
         return Math.min(36, bonus);
     }
 
@@ -7405,12 +7685,13 @@ public final class GameCore {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
                     "t_arcanist_singularity", "t_merchant_monopoly", "t_weaver_grandpattern",
                     "t_inscriber_grandcodex", "t_tuner_resonance", "t_tuner_grand", "t_adjudicator_docket",
-                    "t_adjudicator_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_adjudicator_grand", "t_astrologer_ephemeris", "t_astrologer_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
                     "t_arcanist_singularity", "t_summoner_court", "t_summoner_swarm",
-                    "t_summoner_overflow", "t_weaver_quicksilver", "t_tuner_resonance") ? 3 : 0;
+                    "t_summoner_overflow", "t_weaver_quicksilver", "t_tuner_resonance",
+                    "t_astrologer_constellation", "t_astrologer_ephemeris", "t_astrologer_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -7428,7 +7709,8 @@ public final class GameCore {
         if (focus == BUILD_FORGE) {
             return isAny(id, "t_shared_masterwork", "t_warden_armory", "t_weaver_setup",
                     "t_weaver_mastery", "t_weaver_grandpattern", "t_inscriber_rubbing",
-                    "t_inscriber_grandcodex", "t_adjudicator_docket") ? 3 : 0;
+                    "t_inscriber_grandcodex", "t_adjudicator_docket", "t_astrologer_chart",
+                    "t_astrologer_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -7436,13 +7718,14 @@ public final class GameCore {
                     "t_hexer_darkdeal", "t_hexer_malediction", "t_hexer_cleanse",
                     "t_hexer_abysscurse", "t_inscriber_etching", "t_inscriber_archive",
                     "t_inscriber_grandcodex", "t_tuner_counterpoint", "t_tuner_grand", "t_adjudicator_clause",
-                    "t_adjudicator_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_adjudicator_grand", "t_astrologer_constellation", "t_astrologer_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
                     "t_arcanist_overflow", "t_weaver_setup", "t_weaver_quicksilver",
                     "t_inscriber_archive", "t_tuner_meter", "t_tuner_resonance", "t_tuner_grand",
-                    "t_adjudicator_docket", "t_shared_longnight") ? 3 : 0;
+                    "t_adjudicator_docket", "t_astrologer_chart", "t_astrologer_ephemeris",
+                    "t_astrologer_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
@@ -7494,6 +7777,18 @@ public final class GameCore {
         if (isAny(id, "t_adjudicator_docket", "t_adjudicator_clause", "t_adjudicator_grand")
                 && buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2) {
             return "目标充能";
+        }
+        if (isAny(id, "t_astrologer_constellation", "t_astrologer_ephemeris", "t_astrologer_grand")
+                && tempOrEchoDeckCards(s) >= 2) {
+            return "临时星轨";
+        }
+        if (isAny(id, "t_astrologer_chart", "t_astrologer_grand")
+                && buildFocusDeckCards(s, BUILD_FORGE) >= 2) {
+            return "牌序观测";
+        }
+        if (isAny(id, "t_astrologer_ephemeris", "t_astrologer_grand")
+                && buildFocusDeckCards(s, BUILD_CYCLE) >= 3) {
+            return "循环星盘";
         }
         return "";
     }
@@ -7733,7 +8028,8 @@ public final class GameCore {
                 || (PROF_HEXER.equals(s.profession) && "hex_tablet".equals(id))
                 || (PROF_INSCRIBER.equals(s.profession) && "engraver_stylus".equals(id))
                 || (PROF_TUNER.equals(s.profession) && "tuning_fork".equals(id))
-                || (PROF_ADJUDICATOR.equals(s.profession) && "verdict_seal".equals(id));
+                || (PROF_ADJUDICATOR.equals(s.profession) && "verdict_seal".equals(id))
+                || (PROF_ASTROLOGER.equals(s.profession) && "star_compass".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -7763,7 +8059,7 @@ public final class GameCore {
                 || hasRelic(s, "hawk_fletching") || hasRelic(s, "echo_prism") || hasRelic(s, "ledger_stamp")
                 || hasRelic(s, "crimson_seal") || hasRelic(s, "pattern_spool") || hasRelic(s, "spirit_bell")
                 || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus") || hasRelic(s, "tuning_fork")
-                || hasRelic(s, "verdict_seal");
+                || hasRelic(s, "verdict_seal") || hasRelic(s, "star_compass");
     }
 
     private static CardDef randomOverloadCard(State s, boolean allowRare) {
@@ -7866,6 +8162,10 @@ public final class GameCore {
                 || d.upgradeRandom || d.scry > 0 || d.draw > 0 || d.type == 1 || d.profession.equals(PROF_ADJUDICATOR))) {
             return 4;
         }
+        if (PROF_ASTROLOGER.equals(s.profession) && (d.scry > 0 || d.draw > 0 || d.createEcho || d.skillChargeGain > 0
+                || d.upgradeRandom || d.energyGain > 0 || d.cost == 0 || d.profession.equals(PROF_ASTROLOGER))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -7964,6 +8264,12 @@ public final class GameCore {
         if (hasRelic(s, "judgment_codex") && (d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.upgradeRandom || d.rarity == 2)) {
             bonus += 4;
         }
+        if (hasRelic(s, "star_compass") && (d.scry > 0 || d.draw > 0 || d.createEcho || d.skillChargeGain > 0 || d.energyGain > 0)) {
+            bonus += 3;
+        }
+        if (hasRelic(s, "celestial_orrery") && (d.scry > 0 || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2)) {
+            bonus += 4;
+        }
         return bonus;
     }
 
@@ -7991,7 +8297,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -8005,6 +8311,7 @@ public final class GameCore {
         if (PROF_INSCRIBER.equals(s.profession)) return "engraver_stylus";
         if (PROF_TUNER.equals(s.profession)) return "tuning_fork";
         if (PROF_ADJUDICATOR.equals(s.profession)) return "verdict_seal";
+        if (PROF_ASTROLOGER.equals(s.profession)) return "star_compass";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -8090,6 +8397,14 @@ public final class GameCore {
         if (PROF_ADJUDICATOR.equals(s.profession) && "judgment_codex".equals(id)) {
             return 4;
         }
+        if (PROF_ASTROLOGER.equals(s.profession) && ("star_compass".equals(id) || "echo_ledger".equals(id)
+                || "confluence_map".equals(id) || "prism_gear".equals(id) || "loom_shuttle".equals(id)
+                || "tuning_fork".equals(id) || "tempo_metronome".equals(id))) {
+            return 2;
+        }
+        if (PROF_ASTROLOGER.equals(s.profession) && "celestial_orrery".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -8110,7 +8425,7 @@ public final class GameCore {
             return 2;
         }
         if ((PROF_ARCANIST.equals(s.profession) || PROF_SUMMONER.equals(s.profession) || PROF_DUELIST.equals(s.profession)
-                || PROF_MERCHANT.equals(s.profession))
+                || PROF_MERCHANT.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession))
                 && "echo_ledger".equals(id)) {
             return 2;
         }
@@ -8299,6 +8614,14 @@ public final class GameCore {
             upgradeRandomDeckCard(s);
             s.maxHp += 4;
             s.hp += 4;
+        } else if ("star_compass".equals(id)) {
+            addUpgradedDeckCard(s, "astrologer_ephemeris");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("celestial_orrery".equals(id)) {
+            addUpgradedDeckCard(s, "astrologer_grand_orrery");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
         } else if ("split_anvil".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_forgebrand");
             upgradeRandomDeckCard(s);
@@ -8692,6 +9015,19 @@ public final class GameCore {
         c = addCard("adjudicator_final_decree", "终局判辞", "通用", 2, 2, 0, 10, 15, 8, 12, "造成伤害并获得格挡；按战斗目标和誓约兑现追加终局收益。", "更高伤害、格挡和裁令返还。");
         c.profession = PROF_ADJUDICATOR; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("astrologer_chart", "观星图", "通用", 0, 0, 2, 0, 0, 2, 4, "检视牌库，抽1张，职业技充能+1；星轨或汇流足够时额外抽牌。", "更多格挡，职业技充能+2。");
+        c.profession = PROF_ASTROLOGER; c.scry = 3; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("astrologer_orbit", "星轨切", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害，抽1张并施加印记；本回合节奏会追加伤害。", "更高伤害、抽牌和印记。");
+        c.profession = PROF_ASTROLOGER; c.draw = c.drawUp = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("astrologer_ephemeris", "星历推演", "通用", 1, 1, 2, 0, 0, 5, 8, "获得格挡，抽1张，检视牌库，职业技充能+2；汇流链足够时更强。", "更多格挡和充能。");
+        c.profession = PROF_ASTROLOGER; c.draw = c.drawUp = 1; c.scry = 4; c.skillChargeGain = 2; c.upgradeRandom = true;
+        c = addCard("astrologer_comet", "彗星标定", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害并施加易伤；印记与汇流链会追加爆发。", "更高伤害与印记收益。");
+        c.profession = PROF_ASTROLOGER; c.vulnerable = 1; c.skillChargeGain = 2; c.comboDamage = 2; c.targetEnemy = true;
+        c = addCard("astrologer_overstar", "过载星门", "通用", 1, 1, 2, 0, 0, 4, 7, "获得格挡，抽1张，制造临时星轨切，职业技充能+3。", "更多格挡，职业技充能+4。");
+        c.profession = PROF_ASTROLOGER; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "astrologer_orbit"; c.skillChargeGain = 3;
+        c = addCard("astrologer_grand_orrery", "天体大仪", "通用", 2, 2, 0, 9, 13, 8, 12, "造成伤害并获得格挡；按汇流链、星轨和升级牌追加终局收益，制造临时星轨。", "更高伤害、格挡和星轨返还。");
+        c.profession = PROF_ASTROLOGER; c.vulnerable = 1; c.skillChargeGain = 2; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "astrologer_orbit"; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -8905,6 +9241,7 @@ public final class GameCore {
         addRelicDef("engraver_stylus", "活刻笔", "刻印师升级牌较多时职业技更快充能；释放后升级手牌、抽牌并追加刻痕控制。");
         addRelicDef("tuning_fork", "定音叉", "调律师连打后职业技更快充能；释放后抽牌、追加印记和穿透伤害。");
         addRelicDef("verdict_seal", "裁决印章", "裁定官推进目标或兑现誓约时职业技更快充能；释放后按目标进度获得格挡和追击。");
+        addRelicDef("star_compass", "星盘罗盘", "星象师观测、临时和充能牌更快推动职业技；释放后抽牌、标记并按星轨追击。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -8918,6 +9255,7 @@ public final class GameCore {
         addRelicDef("living_codex", "活页刻典", "获得升级无名刻典；升级、刻印和状态牌扩散易伤束缚，并定期升级手牌。");
         addRelicDef("conductor_baton", "指挥棒", "获得升级终局大调；节奏、充能和印记牌会推动调律师形成终局爆发。");
         addRelicDef("judgment_codex", "审判法典", "获得升级终局判辞；裁定官目标完成后返还能量，并把印记转为终局追击。");
+        addRelicDef("celestial_orrery", "天体仪", "获得升级天体大仪；星象师检视、临时和升级牌会积累印记并定期升级手牌。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -9079,6 +9417,9 @@ public final class GameCore {
         addTalent("t_adjudicator_docket", PROF_ADJUDICATOR, "卷宗索引", "首回合抽牌；目标完成时抽牌，审计与充能牌更容易滚动裁令。");
         addTalent("t_adjudicator_clause", PROF_ADJUDICATOR, "严苛条款", "获得升级条款斩；易伤、束缚和充能牌追加印记与穿透追击。");
         addTalent("t_adjudicator_oath", PROF_ADJUDICATOR, "誓约担保", "获得升级誓约缚令和生命；目标完成或誓约兑现后持续获得格挡与充能。");
+        addTalent("t_astrologer_chart", PROF_ASTROLOGER, "星图校准", "获得升级观星图并升级牌组；检视与升级牌提供格挡、抽牌和更稳定的星轨。");
+        addTalent("t_astrologer_constellation", PROF_ASTROLOGER, "星座连线", "获得升级彗星标定；临时牌、抽牌和回声牌追加印记与穿透追击。");
+        addTalent("t_astrologer_ephemeris", PROF_ASTROLOGER, "星历节拍", "获得升级星历推演；首回合能量提高，充能、汇流和循环牌定期升级手牌。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -9092,6 +9433,7 @@ public final class GameCore {
         addTalent("t_inscriber_grandcodex", PROF_INSCRIBER, "活页宗典", "获得最大生命和升级无名刻典；升级、刻印与状态牌持续给职业技、格挡和抽牌。");
         addTalent("t_tuner_grand", PROF_TUNER, "终局指挥", "获得升级终局大调；节奏牌定期返还能量，印记目标承受追加穿透。");
         addTalent("t_adjudicator_grand", PROF_ADJUDICATOR, "终审庭", "获得升级终局判辞；目标、誓约和过载牌持续抽牌、充能并把印记转为穿透裁决。");
+        addTalent("t_astrologer_grand", PROF_ASTROLOGER, "天穹仪式", "获得升级天体大仪；观测、临时、汇流与过载牌持续抽牌、升级并把印记转为星轨裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
