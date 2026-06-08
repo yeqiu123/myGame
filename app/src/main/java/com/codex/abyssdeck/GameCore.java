@@ -24,6 +24,7 @@ public final class GameCore {
     public static final int MODE_BOON = 12;
     public static final int MODE_CLASS = 13;
     public static final int MODE_TALENT = 14;
+    public static final int MODE_PACT = 15;
 
     public static final int ENEMY_ATTACK = 0;
     public static final int ENEMY_BUFF = 1;
@@ -78,6 +79,7 @@ public final class GameCore {
     public static final ArrayList<RelicDef> RELIC_LIBRARY = new ArrayList<>();
     public static final ArrayList<PotionDef> POTION_LIBRARY = new ArrayList<>();
     public static final ArrayList<BoonDef> BOON_LIBRARY = new ArrayList<>();
+    public static final ArrayList<PactDef> PACT_LIBRARY = new ArrayList<>();
     public static final ArrayList<TalentDef> TALENT_LIBRARY = new ArrayList<>();
 
     static {
@@ -85,6 +87,7 @@ public final class GameCore {
         seedRelics();
         seedPotions();
         seedBoons();
+        seedPacts();
         seedTalents();
     }
 
@@ -212,8 +215,26 @@ public final class GameCore {
         }
         applyDepthStartPenalty(s);
         s.boonChoices.clear();
-        s.mode = MODE_MAP;
+        rollPacts(s);
+        s.mode = MODE_PACT;
         log(s, "选择赐印：" + b.name);
+    }
+
+    public static void choosePact(State s, int index) {
+        if (s.mode != MODE_PACT || index < 0 || index >= s.pactChoices.size()) {
+            return;
+        }
+        PactDef p = pact(s.pactChoices.get(index));
+        if (p == null) {
+            s.mode = MODE_MAP;
+            return;
+        }
+        s.pact = p.id;
+        s.pactChoices.clear();
+        s.pactFulfilled = 0;
+        applyPactStart(s, p.id);
+        s.mode = MODE_MAP;
+        log(s, "立下誓约：" + p.name);
     }
 
     public static void chooseTalent(State s, int index) {
@@ -251,6 +272,19 @@ public final class GameCore {
         return "标准深渊规则。";
     }
 
+    public static String pactName(State s) {
+        PactDef p = s == null ? null : pact(s.pact);
+        return p == null ? "未立誓" : p.name;
+    }
+
+    public static String pactProgressText(State s) {
+        PactDef p = s == null ? null : pact(s.pact);
+        if (p == null) {
+            return "选择誓约后显示构筑目标。";
+        }
+        return p.name + " " + s.pactFulfilled + "/3";
+    }
+
     private static void applyDepthStartPenalty(State s) {
         if (s.ascension < 3) {
             return;
@@ -262,6 +296,91 @@ public final class GameCore {
         } else {
             log(s, depthName(s.ascension) + "阶层污染牌组：加入眩光。");
         }
+    }
+
+    private static void applyPactStart(State s, String id) {
+        if ("pact_guardian".equals(id)) {
+            s.maxHp += 4;
+            s.hp += 4;
+        } else if ("pact_sprinter".equals(id)) {
+            s.gold += 30;
+        } else if ("pact_brewer".equals(id)) {
+            while (s.potions.size() < Math.min(potionLimit(s), 2)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if ("pact_hunter".equals(id)) {
+            Card c = new Card("clean_arc");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("pact_void".equals(id)) {
+            Card c = new Card("void_glimpse");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("pact_blood".equals(id)) {
+            s.maxHp += 6;
+            s.hp += 6;
+            s.deck.add(new Card("wound"));
+        }
+    }
+
+    private static boolean pactSucceeded(State s) {
+        if ("pact_guardian".equals(s.pact)) {
+            return s.pactMaxBlock >= 24 + s.act * 8;
+        }
+        if ("pact_sprinter".equals(s.pact)) {
+            return s.turn <= (s.combatKind == 'B' ? 7 : s.combatKind == 'E' ? 6 : 5)
+                    || s.pactMaxCardsTurn >= 6;
+        }
+        if ("pact_brewer".equals(s.pact)) {
+            return s.pactPotionsUsed > 0 || s.burnPower + s.bindPower >= 3;
+        }
+        if ("pact_hunter".equals(s.pact)) {
+            return s.combatKind == 'E' || s.combatKind == 'B' || s.pactKills >= 2;
+        }
+        if ("pact_void".equals(s.pact)) {
+            return s.pactExhaustedCards >= 3 || s.voidEngine >= 2;
+        }
+        if ("pact_blood".equals(s.pact)) {
+            return s.pactSelfDamage >= 3 || s.hp <= s.maxHp / 2;
+        }
+        return false;
+    }
+
+    private static void awardPact(State s) {
+        if (s.pact == null || s.pact.length() == 0 || !pactSucceeded(s)) {
+            return;
+        }
+        PactDef p = pact(s.pact);
+        if (s.pactFulfilled >= 3) {
+            s.gold += 8 + s.act * 3;
+            log(s, "誓约余响：" + (p == null ? "目标" : p.name) + "，获得少量金币。");
+            return;
+        }
+        s.pactFulfilled++;
+        int gold = 18 + s.act * 8 + s.pactFulfilled * 5;
+        s.gold += gold;
+        if ("pact_guardian".equals(s.pact)) {
+            s.hp = Math.min(s.maxHp, s.hp + 4 + s.act * 2);
+        } else if ("pact_sprinter".equals(s.pact)) {
+            upgradeRandomDeckCard(s);
+        } else if ("pact_brewer".equals(s.pact)) {
+            if (s.potions.size() < potionLimit(s)) {
+                PotionDef po = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(po.id);
+                log(s, "誓约调和药剂：" + po.name);
+            }
+        } else if ("pact_hunter".equals(s.pact)) {
+            s.gold += s.combatKind == 'E' || s.combatKind == 'B' ? 20 : 8;
+        } else if ("pact_void".equals(s.pact)) {
+            Card c = randomUpgradeableCard(s);
+            if (c != null) {
+                c.upgraded = true;
+            }
+        } else if ("pact_blood".equals(s.pact)) {
+            s.maxHp += 2;
+            s.hp = Math.min(s.maxHp, s.hp + 6);
+        }
+        log(s, "完成誓约：" + (p == null ? s.pact : p.name) + " " + s.pactFulfilled + "/3，获得 " + gold + " 金币。");
     }
 
     public static void openCodex(State s) {
@@ -357,6 +476,7 @@ public final class GameCore {
         boolean exhaust = c.temp || d.exhaust;
         applyCard(s, c, d, target);
         triggerAfterPlay(s, c, d);
+        trackPactAfterPlay(s, c, d, exhaust);
         if (exhaust) {
             s.exhaust.add(c);
         } else {
@@ -587,6 +707,7 @@ public final class GameCore {
             damageEnemy(s, target, 12 + Math.min(30, s.gold / 10), false);
             s.gold += 20;
         }
+        s.pactPotionsUsed++;
         if (PROF_ALCHEMIST.equals(s.profession)) {
             addProfessionSkillCharge(s, 2);
             draw(s, 1);
@@ -987,6 +1108,15 @@ public final class GameCore {
         return null;
     }
 
+    public static PactDef pact(String id) {
+        for (PactDef p : PACT_LIBRARY) {
+            if (p.id.equals(id)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
     public static TalentDef talent(String id) {
         for (TalentDef t : TALENT_LIBRARY) {
             if (t.id.equals(id)) {
@@ -1380,6 +1510,9 @@ public final class GameCore {
         s.cardRewardSkipped = false;
         s.relicRewards.clear();
         s.boonChoices.clear();
+        s.pactChoices.clear();
+        s.pact = "";
+        s.pactFulfilled = 0;
         s.talentChoices.clear();
         s.shopCards.clear();
         s.shopRelics.clear();
@@ -1582,6 +1715,19 @@ public final class GameCore {
             } while (offered.contains(b.id));
             offered.add(b.id);
             s.boonChoices.add(b.id);
+        }
+    }
+
+    private static void rollPacts(State s) {
+        s.pactChoices.clear();
+        HashSet<String> offered = new HashSet<>();
+        for (int i = 0; i < 3 && i < PACT_LIBRARY.size(); i++) {
+            PactDef p;
+            do {
+                p = PACT_LIBRARY.get(s.run.nextInt(PACT_LIBRARY.size()));
+            } while (offered.contains(p.id));
+            offered.add(p.id);
+            s.pactChoices.add(p.id);
         }
     }
 
@@ -1915,6 +2061,12 @@ public final class GameCore {
         s.playerTurn = true;
         s.cardsPlayedThisTurn = 0;
         s.totalCardsPlayed = 0;
+        s.pactMaxBlock = 0;
+        s.pactMaxCardsTurn = 0;
+        s.pactPotionsUsed = 0;
+        s.pactKills = 0;
+        s.pactExhaustedCards = 0;
+        s.pactSelfDamage = 0;
         s.hand.clear();
         s.draw.clear();
         s.discard.clear();
@@ -2899,7 +3051,11 @@ public final class GameCore {
         }
         if (d.hpLoss > 0) {
             int loss = c.upgraded && d.hpLoss > 1 ? d.hpLoss - 1 : d.hpLoss;
+            int before = s.hp;
             s.hp = Math.max(1, s.hp - loss);
+            if (s.mode == MODE_COMBAT) {
+                s.pactSelfDamage += Math.max(0, before - s.hp);
+            }
         }
         if (d.gainBurnPower > 0) {
             s.burnPower += c.upgraded ? d.gainBurnPower + 1 : d.gainBurnPower;
@@ -3195,6 +3351,19 @@ public final class GameCore {
         }
     }
 
+    private static void trackPactAfterPlay(State s, Card c, CardDef d, boolean exhausted) {
+        if (s.mode != MODE_COMBAT) {
+            return;
+        }
+        s.pactMaxCardsTurn = Math.max(s.pactMaxCardsTurn, s.cardsPlayedThisTurn);
+        if (exhausted || c.temp) {
+            s.pactExhaustedCards++;
+        }
+        if (d != null && "wound".equals(d.id)) {
+            s.pactSelfDamage++;
+        }
+    }
+
     private static void damageEnemy(State s, Enemy e, int raw, boolean piercing) {
         if (e == null || e.hp <= 0 || raw <= 0) {
             return;
@@ -3220,6 +3389,7 @@ public final class GameCore {
         if (e.hp <= 0) {
             e.hp = 0;
             e.block = 0;
+            s.pactKills++;
             if (e.stolenGold > 0) {
                 int recovered = e.stolenGold + Math.min(8, e.stolenGold / 2);
                 s.gold += recovered;
@@ -3264,8 +3434,14 @@ public final class GameCore {
 
     private static void gainBlock(State s, int amount) {
         s.block += amount;
+        if (s.mode == MODE_COMBAT) {
+            s.pactMaxBlock = Math.max(s.pactMaxBlock, s.block);
+        }
         if (hasRelic(s, "steel_oath") && amount >= 10) {
             s.block += 2;
+            if (s.mode == MODE_COMBAT) {
+                s.pactMaxBlock = Math.max(s.pactMaxBlock, s.block);
+            }
         }
         updateQuestProgress(s);
     }
@@ -3450,6 +3626,7 @@ public final class GameCore {
         gold += routeGoldBonus(s);
         s.gold += gold;
         awardQuest(s);
+        awardPact(s);
         maybeRouteUpgrade(s);
         if (hasRelic(s, "cup_of_mist")) {
             s.hp = Math.min(s.maxHp, s.hp + 4);
@@ -4292,6 +4469,23 @@ public final class GameCore {
         BOON_LIBRARY.add(b);
     }
 
+    private static void seedPacts() {
+        addPact("pact_guardian", "护卫誓约", "开局最大生命+4；每场战斗若格挡峰值足够，获得金币并治疗。");
+        addPact("pact_sprinter", "疾行誓约", "开局获得30金币；快速结束战斗或单回合连打6张，获得金币并升级牌。");
+        addPact("pact_brewer", "炼调誓约", "开局补充药剂；用药或积累燃势/束缚势，获得金币并补药剂。");
+        addPact("pact_hunter", "猎杀誓约", "开局获得升级净弧；击败精英/Boss或多目标战，获得额外金币。");
+        addPact("pact_void", "回声誓约", "开局获得升级短暂窥见；消耗/临时牌足够多，获得金币并升级牌。");
+        addPact("pact_blood", "血誓约", "开局最大生命+6并加入裂伤；自损或低血线胜利，获得金币、治疗和最大生命。");
+    }
+
+    private static void addPact(String id, String name, String text) {
+        PactDef p = new PactDef();
+        p.id = id;
+        p.name = name;
+        p.text = text;
+        PACT_LIBRARY.add(p);
+    }
+
     private static void seedTalents() {
         addTalent("t_shared_masterwork", "", "匠心牌组", "获得时升级2张牌；之后每幕首场战斗首回合抽1张。");
         addTalent("t_shared_hunter", "", "猎取路线", "精英和Boss额外金币；卡牌奖励更偏向当前职业。");
@@ -4339,6 +4533,7 @@ public final class GameCore {
         public String pendingAction = "";
         public String origin = "";
         public String profession = "";
+        public String pact = "";
         public String lastRunSummary = "";
         public int ascension;
         public int hp;
@@ -4362,6 +4557,7 @@ public final class GameCore {
         public final ArrayList<RewardCard> cardRewards = new ArrayList<>();
         public final ArrayList<String> relicRewards = new ArrayList<>();
         public final ArrayList<String> boonChoices = new ArrayList<>();
+        public final ArrayList<String> pactChoices = new ArrayList<>();
         public ArrayList<String> talentChoices = new ArrayList<>();
         public final ArrayList<String> relics = new ArrayList<>();
         public ArrayList<String> talents = new ArrayList<>();
@@ -4400,6 +4596,13 @@ public final class GameCore {
         public int relicTriggersThisTurn;
         public int cardsPlayedThisTurn;
         public int totalCardsPlayed;
+        public int pactFulfilled;
+        public int pactMaxBlock;
+        public int pactMaxCardsTurn;
+        public int pactPotionsUsed;
+        public int pactKills;
+        public int pactExhaustedCards;
+        public int pactSelfDamage;
         public boolean professionSkillUsedThisTurn;
 
         public void ensureRandom() {
@@ -4414,6 +4617,9 @@ public final class GameCore {
             }
             if (profession == null) {
                 profession = "";
+            }
+            if (pact == null) {
+                pact = "";
             }
             if (talentChoices == null) {
                 talentChoices = new ArrayList<>();
@@ -4575,6 +4781,12 @@ public final class GameCore {
     }
 
     public static final class BoonDef implements Serializable {
+        public String id;
+        public String name;
+        public String text;
+    }
+
+    public static final class PactDef implements Serializable {
         public String id;
         public String name;
         public String text;

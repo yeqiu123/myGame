@@ -16,7 +16,7 @@ public final class SimulationHarness {
         }
         System.out.println("professions=" + GameCore.PROFESSIONS.length + " cards=" + GameCore.CARD_LIBRARY.size()
                 + " relics=" + GameCore.RELIC_LIBRARY.size() + " potions=" + GameCore.POTION_LIBRARY.size()
-                + " talents=" + GameCore.TALENT_LIBRARY.size());
+                + " talents=" + GameCore.TALENT_LIBRARY.size() + " pacts=" + GameCore.PACT_LIBRARY.size());
     }
 
     private static Result runBatch(int depth, int count) {
@@ -44,6 +44,8 @@ public final class SimulationHarness {
         s.ensureRandom();
         if (s.mode == GameCore.MODE_BOON) {
             GameCore.chooseBoon(s, chooseBoon(s));
+        } else if (s.mode == GameCore.MODE_PACT) {
+            GameCore.choosePact(s, choosePact(s));
         } else if (s.mode == GameCore.MODE_MAP) {
             int pick = chooseMapNode(s);
             if (pick >= 0) {
@@ -154,6 +156,27 @@ public final class SimulationHarness {
             if (GameCore.PROF_BLOODBOUND.equals(s.profession) && "blood_start".equals(id)) score += 28;
             if (GameCore.PROF_MERCHANT.equals(s.profession) && ("gold".equals(id) || "route_cache".equals(id))) score += 8;
             if (s.ascension >= 6 && ("risk".equals(id) || "rare_relic_risk".equals(id) || "blood_start".equals(id))) score -= 8;
+            if (score > bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private static int choosePact(GameCore.State s) {
+        int best = 0;
+        int bestScore = -9999;
+        for (int i = 0; i < s.pactChoices.size(); i++) {
+            String id = s.pactChoices.get(i);
+            int score = 0;
+            if ("pact_guardian".equals(id)) score += GameCore.PROF_WARDEN.equals(s.profession) ? 34 : 18;
+            else if ("pact_sprinter".equals(id)) score += GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_WEAVER.equals(s.profession) ? 34 : 18;
+            else if ("pact_brewer".equals(id)) score += GameCore.PROF_ALCHEMIST.equals(s.profession) ? 38 : 16;
+            else if ("pact_hunter".equals(id)) score += GameCore.PROF_RANGER.equals(s.profession) ? 32 : 20;
+            else if ("pact_void".equals(id)) score += GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_WEAVER.equals(s.profession) ? 36 : 16;
+            else if ("pact_blood".equals(id)) score += GameCore.PROF_BLOODBOUND.equals(s.profession) ? 40 : 10;
+            if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;

@@ -74,6 +74,8 @@ public final class GameView extends View {
             drawClasses(c);
         } else if (s.mode == GameCore.MODE_BOON) {
             drawBoons(c);
+        } else if (s.mode == GameCore.MODE_PACT) {
+            drawPacts(c);
         } else if (s.mode == GameCore.MODE_TALENT) {
             drawTalents(c);
         } else if (s.mode == GameCore.MODE_MAP) {
@@ -181,6 +183,8 @@ public final class GameView extends View {
             }
         } else if ("boon".equals(action)) {
             GameCore.chooseBoon(s, index);
+        } else if ("pact".equals(action)) {
+            GameCore.choosePact(s, index);
         } else if ("talent".equals(action)) {
             GameCore.chooseTalent(s, index);
         } else if ("depth".equals(action)) {
@@ -304,7 +308,7 @@ public final class GameView extends View {
     }
 
     private void drawTopBar(Canvas c) {
-        if (s.mode == GameCore.MODE_TITLE || s.mode == GameCore.MODE_ORIGIN || s.mode == GameCore.MODE_CLASS || s.mode == GameCore.MODE_BOON || s.mode == GameCore.MODE_TALENT) {
+        if (s.mode == GameCore.MODE_TITLE || s.mode == GameCore.MODE_ORIGIN || s.mode == GameCore.MODE_CLASS || s.mode == GameCore.MODE_BOON || s.mode == GameCore.MODE_PACT || s.mode == GameCore.MODE_TALENT) {
             return;
         }
         int w = getWidth();
@@ -312,7 +316,8 @@ public final class GameView extends View {
         c.drawRoundRect(new RectF(dp(10), dp(8), w - dp(10), dp(54)), dp(6), dp(6), p);
         drawText(c, "深渊牌旅", dp(20), dp(36), 20, 0xfff3d486, true);
         String job = s.profession == null || s.profession.length() == 0 ? "" : "  " + s.profession;
-        String info = "Act " + s.act + "  层 " + s.floor + "  HP " + s.hp + "/" + s.maxHp + "  金 " + s.gold + job;
+        String pact = s.pact == null || s.pact.length() == 0 ? "" : "  " + GameCore.pactProgressText(s);
+        String info = "Act " + s.act + "  层 " + s.floor + "  HP " + s.hp + "/" + s.maxHp + "  金 " + s.gold + job + pact;
         drawText(c, info, dp(128), dp(36), 15, 0xffe9ddc7, false);
         addButton(w - dp(92), dp(16), dp(76), dp(30), "牌组", "deck", 0);
     }
@@ -412,6 +417,25 @@ public final class GameView extends View {
             drawText(c, b == null ? "" : b.name, dp(96), y + dp(36), 22, 0xfff5ead2, true);
             drawText(c, b == null ? "" : b.text, dp(96), y + dp(64), 14, 0xffc5d0cf, false);
             addButton(w - dp(112), y + dp(28), dp(86), dp(38), "选择", "boon", i);
+        }
+    }
+
+    private void drawPacts(Canvas c) {
+        int w = getWidth();
+        drawText(c, "选择构筑誓约", dp(24), dp(86), 30, 0xfff4d580, true);
+        drawText(c, s.origin + " / " + s.profession + " / 赐印已定", dp(26), dp(116), 15, 0xffc9d2d2, false);
+        drawText(c, "誓约会在战斗中追踪玩法目标，达成后兑现长期奖励。", dp(26), dp(136), 12, 0xffaebdc0, false);
+        for (int i = 0; i < s.pactChoices.size(); i++) {
+            GameCore.PactDef pDef = GameCore.pact(s.pactChoices.get(i));
+            float y = dp(160) + i * dp(122);
+            p.setColor(0xcc121923);
+            c.drawRoundRect(new RectF(dp(24), y, w - dp(24), y + dp(98)), dp(8), dp(8), p);
+            p.setColor(0xff78c7b2);
+            c.drawCircle(dp(58), y + dp(49), dp(24), p);
+            drawText(c, "誓", dp(49), y + dp(57), 18, 0xff111923, true);
+            drawText(c, pDef == null ? "" : pDef.name, dp(96), y + dp(36), 22, 0xfff5ead2, true);
+            drawWrapped(c, pDef == null ? "" : pDef.text, dp(96), y + dp(58), w - dp(218), 13, 0xffc5d0cf);
+            addButton(w - dp(112), y + dp(32), dp(86), dp(38), "立誓", "pact", i);
         }
     }
 
@@ -542,6 +566,9 @@ public final class GameView extends View {
         }
         if (s.currentRoute != GameCore.ROUTE_NONE) {
             context += (context.length() > 0 ? "  " : "") + "路线 " + GameCore.routeName(s.currentRoute);
+        }
+        if (s.pact != null && s.pact.length() > 0) {
+            context += (context.length() > 0 ? "  " : "") + GameCore.pactProgressText(s);
         }
         if (s.combatQuest != GameCore.QUEST_NONE) {
             context += (context.length() > 0 ? "  " : "") + "目标 " + GameCore.questName(s.combatQuest) + " " + questProgressText();
@@ -769,11 +796,11 @@ public final class GameView extends View {
     private void drawCodex(Canvas c) {
         int w = getWidth();
         drawText(c, "图鉴", dp(24), dp(86), 30, 0xfff4d580, true);
-        drawText(c, "卡牌 " + GameCore.CARD_LIBRARY.size() + "   遗物 " + GameCore.RELIC_LIBRARY.size() + "   药剂 " + GameCore.POTION_LIBRARY.size() + "   专精 " + GameCore.TALENT_LIBRARY.size(), dp(24), dp(118), 16, 0xffc9d2d2, false);
+        drawText(c, "卡牌 " + GameCore.CARD_LIBRARY.size() + "   遗物 " + GameCore.RELIC_LIBRARY.size() + "   药剂 " + GameCore.POTION_LIBRARY.size() + "   专精 " + GameCore.TALENT_LIBRARY.size() + "   誓约 " + GameCore.PACT_LIBRARY.size(), dp(24), dp(118), 16, 0xffc9d2d2, false);
         drawText(c, "记录：旅程 " + s.meta.runs + " / 胜利 " + s.meta.wins + " / 目标 " + s.meta.questCompletions + " / 最大金币 " + s.meta.maxGold, dp(24), dp(142), 13, 0xffd7c994, true);
-        String[] tabs = {"卡牌", "遗物", "专精", "职业", "成就"};
+        String[] tabs = {"卡牌", "遗物", "专精", "誓约", "职业", "成就"};
         for (int i = 0; i < tabs.length; i++) {
-            addButton(dp(18) + i * dp(74), dp(154), dp(66), dp(32), tabs[i] + (codexTab == i ? "*" : ""), "codextab", i);
+            addButton(dp(18) + i * dp(61), dp(154), dp(56), dp(32), tabs[i] + (codexTab == i ? "*" : ""), "codextab", i);
         }
         drawCodexList(c, dp(24), dp(202), w - dp(48));
         addButton(dp(24), getHeight() - dp(52), dp(74), dp(34), "上一页", "codexpage", -1);
@@ -806,6 +833,10 @@ public final class GameView extends View {
                 drawText(c, t.name + " / " + prof, x, rowY, 14, 0xfff0e2c8, true);
                 drawText(c, t.text, x, rowY + dp(17), 11, 0xffaebdc0, false);
             } else if (codexTab == 3) {
+                GameCore.PactDef pDef = GameCore.PACT_LIBRARY.get(i);
+                drawText(c, pDef.name, x, rowY, 14, 0xfff0e2c8, true);
+                drawText(c, pDef.text, x, rowY + dp(17), 11, 0xffaebdc0, false);
+            } else if (codexTab == 4) {
                 String prof = GameCore.PROFESSIONS[i];
                 drawText(c, prof + " / " + GameCore.professionSkillName(prof), x, rowY, 14, GameCore.professionColor(prof), true);
                 drawText(c, shortText(GameCore.professionText(prof) + " " + GameCore.professionSkillTextFor(prof), 48), x, rowY + dp(17), 11, 0xffaebdc0, false);
@@ -821,7 +852,8 @@ public final class GameView extends View {
         if (codexTab == 0) return GameCore.CARD_LIBRARY.size();
         if (codexTab == 1) return GameCore.RELIC_LIBRARY.size();
         if (codexTab == 2) return GameCore.TALENT_LIBRARY.size();
-        if (codexTab == 3) return GameCore.PROFESSIONS.length;
+        if (codexTab == 3) return GameCore.PACT_LIBRARY.size();
+        if (codexTab == 4) return GameCore.PROFESSIONS.length;
         return achievementCount();
     }
 
