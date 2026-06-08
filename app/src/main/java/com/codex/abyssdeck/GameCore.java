@@ -112,13 +112,14 @@ public final class GameCore {
     public static final String PROF_RUNEBLADE = "符刃师";
     public static final String PROF_MEDIUM = "灵媒师";
     public static final String PROF_TACTICIAN = "阵术师";
+    public static final String PROF_PRISMIST = "棱镜师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
-            PROF_TACTICIAN
+            PROF_TACTICIAN, PROF_PRISMIST
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -796,6 +797,7 @@ public final class GameCore {
         if (PROF_RUNEBLADE.equals(profession)) return "符斩";
         if (PROF_MEDIUM.equals(profession)) return "降灵";
         if (PROF_TACTICIAN.equals(profession)) return "布阵";
+        if (PROF_PRISMIST.equals(profession)) return "折光";
         return "职业技";
     }
 
@@ -853,6 +855,7 @@ public final class GameCore {
         if (PROF_RUNEBLADE.equals(profession)) return "满充能：消耗符势斩击目标，按升级牌、检视、格挡、易伤和过载造成穿透，并升级手牌、抽牌与制造临时符刃。";
         if (PROF_MEDIUM.equals(profession)) return "满充能：消耗灵势降灵，按临时牌、回声、消耗、检视和束缚制造魂牌、格挡、抽牌与穿透魂潮。";
         if (PROF_TACTICIAN.equals(profession)) return "满充能：消耗阵势布阵，按格挡、检视、升级牌、印记、汇流和过载造成穿透，获得格挡、抽牌并制造战术牌。";
+        if (PROF_PRISMIST.equals(profession)) return "满充能：消耗光谱折光，按混搭标签、汇流链、检视、升级、异常和过载造成穿透，获得格挡、抽牌并制造棱镜牌。";
         return "选择职业后可用。";
     }
 
@@ -1360,6 +1363,45 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, formation / 2);
+        } else if (PROF_PRISMIST.equals(s.profession)) {
+            int spectrum = Math.max(1, s.professionCharge);
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            int chain = Math.max(0, s.confluenceChain);
+            int upgraded = Math.min(24, upgradedCardCount(s));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 2 + target.burn;
+            int damage = 8 + s.act * 3 + Math.min(46, spectrum * 3 + labels * 5 + chain * 4 + upgraded + pressure) + overload * 5;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 1 + Math.min(4, labels) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, chain / 4);
+                target.bind += Math.min(3, labels / 2) + s.bindPower / 2;
+                target.burn += Math.min(3, chain / 3) + s.burnPower / 2;
+            }
+            gainBlock(s, 5 + s.act * 2 + Math.min(26, spectrum * 2 + labels * 4 + chain * 3 + upgraded / 2) + overload * 3);
+            if (chain >= 3 || labels >= 3 || upgraded >= 6 || overload >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            draw(s, 1 + Math.min(2, labels / 3) + overload / 4);
+            if (chain >= 5 || labels >= 4 || overload >= 3) {
+                s.energy++;
+            }
+            Card beam = new Card(overload >= 4 || hasTalent(s, "t_prismist_grand") ? "prismist_grand_spectrum" : "prismist_ray");
+            beam.temp = true;
+            beam.upgraded = labels >= 4 || hasTalent(s, "t_prismist_lens");
+            addToHand(s, beam);
+            if (hasTalent(s, "t_prismist_grand")) {
+                Card anchor = new Card("prismist_anchor");
+                anchor.temp = true;
+                anchor.upgraded = true;
+                addToHand(s, anchor);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(4, chain + labels / 2)));
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_FORGE, 1);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, spectrum / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2626,6 +2668,9 @@ public final class GameCore {
         if (PROF_TACTICIAN.equals(profession)) {
             return "用格挡、检视、升级、印记和汇流链积累阵势，把防线和牌序规划转成布阵爆发。适合守势、工坊、标链、汇流和过载构筑。";
         }
+        if (PROF_PRISMIST.equals(profession)) {
+            return "用混搭牌、汇流链、检视、升级和异常积累光谱，把跨流派标签折射成抽牌、格挡、印记和终局爆发。适合汇流、工坊、异常、循环和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2695,6 +2740,9 @@ public final class GameCore {
         }
         if (PROF_TACTICIAN.equals(profession)) {
             return 0xfff0c987;
+        }
+        if (PROF_PRISMIST.equals(profession)) {
+            return 0xffbfe6ff;
         }
         return 0xffd6c07a;
     }
@@ -2976,6 +3024,13 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_PRISMIST.equals(profession)) {
+            s.deck.add(new Card("prismist_ray"));
+            s.deck.add(new Card("prismist_lens"));
+            s.maxHp += 1;
+            s.hp += 1;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3019,6 +3074,7 @@ public final class GameCore {
         else if (PROF_RUNEBLADE.equals(profession)) upgradeDeckCard(s, "runeblade_glyphcut");
         else if (PROF_MEDIUM.equals(profession)) upgradeDeckCard(s, "medium_whisper");
         else if (PROF_TACTICIAN.equals(profession)) upgradeDeckCard(s, "tactician_probe");
+        else if (PROF_PRISMIST.equals(profession)) upgradeDeckCard(s, "prismist_ray");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3091,6 +3147,10 @@ public final class GameCore {
             addUpgradedDeckCard(s, "tactician_map");
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_PRISMIST.equals(profession)) {
+            addUpgradedDeckCard(s, "prismist_anchor");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3117,6 +3177,7 @@ public final class GameCore {
         if (PROF_RUNEBLADE.equals(profession)) return "runeblade_overglyph";
         if (PROF_MEDIUM.equals(profession)) return "medium_overtrance";
         if (PROF_TACTICIAN.equals(profession)) return "tactician_overplan";
+        if (PROF_PRISMIST.equals(profession)) return "prismist_overbeam";
         return "forge_signal";
     }
 
@@ -3438,6 +3499,20 @@ public final class GameCore {
         } else if ("t_tactician_grand".equals(id)) {
             addUpgradedDeckCard(s, "tactician_grand_strategy");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_prismist_lens".equals(id)) {
+            addUpgradedDeckCard(s, "prismist_lens");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_prismist_anchor".equals(id)) {
+            addUpgradedDeckCard(s, "prismist_anchor");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_prismist_spill".equals(id)) {
+            addUpgradedDeckCard(s, "prismist_overbeam");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_prismist_grand".equals(id)) {
+            addUpgradedDeckCard(s, "prismist_grand_spectrum");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -3458,7 +3533,8 @@ public final class GameCore {
                 || "t_machinist_grand".equals(id) || "t_chronomancer_grand".equals(id)
                 || "t_pactmaker_grand".equals(id) || "t_stormcaller_grand".equals(id)
                 || "t_shadowdancer_grand".equals(id) || "t_runeblade_grand".equals(id)
-                || "t_medium_grand".equals(id) || "t_tactician_grand".equals(id);
+                || "t_medium_grand".equals(id) || "t_tactician_grand".equals(id)
+                || "t_prismist_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -3472,7 +3548,8 @@ public final class GameCore {
                 || "machinist_grand_engine".equals(id) || "chronomancer_time_engine".equals(id)
                 || "pactmaker_grand_contract".equals(id) || "stormcaller_tempest_crown".equals(id)
                 || "shadowdancer_eclipse".equals(id) || "runeblade_grand_seal".equals(id)
-                || "medium_grand_seance".equals(id) || "tactician_grand_strategy".equals(id);
+                || "medium_grand_seance".equals(id) || "tactician_grand_strategy".equals(id)
+                || "prismist_grand_spectrum".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -3486,7 +3563,8 @@ public final class GameCore {
                 || "clockwork_core".equals(id) || "time_engine".equals(id)
                 || "grand_ledger".equals(id) || "tempest_crown".equals(id)
                 || "eclipse_mask".equals(id) || "grand_rune_blade".equals(id)
-                || "ancestral_planchette".equals(id) || "grand_war_room".equals(id);
+                || "ancestral_planchette".equals(id) || "grand_war_room".equals(id)
+                || "spectrum_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -3907,6 +3985,9 @@ public final class GameCore {
         else if (PROF_TACTICIAN.equals(s.profession) && d != null && (d.block > 0 || d.scry > 0 || d.upgradeRandom
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.draw > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_TACTICIAN))) amount++;
+        else if (PROF_PRISMIST.equals(s.profession) && d != null && (hybridFocusCount(d) >= 2 || d.scry > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.draw > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.burn > 0 || d.profession.equals(PROF_PRISMIST))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -4512,6 +4593,27 @@ public final class GameCore {
             if (level >= 3 || s.block >= 18 + s.act * 3 || s.confluenceChain >= 4 || overload >= 3) {
                 s.energy++;
             }
+        } else if (PROF_PRISMIST.equals(s.profession)) {
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            s.professionCharge += level + 1 + labels / 2 + overload / 2;
+            draw(s, 1);
+            if (labels >= 3 || s.confluenceChain >= 3 || level >= 3) {
+                upgradeRandomHandCard(s);
+            }
+            gainBlock(s, 4 + level * 3 + Math.min(16, s.professionCharge + labels * 3 + s.confluenceChain * 2));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card ray = new Card(level >= 3 || overload >= 3 ? "prismist_overbeam" : "prismist_ray");
+            ray.temp = true;
+            ray.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, ray);
+            if (target != null) {
+                target.mark += level + labels / 2 + overload / 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(22, s.professionCharge * 2 + labels * 3 + s.confluenceChain * 2), true);
+            }
+            if (level >= 3 || labels >= 4 || s.confluenceChain >= 5 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -4813,6 +4915,36 @@ public final class GameCore {
                 target.vulnerable += 1;
             }
         }
+        if (hasRelic(s, "refraction_dial") && PROF_PRISMIST.equals(s.profession)) {
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.confluenceChain / 2 + focusMaskCount(s.confluenceMask) / 2));
+            gainBlock(s, 4 + s.act + Math.min(12, s.professionCharge + s.confluenceChain + focusMaskCount(s.confluenceMask) * 2));
+            Card ray = new Card("prismist_ray");
+            ray.temp = true;
+            ray.upgraded = true;
+            addToHand(s, ray);
+            if (target != null) {
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(18, target.mark * 2 + s.confluenceChain * 2), true);
+            }
+        }
+        if (hasRelic(s, "spectrum_crown") && PROF_PRISMIST.equals(s.profession)) {
+            Card beam = new Card("prismist_overbeam");
+            beam.temp = true;
+            beam.upgraded = true;
+            addToHand(s, beam);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.confluenceChain >= 5 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -4854,6 +4986,8 @@ public final class GameCore {
         if (hasRelic(s, "war_table") && PROF_TACTICIAN.equals(s.profession) && amount > 0
                 && (s.block >= 12 + s.act * 3 || upgradedCardCount(s) >= 5 || s.confluenceChain >= 2
                 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "refraction_dial") && PROF_PRISMIST.equals(s.profession) && amount > 0
+                && (s.confluenceChain >= 2 || focusMaskCount(s.confluenceMask) >= 3 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -5033,6 +5167,7 @@ public final class GameCore {
         if (quest == QUEST_FORGE && (PROF_WEAVER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
+                || PROF_PRISMIST.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -5043,7 +5178,7 @@ public final class GameCore {
             return true;
         }
         if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession)
-                || PROF_TACTICIAN.equals(s.profession)
+                || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
@@ -5054,7 +5189,7 @@ public final class GameCore {
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
                 || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
-                || PROF_TACTICIAN.equals(s.profession)
+                || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -5067,7 +5202,7 @@ public final class GameCore {
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
-                || PROF_TACTICIAN.equals(s.profession))) {
+                || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -5093,7 +5228,9 @@ public final class GameCore {
                     || "pactmaker_clause".equals(d.id) || "pactmaker_witness".equals(d.id)
                     || "pactmaker_overdeal".equals(d.id) || "pactmaker_grand_contract".equals(d.id)
                     || "tactician_probe".equals(d.id) || "tactician_flank".equals(d.id)
-                    || "tactician_overplan".equals(d.id) || "tactician_grand_strategy".equals(d.id))) return true;
+                    || "tactician_overplan".equals(d.id) || "tactician_grand_strategy".equals(d.id)
+                    || "prismist_ray".equals(d.id) || "prismist_spill".equals(d.id)
+                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id))) return true;
             if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
@@ -5929,6 +6066,30 @@ public final class GameCore {
                 probe.temp = true;
                 probe.upgraded = true;
                 addToHand(s, probe);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_PRISMIST.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 1 + Math.min(2, focusMaskCount(s.confluenceMask));
+            draw(s, 1);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+                firstLiving(s).vulnerable += hasTalent(s, "t_prismist_spill") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_prismist_lens")) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_prismist_anchor")) {
+                gainBlock(s, 4 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_prismist_grand")) {
+                Card ray = new Card("prismist_ray");
+                ray.temp = true;
+                ray.upgraded = true;
+                addToHand(s, ray);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -7392,6 +7553,65 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("prismist_ray".equals(d.id) && target != null) {
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            damage += Math.min(c.upgraded ? 18 : 12, labels * 3 + s.confluenceChain * 2 + s.professionCharge * 2 + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            if (labels >= 3 || s.confluenceChain >= 3 || c.upgraded) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("prismist_lens".equals(d.id)) {
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            block += Math.min(c.upgraded ? 18 : 12, labels * 3 + s.confluenceChain * 2 + upgradedCardCount(s) / 2);
+            if (labels >= 3 || s.confluenceChain >= 3 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("prismist_anchor".equals(d.id)) {
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            block += Math.min(c.upgraded ? 22 : 15, labels * 4 + s.confluenceChain * 3 + s.professionCharge * 2);
+            if (s.confluenceChain >= 3 || upgradedCardCount(s) >= 5 || c.upgraded) {
+                upgradeRandomHandCard(s);
+            }
+        }
+        if ("prismist_spill".equals(d.id) && target != null) {
+            int pressure = target.burn + target.bind + target.vulnerable * 2 + target.mark * 2;
+            damage += Math.min(c.upgraded ? 30 : 21, pressure + s.confluenceChain * 3 + s.professionCharge * 2);
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            if (target.mark >= 4 || s.confluenceChain >= 4 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("prismist_overbeam".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            block += Math.min(c.upgraded ? 26 : 18, labels * 4 + s.confluenceChain * 3 + overloadNow * 5);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 34 : 24, labels * 4 + overloadNow * 6 + target.mark * 3 + s.confluenceChain * 2);
+            }
+            if (overloadNow >= 2 || labels >= 4 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("prismist_grand_spectrum".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            damage += Math.min(c.upgraded ? 56 : 40, s.professionCharge * 4 + labels * 6 + s.confluenceChain * 5 + upgradedCardCount(s) + overloadNow * 6);
+            block += Math.min(c.upgraded ? 38 : 27, s.professionCharge * 3 + labels * 4 + s.confluenceChain * 4 + upgradedCardCount(s) / 2);
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+                target.burn += 1 + s.burnPower / 2;
+            }
+            if (labels >= 4 || s.confluenceChain >= 5 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+            }
+        }
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -7873,6 +8093,59 @@ public final class GameCore {
             order.upgraded = c.upgraded || s.confluenceChain >= 4;
             addToHand(s, order);
             if (s.confluenceChain >= 4 || s.block >= 20 + s.act * 4) {
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
+            }
+        }
+        if ("prismist_ray".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            if (s.confluenceChain >= 3 || focusMaskCount(s.confluenceMask) >= 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("prismist_lens".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_CONFLUENCE, c.upgraded ? 2 : 1);
+            if (c.upgraded || focusMaskCount(s.confluenceMask) >= 3) {
+                upgradeRandomHandCard(s);
+            }
+        }
+        if ("prismist_anchor".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+            if (s.confluenceChain >= 4) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("prismist_spill".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            Enemy e = target != null ? target : firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.burn += 1 + s.burnPower / 2;
+            }
+        }
+        if ("prismist_overbeam".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+            if (s.confluenceChain >= 4 || focusMaskCount(s.confluenceMask) >= 4) {
+                s.energy++;
+            }
+        }
+        if ("prismist_grand_spectrum".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            upgradeRandomHandCard(s);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, c.upgraded ? 3 : 2);
+            Card ray = new Card("prismist_ray");
+            ray.temp = true;
+            ray.upgraded = c.upgraded || s.confluenceChain >= 4;
+            addToHand(s, ray);
+            if (s.confluenceChain >= 5 || focusMaskCount(s.confluenceMask) >= 4) {
                 s.energy++;
                 addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
             }
@@ -9202,6 +9475,69 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_PRISMIST.equals(s.profession) && (hybridFocusCount(d) >= 2 || d.scry > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.draw > 0 || d.vulnerable > 0 || d.bind > 0 || d.burn > 0
+                || d.profession.equals(PROF_PRISMIST))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            if (e != null) {
+                if (hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PRISMIST) || d.skillChargeGain > 0) {
+                    e.mark += 1;
+                }
+                if (s.professionCharge >= 4 || s.confluenceChain >= 4 || labels >= 4) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(22, e.mark * 2 + s.professionCharge * 2 + s.confluenceChain * 2 + labels * 2), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge + labels * 2 + s.confluenceChain * 2));
+                if (s.cardsPlayedThisTurn >= 3 || hasTalent(s, "t_prismist_anchor")) {
+                    draw(s, 1);
+                }
+                if (labels >= 3 || hasTalent(s, "t_prismist_lens")) {
+                    upgradeRandomHandCard(s);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_prismist_lens") && (d.scry > 0 || d.draw > 0 || d.upgradeRandom
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PRISMIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(17, e.mark * 2 + s.confluenceChain * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_prismist_anchor") && (d.block > 0 || d.type == 1 || d.upgradeRandom || hybridFocusCount(d) >= 2)) {
+            gainBlock(s, 3 + s.act + Math.min(8, s.confluenceChain + focusMaskCount(s.confluenceMask)));
+            if (s.cardsPlayedThisTurn == 3 || s.confluenceChain >= 4) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_prismist_spill") && (d.vulnerable > 0 || d.bind > 0 || d.burn > 0
+                || d.damage > 0 || d.profession.equals(PROF_PRISMIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (e.mark >= 3 || e.vulnerable > 0 || e.bind + e.burn >= 3)) {
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(20, e.mark * 2 + e.bind + e.burn + s.confluenceChain * 2), true);
+            }
+        }
+        if (hasTalent(s, "t_prismist_grand") && (hybridFocusCount(d) >= 2 || d.skillChargeGain > 0
+                || d.upgradeRandom || d.rarity == 2 || d.profession.equals(PROF_PRISMIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4 || s.confluenceChain >= 4)) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, e.mark * 2 + s.professionCharge * 2 + s.confluenceChain * 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -9373,6 +9709,38 @@ public final class GameCore {
                 e.mark += 1;
                 if (e.mark >= 4 || s.confluenceChain >= 4 || s.cardsPlayedThisTurn >= 4) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(22, e.mark * 2 + s.professionCharge + s.block / 5), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "refraction_dial") && (hybridFocusCount(d) >= 2 || d.scry > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.draw > 0 || d.profession.equals(PROF_PRISMIST))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(6, s.confluenceChain));
+                if (s.confluenceChain >= 3 || focusMaskCount(s.confluenceMask) >= 3) {
+                    upgradeRandomHandCard(s);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 4 || s.confluenceChain >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(20, e.mark * 2 + s.confluenceChain * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "spectrum_crown") && (hybridFocusCount(d) >= 2 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.vulnerable > 0 || d.profession.equals(PROF_PRISMIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 4 || s.confluenceChain >= 4 || s.cardsPlayedThisTurn >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(22, e.mark * 2 + s.confluenceChain * 2 + s.professionCharge), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -10564,6 +10932,10 @@ public final class GameCore {
             return focus == BUILD_GUARD ? 18 : focus == BUILD_FORGE ? 16 : focus == BUILD_STATUS ? 12
                     : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_CYCLE || focus == BUILD_ECHO ? 6 : 0;
         }
+        if (PROF_PRISMIST.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_FORGE ? 16 : focus == BUILD_STATUS ? 14
+                    : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_ECHO ? 10 : focus == BUILD_GUARD ? 8 : 0;
+        }
         return 0;
     }
 
@@ -10617,6 +10989,9 @@ public final class GameCore {
         }
         if (PROF_TACTICIAN.equals(d.profession)) {
             return tacticianFocusCardValue(d, focus);
+        }
+        if (PROF_PRISMIST.equals(d.profession)) {
+            return prismistFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -10921,6 +11296,43 @@ public final class GameCore {
         return 0;
     }
 
+    private static int prismistFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + (d.upgradeRandom ? 3 : 0)
+                    + ("prismist_ray".equals(d.id) ? 6 : 0) + ("prismist_lens".equals(d.id) ? 8 : 0)
+                    + ("prismist_anchor".equals(d.id) ? 8 : 0) + ("prismist_overbeam".equals(d.id) ? 14 : 0)
+                    + ("prismist_grand_spectrum".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return ("prismist_ray".equals(d.id) ? 4 : 0) + ("prismist_lens".equals(d.id) ? 5 : 0)
+                    + ("prismist_overbeam".equals(d.id) ? 6 : 0) + ("prismist_grand_spectrum".equals(d.id) ? 8 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return ("prismist_spill".equals(d.id) ? 8 : 0) + ("prismist_grand_spectrum".equals(d.id) ? 6 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + ("prismist_lens".equals(d.id) ? 12 : 0)
+                    + ("prismist_anchor".equals(d.id) ? 16 : 0) + ("prismist_overbeam".equals(d.id) ? 10 : 0)
+                    + ("prismist_grand_spectrum".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 3 + d.bind * 3 + d.vulnerable * 6 + ("prismist_ray".equals(d.id) ? 8 : 0)
+                    + ("prismist_spill".equals(d.id) ? 16 : 0) + ("prismist_overbeam".equals(d.id) ? 14 : 0)
+                    + ("prismist_grand_spectrum".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.scry * 2 + d.skillChargeGain * 2 + ("prismist_ray".equals(d.id) ? 12 : 0)
+                    + ("prismist_lens".equals(d.id) ? 14 : 0) + ("prismist_overbeam".equals(d.id) ? 10 : 0)
+                    + ("prismist_grand_spectrum".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + d.scry * 2 + ("prismist_lens".equals(d.id) ? 10 : 0)
+                    + ("prismist_anchor".equals(d.id) ? 16 : 0) + ("prismist_overbeam".equals(d.id) ? 12 : 0)
+                    + ("prismist_grand_spectrum".equals(d.id) ? 14 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -11154,6 +11566,11 @@ public final class GameCore {
         else if ("t_tactician_bulwark".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2 + buildFocusDeckCards(s, BUILD_FORGE) + professionCards;
         else if ("t_tactician_flank".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
         else if ("t_tactician_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GUARD) * 2 + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS);
+        else if ("t_prismist_lens".equals(id)) bonus += buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + professionCards + (upgraded < 6 ? 7 : 3);
+        else if ("t_prismist_anchor".equals(id)) bonus += buildFocusDeckCards(s, BUILD_FORGE) * 2 + buildFocusDeckCards(s, BUILD_GUARD) + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_prismist_spill".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_prismist_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_FORGE)
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -11170,6 +11587,7 @@ public final class GameCore {
                     "t_runeblade_stylus", "t_runeblade_execution", "t_runeblade_grand",
                     "t_medium_oracle", "t_medium_binding", "t_medium_grand",
                     "t_tactician_map", "t_tactician_flank", "t_tactician_grand",
+                    "t_prismist_spill", "t_prismist_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -11179,11 +11597,13 @@ public final class GameCore {
                     "t_astrologer_constellation", "t_astrologer_ephemeris", "t_astrologer_grand",
                     "t_machinist_foundry", "t_machinist_grand", "t_chronomancer_clockwork",
                     "t_chronomancer_grand", "t_shadowdancer_vanish", "t_shadowdancer_grand",
-                    "t_medium_oracle", "t_medium_veil", "t_medium_grand") ? 3 : 0;
+                    "t_medium_oracle", "t_medium_veil", "t_medium_grand",
+                    "t_prismist_lens", "t_prismist_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
-                    "t_alchemist_distiller", "t_alchemist_grandbrew", "t_stormcaller_front") ? 3 : 0;
+                    "t_alchemist_distiller", "t_alchemist_grandbrew", "t_stormcaller_front",
+                    "t_prismist_spill") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "t_shared_hunter", "t_shared_wayfarer", "t_merchant_interest",
@@ -11202,7 +11622,8 @@ public final class GameCore {
                     "t_astrologer_grand", "t_machinist_blueprint", "t_machinist_foundry",
                     "t_machinist_grand", "t_runeblade_stylus", "t_runeblade_guard",
                     "t_runeblade_grand", "t_tactician_map", "t_tactician_bulwark",
-                    "t_tactician_grand") ? 3 : 0;
+                    "t_tactician_grand", "t_prismist_lens", "t_prismist_anchor",
+                    "t_prismist_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -11217,7 +11638,8 @@ public final class GameCore {
                     "t_shadowdancer_execution", "t_shadowdancer_grand", "t_runeblade_stylus",
                     "t_runeblade_execution", "t_runeblade_grand", "t_medium_oracle",
                     "t_medium_binding", "t_medium_grand", "t_tactician_map",
-                    "t_tactician_flank", "t_tactician_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_tactician_flank", "t_tactician_grand", "t_prismist_spill",
+                    "t_prismist_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -11231,7 +11653,8 @@ public final class GameCore {
                     "t_shadowdancer_mask", "t_shadowdancer_vanish", "t_shadowdancer_grand",
                     "t_runeblade_stylus", "t_runeblade_grand", "t_medium_oracle",
                     "t_medium_veil", "t_medium_grand", "t_tactician_map",
-                    "t_tactician_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_tactician_grand", "t_prismist_lens", "t_prismist_grand",
+                    "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
@@ -11241,7 +11664,8 @@ public final class GameCore {
                     "t_pactmaker_collector", "t_pactmaker_grand", "t_stormcaller_front",
                     "t_stormcaller_grand", "t_shadowdancer_vanish", "t_shadowdancer_execution",
                     "t_runeblade_guard", "t_runeblade_grand", "t_medium_veil",
-                    "t_medium_grand", "t_tactician_bulwark", "t_tactician_grand") ? 3 : 0;
+                    "t_medium_grand", "t_tactician_bulwark", "t_tactician_grand",
+                    "t_prismist_anchor", "t_prismist_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -11396,6 +11820,18 @@ public final class GameCore {
         if (isAny(id, "t_tactician_flank")
                 && (buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
             return "侧翼窗口";
+        }
+        if (isAny(id, "t_prismist_lens", "t_prismist_grand")
+                && (upgradedDeckCards(s) >= 4 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3 || buildFocusDeckCards(s, BUILD_FORGE) >= 2)) {
+            return "折光校色";
+        }
+        if (isAny(id, "t_prismist_anchor", "t_prismist_grand")
+                && (buildFocusDeckCards(s, BUILD_FORGE) >= 2 || buildFocusDeckCards(s, BUILD_GUARD) >= 2)) {
+            return "棱锚防线";
+        }
+        if (isAny(id, "t_prismist_spill", "t_prismist_grand")
+                && (buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
+            return "色散窗口";
         }
         return "";
     }
@@ -11593,12 +12029,14 @@ public final class GameCore {
                     "clockwork_core", "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger",
                     "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "split_anvil",
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown",
-                    "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room") ? 3 : 0;
+                    "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
+                    "refraction_dial", "spectrum_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
                     "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "spirit_bell", "spirit_processional", "void_anchor",
-                    "echoflow_charm", "shadow_sash", "eclipse_mask", "spirit_planchette", "ancestral_planchette", "echo_crown") ? 3 : 0;
+                    "echoflow_charm", "shadow_sash", "eclipse_mask", "spirit_planchette", "ancestral_planchette", "echo_crown",
+                    "refraction_dial", "spectrum_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
@@ -11618,7 +12056,8 @@ public final class GameCore {
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
                     "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "pattern_spool", "engraver_stylus", "gyro_wrench", "clockwork_core", "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
-                    "ability_crown", "time_engine", "war_table", "grand_war_room") ? 3 : 0;
+                    "ability_crown", "time_engine", "war_table", "grand_war_room",
+                    "refraction_dial", "spectrum_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -11627,14 +12066,15 @@ public final class GameCore {
                     "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine",
                     "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "warden_brand", "markchain_seal",
                     "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger", "spirit_planchette", "ancestral_planchette",
-                    "war_table", "grand_war_room") ? 3 : 0;
+                    "war_table", "grand_war_room", "refraction_dial", "spectrum_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
                 "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "conductor_baton", "gyro_wrench", "clockwork_core", "assembly_frame", "flash_heel", "pattern_spool",
                     "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "echoflow_charm", "discipline_chart", "trial_ledger",
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
-                    "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room") ? 3 : 0;
+                    "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
+                    "refraction_dial", "spectrum_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -11642,7 +12082,8 @@ public final class GameCore {
                 "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "vigil_bloom", "command_banner", "aegis_throne", "gyro_wrench", "clockwork_core", "assembly_frame",
                     "verdict_seal", "judgment_codex", "forge_heart", "discipline_chart", "trial_ledger",
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
-                    "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room") ? 3 : 0;
+                    "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
+                    "refraction_dial", "spectrum_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -11669,7 +12110,8 @@ public final class GameCore {
                 || (PROF_SHADOWDANCER.equals(s.profession) && "shadow_sash".equals(id))
                 || (PROF_RUNEBLADE.equals(s.profession) && "rune_stylus".equals(id))
                 || (PROF_MEDIUM.equals(s.profession) && "spirit_planchette".equals(id))
-                || (PROF_TACTICIAN.equals(s.profession) && "war_table".equals(id));
+                || (PROF_TACTICIAN.equals(s.profession) && "war_table".equals(id))
+                || (PROF_PRISMIST.equals(s.profession) && "refraction_dial".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -11705,6 +12147,7 @@ public final class GameCore {
                 || hasRelic(s, "rune_stylus") || hasRelic(s, "grand_rune_blade")
                 || hasRelic(s, "spirit_planchette") || hasRelic(s, "ancestral_planchette")
                 || hasRelic(s, "war_table") || hasRelic(s, "grand_war_room")
+                || hasRelic(s, "refraction_dial") || hasRelic(s, "spectrum_crown")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
@@ -11851,6 +12294,11 @@ public final class GameCore {
                 || d.profession.equals(PROF_TACTICIAN))) {
             return 4;
         }
+        if (PROF_PRISMIST.equals(s.profession) && (hybridFocusCount(d) >= 2 || d.scry > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.draw > 0 || d.vulnerable > 0 || d.bind > 0 || d.burn > 0
+                || d.profession.equals(PROF_PRISMIST))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -11877,7 +12325,9 @@ public final class GameCore {
                     || "shadowdancer_eclipse".equals(d.id) || "runeblade_cleave".equals(d.id)
                     || "runeblade_grand_seal".equals(d.id) || "medium_binding".equals(d.id)
                     || "medium_grand_seance".equals(d.id) || "tactician_flank".equals(d.id)
-                    || "tactician_grand_strategy".equals(d.id)) bonus += 4;
+                    || "tactician_grand_strategy".equals(d.id) || "prismist_ray".equals(d.id)
+                    || "prismist_spill".equals(d.id) || "prismist_overbeam".equals(d.id)
+                    || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
@@ -11888,7 +12338,9 @@ public final class GameCore {
                     || "runeblade_glyphcut".equals(d.id) || "runeblade_overglyph".equals(d.id)
                     || "medium_whisper".equals(d.id) || "medium_oracle".equals(d.id)
                     || "medium_overtrance".equals(d.id) || "tactician_probe".equals(d.id)
-                    || "tactician_map".equals(d.id) || "tactician_overplan".equals(d.id)) bonus += 4;
+                    || "tactician_map".equals(d.id) || "tactician_overplan".equals(d.id)
+                    || "prismist_ray".equals(d.id) || "prismist_lens".equals(d.id)
+                    || "prismist_overbeam".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -11896,7 +12348,9 @@ public final class GameCore {
                     || "pactmaker_collection".equals(d.id) || "pactmaker_bloodnote".equals(d.id)
                     || "runeblade_ward".equals(d.id) || "runeblade_grand_seal".equals(d.id)
                     || "medium_veil".equals(d.id) || "medium_grand_seance".equals(d.id)
-                    || "tactician_bulwark".equals(d.id) || "tactician_grand_strategy".equals(d.id)) bonus += 4;
+                    || "tactician_bulwark".equals(d.id) || "tactician_grand_strategy".equals(d.id)
+                    || "prismist_lens".equals(d.id) || "prismist_anchor".equals(d.id)
+                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -11920,7 +12374,9 @@ public final class GameCore {
                     || "medium_whisper".equals(d.id) || "medium_binding".equals(d.id)
                     || "medium_overtrance".equals(d.id) || "medium_grand_seance".equals(d.id)
                     || "tactician_probe".equals(d.id) || "tactician_flank".equals(d.id)
-                    || "tactician_overplan".equals(d.id) || "tactician_grand_strategy".equals(d.id)) bonus += 4;
+                    || "tactician_overplan".equals(d.id) || "tactician_grand_strategy".equals(d.id)
+                    || "prismist_ray".equals(d.id) || "prismist_spill".equals(d.id)
+                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -11929,7 +12385,9 @@ public final class GameCore {
                     || "runeblade_inscribe".equals(d.id) || "runeblade_overglyph".equals(d.id)
                     || "medium_oracle".equals(d.id) || "tactician_bulwark".equals(d.id)
                     || "tactician_map".equals(d.id) || "tactician_overplan".equals(d.id)
-                    || "tactician_grand_strategy".equals(d.id)) bonus += 4;
+                    || "tactician_grand_strategy".equals(d.id) || "prismist_lens".equals(d.id)
+                    || "prismist_anchor".equals(d.id) || "prismist_overbeam".equals(d.id)
+                    || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -11937,7 +12395,8 @@ public final class GameCore {
                     || "void_glimpse".equals(d.id) || "quick_cut".equals(d.id) || "hybrid_rift_engine".equals(d.id)
                     || "medium_whisper".equals(d.id) || "medium_veil".equals(d.id)
                     || "medium_oracle".equals(d.id) || "medium_overtrance".equals(d.id)
-                    || "medium_grand_seance".equals(d.id)) bonus += 4;
+                    || "medium_grand_seance".equals(d.id) || "prismist_ray".equals(d.id)
+                    || "prismist_lens".equals(d.id) || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
         } else if ("spec_markchain".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -11956,7 +12415,9 @@ public final class GameCore {
                     || "medium_binding".equals(d.id) || "medium_overtrance".equals(d.id)
                     || "medium_grand_seance".equals(d.id) || "tactician_probe".equals(d.id)
                     || "tactician_flank".equals(d.id) || "tactician_overplan".equals(d.id)
-                    || "tactician_grand_strategy".equals(d.id)) bonus += 4;
+                    || "tactician_grand_strategy".equals(d.id) || "prismist_ray".equals(d.id)
+                    || "prismist_spill".equals(d.id) || "prismist_overbeam".equals(d.id)
+                    || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
         }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
@@ -11979,7 +12440,8 @@ public final class GameCore {
                 || "medium_veil".equals(id) || "medium_oracle".equals(id)
                 || "medium_overtrance".equals(id) || "tactician_probe".equals(id)
                 || "tactician_bulwark".equals(id) || "tactician_map".equals(id)
-                || "tactician_overplan".equals(id);
+                || "tactician_overplan".equals(id) || "prismist_ray".equals(id)
+                || "prismist_lens".equals(id) || "prismist_overbeam".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -12116,6 +12578,14 @@ public final class GameCore {
                 || d.rarity == 2 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_TACTICIAN))) {
             bonus += 5;
         }
+        if (hasRelic(s, "refraction_dial") && (hybridFocusCount(d) >= 2 || d.scry > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.draw > 0 || d.profession.equals(PROF_PRISMIST))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "spectrum_crown") && (hybridFocusCount(d) >= 2 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.vulnerable > 0 || d.profession.equals(PROF_PRISMIST))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -12149,7 +12619,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -12172,6 +12642,7 @@ public final class GameCore {
         if (PROF_RUNEBLADE.equals(s.profession)) return "rune_stylus";
         if (PROF_MEDIUM.equals(s.profession)) return "spirit_planchette";
         if (PROF_TACTICIAN.equals(s.profession)) return "war_table";
+        if (PROF_PRISMIST.equals(s.profession)) return "refraction_dial";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -12336,6 +12807,16 @@ public final class GameCore {
         if (PROF_TACTICIAN.equals(s.profession) && "grand_war_room".equals(id)) {
             return 4;
         }
+        if (PROF_PRISMIST.equals(s.profession) && ("refraction_dial".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "overload_etch".equals(id)
+                || "markchain_seal".equals(id) || "stormglass_seal".equals(id) || "discipline_chart".equals(id)
+                || "tempo_metronome".equals(id) || "echoflow_charm".equals(id))) {
+            return 2;
+        }
+        if (PROF_PRISMIST.equals(s.profession) && "spectrum_crown".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -12374,7 +12855,8 @@ public final class GameCore {
                 || PROF_TUNER.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_STORMCALLER.equals(s.profession)
                 || PROF_SHADOWDANCER.equals(s.profession) || PROF_RUNEBLADE.equals(s.profession)
-                || PROF_MEDIUM.equals(s.profession) || PROF_TACTICIAN.equals(s.profession))
+                || PROF_MEDIUM.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
+                || PROF_PRISMIST.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -12686,6 +13168,17 @@ public final class GameCore {
         } else if ("grand_war_room".equals(id)) {
             addUpgradedDeckCard(s, "tactician_grand_strategy");
             addUpgradedDeckCard(s, "tactician_probe");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("refraction_dial".equals(id)) {
+            addUpgradedDeckCard(s, "prismist_lens");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("spectrum_crown".equals(id)) {
+            addUpgradedDeckCard(s, "prismist_grand_spectrum");
+            addUpgradedDeckCard(s, "prismist_ray");
             upgradeRandomDeckCard(s);
             s.maxHp += 3;
             s.hp += 3;
@@ -13275,6 +13768,19 @@ public final class GameCore {
         c = addCard("tactician_grand_strategy", "终局大阵", "通用", 2, 2, 0, 9, 13, 10, 14, "造成伤害并获得格挡；按阵势、格挡、升级牌、汇流和过载追加终局收益。", "更高伤害、格挡和侦察返还。");
         c.profession = PROF_TACTICIAN; c.draw = c.drawUp = 1; c.vulnerable = 1; c.skillChargeGain = 2; c.upgradeRandom = true; c.targetEnemy = true;
 
+        c = addCard("prismist_ray", "折光射线", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张并登记印记；汇流标签、光谱和印记会追加伤害。", "更高伤害、更多印记，汇流链足够时充能更快。");
+        c.profession = PROF_PRISMIST; c.draw = c.drawUp = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("prismist_lens", "调焦透镜", "通用", 0, 1, 2, 0, 0, 5, 8, "检视牌库，获得格挡并抽1张；汇流标签会追加防线。", "更多格挡、检视和升级窗口。");
+        c.profession = PROF_PRISMIST; c.scry = 3; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("prismist_anchor", "棱锚校准", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡、升级手牌并推进汇流；标签和光谱会追加格挡。", "更多格挡、升级和充能。");
+        c.profession = PROF_PRISMIST; c.scry = 2; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("prismist_spill", "色散倾泻", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，施加易伤、燃灼和束缚；敌方异常与汇流链会追加爆发。", "更高伤害、异常和印记。");
+        c.profession = PROF_PRISMIST; c.vulnerable = 1; c.burn = 1; c.burnUp = 2; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("prismist_overbeam", "过载光束", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和职业技充能；过载和汇流标签会强化折光爆发。", "更多格挡、抽牌和职业技充能。");
+        c.profession = PROF_PRISMIST; c.draw = c.drawUp = 1; c.vulnerable = 1; c.skillChargeGain = 3; c.upgradeRandom = true; c.targetEnemy = true;
+        c = addCard("prismist_grand_spectrum", "终局光谱", "通用", 2, 2, 0, 9, 13, 9, 13, "造成伤害并获得格挡；按光谱、汇流标签、汇流链、升级和过载追加终局收益。", "更高伤害、格挡和折光射线返还。");
+        c.profession = PROF_PRISMIST; c.draw = c.drawUp = 1; c.vulnerable = 1; c.burn = 1; c.bind = 1; c.skillChargeGain = 2; c.upgradeRandom = true; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -13506,6 +14012,7 @@ public final class GameCore {
         addRelicDef("rune_stylus", "符刃刻笔", "符刃师升级、检视、充能和易伤牌更快推动职业技；释放后升级手牌、加固并追加符斩印记。");
         addRelicDef("spirit_planchette", "降灵盘", "灵媒师临时、回声、消耗、检视和束缚牌更快推动职业技；释放后制造魂语、加固并追加束魂印记。");
         addRelicDef("war_table", "战争沙盘", "阵术师格挡、检视、升级、充能和汇流牌更快推动职业技；释放后升级手牌、制造侦察令并追加标记追击。");
+        addRelicDef("refraction_dial", "折光仪", "棱镜师混搭、检视、升级、抽牌和汇流牌更快推动职业技；释放后制造折光射线、升级手牌并追加标记追击。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -13528,6 +14035,7 @@ public final class GameCore {
         addRelicDef("grand_rune_blade", "终局符刃", "获得升级终局符刃；符刃师升级、充能和稀有牌会滚动印记、抽牌并把工坊牌势转为穿透裁切。");
         addRelicDef("ancestral_planchette", "祖灵占板", "获得升级终局降灵；灵媒师临时、回声、消耗、充能和稀有牌会滚动束缚、印记与魂潮追击。");
         addRelicDef("grand_war_room", "终局战室", "获得升级终局大阵；阵术师格挡、升级、充能、汇流和稀有牌会滚动印记、升级与战术追击。");
+        addRelicDef("spectrum_crown", "光谱冠冕", "获得升级终局光谱；棱镜师混搭、充能、汇流和稀有牌会滚动印记、抽牌、升级与折光追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -13722,6 +14230,9 @@ public final class GameCore {
         addTalent("t_tactician_map", PROF_TACTICIAN, "战图校准", "获得升级战场推演并升级牌组；检视、抽牌、升级和阵术牌追加印记，并把阵势转成穿透追击。");
         addTalent("t_tactician_bulwark", PROF_TACTICIAN, "稳固阵线", "获得生命和升级阵线护壁；格挡、技能和升级牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_tactician_flank", PROF_TACTICIAN, "侧翼窗口", "获得升级过载阵图；易伤、伤害、充能和阵术牌会对重标记目标追加侧翼追击。");
+        addTalent("t_prismist_lens", PROF_PRISMIST, "透镜校色", "获得升级调焦透镜并升级牌组；检视、抽牌、升级、汇流和棱镜牌追加印记，并把光谱转成穿透追击。");
+        addTalent("t_prismist_anchor", PROF_PRISMIST, "棱锚稳像", "获得生命和升级棱锚校准；格挡、升级和混搭牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_prismist_spill", PROF_PRISMIST, "色散裂口", "获得升级过载光束；异常、伤害、充能和棱镜牌会对重标记目标追加色散追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -13744,6 +14255,7 @@ public final class GameCore {
         addTalent("t_runeblade_grand", PROF_RUNEBLADE, "终局符刃", "获得升级终局符刃；升级、充能、工坊与过载牌持续抽牌、升级并把印记转为符刃裁切。");
         addTalent("t_medium_grand", PROF_MEDIUM, "终局降灵", "获得升级终局降灵；临时、回声、消耗与过载牌持续抽牌、充能并把束缚印记转为魂潮裁切。");
         addTalent("t_tactician_grand", PROF_TACTICIAN, "终局大阵", "获得升级终局大阵；格挡、检视、升级、汇流与过载牌持续抽牌、升级并把印记转为战术裁切。");
+        addTalent("t_prismist_grand", PROF_PRISMIST, "终局光谱", "获得升级终局光谱；混搭、汇流、升级与过载牌持续抽牌、升级并把印记转为折光裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

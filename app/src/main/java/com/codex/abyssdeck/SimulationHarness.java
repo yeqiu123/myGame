@@ -193,6 +193,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_RUNEBLADE.equals(s.profession) && isRunebladeSignal(d)) score += 14;
             if (GameCore.PROF_MEDIUM.equals(s.profession) && isMediumSignal(d)) score += 14;
             if (GameCore.PROF_TACTICIAN.equals(s.profession) && isTacticianSignal(d)) score += 14;
+            if (GameCore.PROF_PRISMIST.equals(s.profession) && isPrismistSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -210,11 +211,15 @@ public final class SimulationHarness {
                     || "medium_oracle".equals(d.id) || "medium_binding".equals(d.id)) score += 14;
             if ("tactician_grand_strategy".equals(d.id) || "tactician_overplan".equals(d.id)
                     || "tactician_map".equals(d.id) || "tactician_flank".equals(d.id)) score += 14;
+            if ("prismist_grand_spectrum".equals(d.id) || "prismist_overbeam".equals(d.id)
+                    || "prismist_lens".equals(d.id) || "prismist_anchor".equals(d.id)
+                    || "prismist_spill".equals(d.id)) score += 14;
             if (isStormcallerCard(d)) score += 14;
             if (isShadowdancerCard(d)) score += 14;
             if (isRunebladeCard(d)) score += 14;
             if (isMediumCard(d)) score += 14;
             if (isTacticianCard(d)) score += 14;
+            if (isPrismistCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -234,6 +239,11 @@ public final class SimulationHarness {
                     || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0)) score += 18;
             if (s.relics.contains("grand_war_room") && (isTacticianSignal(d) || d.rarity == 2
                     || d.upgradeRandom || d.skillChargeGain > 0 || d.block > 0)) score += 20;
+            if (s.relics.contains("refraction_dial") && (isPrismistSignal(d) || isHybridCore(d)
+                    || isConfluenceCore(d) || d.scry > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                    || d.draw > 0)) score += 18;
+            if (s.relics.contains("spectrum_crown") && (isPrismistSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.vulnerable > 0 || isHybridCore(d))) score += 20;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
@@ -306,10 +316,17 @@ public final class SimulationHarness {
                     || "overload_etch".equals(id) || "markchain_seal".equals(id) || "stormglass_seal".equals(id)
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "discipline_chart".equals(id)
                     || "tempo_metronome".equals(id) || "assembly_frame".equals(id))) score += 36;
+            if (GameCore.PROF_PRISMIST.equals(s.profession) && ("spectrum_crown".equals(id) || "refraction_dial".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
+                    || "overload_etch".equals(id) || "markchain_seal".equals(id) || "stormglass_seal".equals(id)
+                    || "discipline_chart".equals(id) || "tempo_metronome".equals(id) || "echoflow_charm".equals(id)
+                    || "assembly_frame".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
-                    || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession))) score += 28;
+                    || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
+                    || GameCore.PROF_PRISMIST.equals(s.profession))) score += 28;
             if ("echo_ledger".equals(id) && (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
                     || GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession) || GameCore.PROF_MEDIUM.equals(s.profession))) score += 28;
@@ -321,6 +338,7 @@ public final class SimulationHarness {
             if ("rune_stylus".equals(id) || "grand_rune_blade".equals(id)) score += 20;
             if ("spirit_planchette".equals(id) || "ancestral_planchette".equals(id)) score += 20;
             if ("war_table".equals(id) || "grand_war_room".equals(id)) score += 20;
+            if ("refraction_dial".equals(id) || "spectrum_crown".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
@@ -425,6 +443,9 @@ public final class SimulationHarness {
                     || "pact_suppression".equals(id) || "pact_confluence".equals(id) || "pact_hunter".equals(id))) score += 24;
             if (GameCore.PROF_TACTICIAN.equals(s.profession) && ("pact_guardian".equals(id) || "pact_forge".equals(id)
                     || "pact_suppression".equals(id) || "pact_confluence".equals(id) || "pact_hunter".equals(id))) score += 24;
+            if (GameCore.PROF_PRISMIST.equals(s.profession) && ("pact_confluence".equals(id) || "pact_forge".equals(id)
+                    || "pact_suppression".equals(id) || "pact_hunter".equals(id) || "pact_void".equals(id)
+                    || "pact_sprinter".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -459,14 +480,16 @@ public final class SimulationHarness {
             else if ("spec_burst".equals(id)) score += (GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession)) ? 32 : 22;
             else if ("spec_sustain".equals(id)) score += (GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession)
-                    || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)) ? 32 : 20;
+                    || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
+                    || GameCore.PROF_PRISMIST.equals(s.profession)) ? 32 : 20;
             else if ("spec_control".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_INSCRIBER.equals(s.profession) || GameCore.PROF_PACTMAKER.equals(s.profession)
                     || GameCore.PROF_STORMCALLER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
-                    || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)) ? 31 : 24;
+                    || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
+                    || GameCore.PROF_PRISMIST.equals(s.profession)) ? 31 : 24;
             else if ("spec_assembly".equals(id)) score += (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_MACHINIST.equals(s.profession)
                     || GameCore.PROF_ASTROLOGER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
-                    || GameCore.PROF_TACTICIAN.equals(s.profession)) ? 31 : 24;
+                    || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)) ? 31 : 24;
             else if ("spec_echoflow".equals(id)) score += (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
                     || GameCore.PROF_CHRONOMANCER.equals(s.profession) || GameCore.PROF_SHADOWDANCER.equals(s.profession)
                     || GameCore.PROF_MEDIUM.equals(s.profession)) ? 33 : 26;
@@ -474,7 +497,7 @@ public final class SimulationHarness {
                     || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_PACTMAKER.equals(s.profession) || GameCore.PROF_STORMCALLER.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession) || GameCore.PROF_MEDIUM.equals(s.profession)
-                    || GameCore.PROF_TACTICIAN.equals(s.profession)) ? 33 : 25;
+                    || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)) ? 33 : 25;
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && ("spec_sustain".equals(id) || "spec_resonance".equals(id)
                     || "spec_mastery".equals(id))) score += 6;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
@@ -490,6 +513,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_TACTICIAN.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_assembly".equals(id) || "spec_control".equals(id)
                     || "spec_markchain".equals(id) || "spec_tempo".equals(id))) score += 8;
+            if (GameCore.PROF_PRISMIST.equals(s.profession) && ("spec_resonance".equals(id) || "spec_mastery".equals(id)
+                    || "spec_assembly".equals(id) || "spec_markchain".equals(id) || "spec_control".equals(id)
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id))) score += 4;
@@ -558,7 +584,7 @@ public final class SimulationHarness {
                 if (s.combatQuest == GameCore.QUEST_MARK && (d.bind > 0 || d.vulnerable > 0 || d.comboDamage > 0
                         || "tuner_note".equals(c.id) || "tuner_harmonic".equals(c.id) || "tuner_grand_cadence".equals(c.id)
                         || isStormcallerCard(d) || isShadowdancerCard(d) || isRunebladeCard(d) || isMediumCard(d)
-                        || isTacticianCard(d))) score += 20;
+                        || isTacticianCard(d) || isPrismistCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -639,6 +665,14 @@ public final class SimulationHarness {
                             || "tactician_overplan".equals(c.id) || "tactician_grand_strategy".equals(c.id))) score += 8;
                     if (s.block >= 14 && (d.damage > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 5;
                 }
+                if (GameCore.PROF_PRISMIST.equals(s.profession) && (isPrismistSignal(d) || c.temp)) {
+                    score += 15;
+                    if (isHybridCore(d) || isConfluenceCore(d) || d.scry > 0 || d.upgradeRandom || d.vulnerable > 0) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isPrismistCard(d) || isHybridCore(d))) score += 6;
+                    if (prismistEnemyPressure(s) >= 8 && ("prismist_spill".equals(c.id)
+                            || "prismist_overbeam".equals(c.id) || "prismist_grand_spectrum".equals(c.id))) score += 8;
+                    if (s.confluenceChain >= 3 && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isPrismistCard(d))) score += 5;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -681,6 +715,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || isTacticianCard(d))) score += 12;
                 if (s.talents.contains("t_tactician_grand") && (d.block > 0 || d.scry > 0 || d.upgradeRandom
                         || d.skillChargeGain > 0 || d.rarity == 2 || isHybridCore(d) || isTacticianCard(d))) score += 14;
+                if (s.talents.contains("t_prismist_lens") && (d.scry > 0 || d.draw > 0
+                        || d.upgradeRandom || d.skillChargeGain > 0 || isPrismistCard(d) || isHybridCore(d))) score += 12;
+                if (s.talents.contains("t_prismist_anchor") && (d.block > 0 || d.type == 1 || c.upgraded
+                        || d.upgradeRandom || isPrismistCard(d) || isConfluenceCore(d))) score += 12;
+                if (s.talents.contains("t_prismist_spill") && (d.vulnerable > 0 || d.bind > 0 || d.burn > 0
+                        || d.damage > 0 || d.skillChargeGain > 0 || isPrismistCard(d))) score += 12;
+                if (s.talents.contains("t_prismist_grand") && (d.draw > 0 || d.skillChargeGain > 0 || d.upgradeRandom
+                        || d.rarity == 2 || isHybridCore(d) || isConfluenceCore(d) || isPrismistCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -720,6 +762,9 @@ public final class SimulationHarness {
                 if ("tactician_grand_strategy".equals(c.id) || "tactician_overplan".equals(c.id)) score += 18;
                 if ("tactician_probe".equals(c.id) || "tactician_bulwark".equals(c.id)
                         || "tactician_map".equals(c.id) || "tactician_flank".equals(c.id)) score += 14;
+                if ("prismist_grand_spectrum".equals(c.id) || "prismist_overbeam".equals(c.id)) score += 18;
+                if ("prismist_ray".equals(c.id) || "prismist_lens".equals(c.id)
+                        || "prismist_anchor".equals(c.id) || "prismist_spill".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -795,6 +840,10 @@ public final class SimulationHarness {
                         || d.scry > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0)) score += 14;
                 if (s.relics.contains("grand_war_room") && (isTacticianSignal(d) || c.temp || d.block > 0
                         || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2)) score += 16;
+                if (s.relics.contains("refraction_dial") && (isPrismistSignal(d) || c.temp || isHybridCore(d)
+                        || isConfluenceCore(d) || d.scry > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.draw > 0)) score += 14;
+                if (s.relics.contains("spectrum_crown") && (isPrismistSignal(d) || c.temp || isHybridCore(d)
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -872,6 +921,15 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_PRISMIST.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean refractionWindow = target >= 0 && (s.enemies.get(target).mark >= 2 || s.enemies.get(target).vulnerable > 0);
+            int upgraded = upgradedDeckCards(s);
+            if (s.professionCharge >= 4 || overload >= 1 || refractionWindow || s.confluenceChain >= 4
+                    || upgraded >= 7 || prismistEnemyPressure(s) >= 7 || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -903,7 +961,8 @@ public final class SimulationHarness {
                 || s.relics.contains("shadow_sash") || s.relics.contains("eclipse_mask")
                 || s.relics.contains("rune_stylus") || s.relics.contains("grand_rune_blade")
                 || s.relics.contains("spirit_planchette") || s.relics.contains("ancestral_planchette")
-                || s.relics.contains("war_table") || s.relics.contains("grand_war_room");
+                || s.relics.contains("war_table") || s.relics.contains("grand_war_room")
+                || s.relics.contains("refraction_dial") || s.relics.contains("spectrum_crown");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
@@ -967,6 +1026,18 @@ public final class SimulationHarness {
                 || "tactician_overplan".equals(d.id) || "tactician_grand_strategy".equals(d.id));
     }
 
+    private static boolean isPrismistSignal(GameCore.CardDef d) {
+        return d != null && (isHybridCore(d) || isConfluenceCore(d) || d.scry > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.draw > 0 || d.vulnerable > 0 || d.bind > 0 || d.burn > 0
+                || GameCore.PROF_PRISMIST.equals(d.profession));
+    }
+
+    private static boolean isPrismistCard(GameCore.CardDef d) {
+        return d != null && ("prismist_ray".equals(d.id) || "prismist_lens".equals(d.id)
+                || "prismist_anchor".equals(d.id) || "prismist_spill".equals(d.id)
+                || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id));
+    }
+
     private static int stormcallerEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -1008,6 +1079,16 @@ public final class SimulationHarness {
     }
 
     private static int tacticianEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 2 + e.vulnerable * 2 + e.bind + e.burn;
+            }
+        }
+        return pressure;
+    }
+
+    private static int prismistEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
             if (e.hp > 0) {

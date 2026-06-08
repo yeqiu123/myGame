@@ -1290,6 +1290,20 @@ public final class GameView extends View {
             c.drawLine(cx - size * 0.38f, cy + size * 0.2f, cx + size * 0.38f, cy + size * 0.82f, p);
             c.drawLine(cx + size * 0.38f, cy + size * 0.2f, cx - size * 0.38f, cy + size * 0.82f, p);
             c.drawCircle(cx + size * 0.58f, cy + size * 0.58f, size * 0.16f, p);
+        } else if (GameCore.PROF_PRISMIST.equals(profession)) {
+            Path gem = new Path();
+            gem.moveTo(cx, cy - size * 0.95f);
+            gem.lineTo(cx + size * 0.72f, cy - size * 0.18f);
+            gem.lineTo(cx + size * 0.36f, cy + size * 0.88f);
+            gem.lineTo(cx - size * 0.36f, cy + size * 0.88f);
+            gem.lineTo(cx - size * 0.72f, cy - size * 0.18f);
+            gem.close();
+            c.drawPath(gem, p);
+            c.drawLine(cx, cy - size * 0.9f, cx, cy + size * 0.82f, p);
+            c.drawLine(cx - size * 0.7f, cy - size * 0.18f, cx + size * 0.36f, cy + size * 0.82f, p);
+            c.drawLine(cx + size * 0.7f, cy - size * 0.18f, cx - size * 0.36f, cy + size * 0.82f, p);
+            c.drawLine(cx - size * 0.92f, cy + size * 0.16f, cx - size * 0.46f, cy + size * 0.52f, p);
+            c.drawLine(cx + size * 0.92f, cy + size * 0.16f, cx + size * 0.46f, cy + size * 0.52f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
