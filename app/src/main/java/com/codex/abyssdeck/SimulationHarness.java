@@ -127,6 +127,7 @@ public final class SimulationHarness {
                     + (d.createEcho ? 8 : 0) + (d.createPotion ? 8 : 0) + (d.createWound ? 5 : 0)
                     + (d.upgradeRandom ? 8 : 0) + d.scry * 2 - d.cost * 2;
             if (d.profession.equals(s.profession)) score += 24;
+            if (d.skillChargeGain > 0) score += 8;
             if ("通用".equals(d.origin) || d.origin.equals(s.origin)) score += 4;
             if (d.rarity == 2 && d.profession.equals(s.profession)) score += 10;
             if (GameCore.PROF_WARDEN.equals(s.profession) && (d.block > 0 || d.blockToDamage || d.gainSteelEngine > 0)) score += 12;
@@ -351,6 +352,7 @@ public final class SimulationHarness {
                 if (s.relics.contains("polished_cog") && c.upgraded) score += 4;
                 if (s.relics.contains("scar_talisman") && "wound".equals(c.id)) score += 12;
                 if (d.skillChargeGain > 0 && s.professionSkillCharge >= GameCore.PROF_SKILL_MAX - 4) score += 12;
+                if (d.skillChargeGain > 0 && s.professionSkillCharge >= GameCore.PROF_SKILL_MAX) score += 10;
                 if (hasSkillRelic(s) && d.skillChargeGain > 0) score += 10;
                 if (s.relics.contains("command_banner") && d.type == 1) score += 5;
                 if (s.relics.contains("flash_heel") && s.cardsPlayedThisTurn >= 3) score += 5;
