@@ -3091,6 +3091,12 @@ public final class GameCore {
         } else if ("spec_assembly".equals(id)) {
             addUpgradedDeckCard(s, "forge_signal");
             upgradeRandomDeckCard(s);
+        } else if ("spec_echoflow".equals(id)) {
+            addUpgradedDeckCard(s, "hybrid_echo_step");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if ("spec_markchain".equals(id)) {
+            addUpgradedDeckCard(s, "clean_arc");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3134,6 +3140,16 @@ public final class GameCore {
             c.upgraded = true;
             s.deck.add(c);
             upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + s.skillSpecLevel);
+        } else if ("spec_echoflow".equals(spec.id)) {
+            Card c = new Card(s.skillSpecLevel >= 3 ? "echo_matrix" : "cycle_metronome");
+            c.upgraded = true;
+            s.deck.add(c);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, s.skillSpecLevel);
+        } else if ("spec_markchain".equals(spec.id)) {
+            Card c = new Card(s.skillSpecLevel >= 3 ? "apex_confluence" : "status_spill");
+            c.upgraded = true;
+            s.deck.add(c);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + s.skillSpecLevel);
         }
         log(s, "职业技专修晋阶：" + spec.name + " " + skillSpecLevelSuffix(s));
@@ -3608,6 +3624,51 @@ public final class GameCore {
             }
             addQuestProgress(s, QUEST_FORGE, 1 + level / 2);
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain)));
+        } else if ("spec_echoflow".equals(spec.id)) {
+            int echoPulse = Math.max(0, s.voidEngine) + Math.max(0, s.pactTempCards) + Math.min(6, s.cardsPlayedThisTurn);
+            draw(s, 1 + overload / 4 + (level >= 3 ? 1 : 0));
+            Card echo = new Card(level >= 3 || overload >= 4 ? "hybrid_echo_step" : "quick_cut");
+            echo.temp = true;
+            echo.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, echo);
+            if (level >= 2 || overload >= 2) {
+                Card glimpse = new Card("void_glimpse");
+                glimpse.temp = true;
+                glimpse.upgraded = level >= 3 || overload >= 4;
+                addToHand(s, glimpse);
+            }
+            s.voidEngine += 1 + (level >= 3 ? 1 : 0);
+            addProfessionSkillCharge(s, level + overload / 2 + Math.min(2, echoPulse / 4));
+            if (level >= 2 || overload >= 3 || echoPulse >= 5) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 1 + level / 2 + overload / 4;
+                damageEnemy(s, target, 4 + level * 3 + overload * 2 + Math.min(16, echoPulse * 2), true);
+            }
+            addQuestProgress(s, QUEST_ECHO, 1 + level);
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, hybridFocusCount(card(echo.id)))));
+        } else if ("spec_markchain".equals(spec.id)) {
+            int pressure = bestEnemyPressure(s);
+            for (Enemy e : livingEnemies(s)) {
+                e.mark += 1 + level + overload / 3;
+                e.vulnerable += 1 + level / 2 + overload / 4;
+                e.bind += 1 + s.bindPower / 2 + overload / 3;
+                damageEnemy(s, e, 3 + level * 3 + overload * 2 + Math.min(18, (pressure + e.mark) / 3), true);
+            }
+            Enemy focus = target != null ? target : firstLiving(s);
+            if (focus != null) {
+                damageEnemy(s, focus, 5 + level * 4 + Math.min(28, focus.mark * 3 + pressure), true);
+            }
+            gainBlock(s, 4 + level * 3 + s.act + Math.min(14, pressure / 3));
+            if (level >= 2 || overload >= 3) {
+                draw(s, 1);
+            }
+            if (level >= 3 || pressure >= 10) {
+                addProfessionSkillCharge(s, 1 + overload / 3);
+            }
+            addQuestProgress(s, QUEST_MARK, 2 + level + overload / 3);
+            addQuestProgress(s, QUEST_HEX, 1 + level / 2);
         }
         applySkillSpecRelics(s, target, overload, level, spec.id);
         log(s, "专修触发：" + spec.name + "。");
@@ -3667,6 +3728,29 @@ public final class GameCore {
             signal.upgraded = level >= 2;
             addToHand(s, signal);
             gainBlock(s, 5 + level * 3 + Math.min(10, s.confluenceChain + s.professionCharge));
+            addProfessionSkillCharge(s, 2);
+        } else if ("spec_echoflow".equals(specId) && hasRelic(s, "echoflow_charm")) {
+            Card step = new Card("hybrid_echo_step");
+            step.temp = true;
+            step.upgraded = level >= 2;
+            addToHand(s, step);
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.voidEngine));
+            if (level >= 3 || overload >= 3) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 1 + level / 2;
+            }
+        } else if ("spec_markchain".equals(specId) && hasRelic(s, "markchain_seal")) {
+            int pressure = bestEnemyPressure(s);
+            for (Enemy e : livingEnemies(s)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 4 + level * 3 + overload + Math.min(12, pressure / 4), true);
+            }
+            gainBlock(s, 4 + s.act + Math.min(8, pressure / 4));
             addProfessionSkillCharge(s, 2);
         }
         if (hasRelic(s, "overload_etch") && overload > 0) {
@@ -4135,6 +4219,12 @@ public final class GameCore {
         if ("spec_assembly".equals(spec.id)) {
             return level;
         }
+        if ("spec_echoflow".equals(spec.id)) {
+            return level >= 3 ? 2 : level >= 2 ? 1 : 0;
+        }
+        if ("spec_markchain".equals(spec.id)) {
+            return Math.max(1, level - 1);
+        }
         return 0;
     }
 
@@ -4185,8 +4275,10 @@ public final class GameCore {
         }
         if (quest == QUEST_ECHO && (PROF_ARCANIST.equals(s.profession) || PROF_SUMMONER.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession)
+                || "spec_echoflow".equals(s.skillSpec)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
-                || hasRelic(s, "echo_prism") || hasRelic(s, "singularity_orb") || hasRelic(s, "spirit_processional"))) {
+                || hasRelic(s, "echo_prism") || hasRelic(s, "echoflow_charm")
+                || hasRelic(s, "singularity_orb") || hasRelic(s, "spirit_processional"))) {
             return true;
         }
         if (quest == QUEST_BLOODCOIN && (PROF_MERCHANT.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
@@ -4206,6 +4298,7 @@ public final class GameCore {
             return true;
         }
         if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession)
+                || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
             return true;
@@ -4214,8 +4307,10 @@ public final class GameCore {
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession)
                 || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
+                || "spec_markchain".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
-                || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton") || hasRelic(s, "trial_ledger"))) {
+                || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
+                || hasRelic(s, "markchain_seal") || hasRelic(s, "trial_ledger"))) {
             return true;
         }
         if (quest == QUEST_OVERLOAD && (s.profession != null && s.profession.length() > 0)
@@ -6662,6 +6757,29 @@ public final class GameCore {
                 && (d.skillChargeGain > 0 || d.type == 1 || skillSpecCardBonus(s, d) >= 4)) {
             gainBlock(s, 3 + s.act + Math.min(6, s.pactFulfilled * 2));
             if (s.cardsPlayedThisTurn == 3 || s.cardsPlayedThisTurn == 6) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasRelic(s, "echoflow_charm") && (d.createEcho || c.temp || d.exhaust || cedesTempo(d.id))) {
+            s.voidEngine++;
+            addProfessionSkillCharge(s, 1);
+            if (s.cardsPlayedThisTurn == 3 || s.cardsPlayedThisTurn == 6) {
+                draw(s, 1);
+            }
+            if (c.temp && firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+        }
+        if (hasRelic(s, "markchain_seal")
+                && (d.vulnerable > 0 || d.bind > 0 || d.burn > 0 || d.addStatusToEnemy || d.spreadStatus || d.skillChargeGain > 0)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4) {
+                    damageEnemy(s, e, 3 + s.act * 2 + Math.min(12, e.mark * 2 + bestEnemyPressure(s) / 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -9250,7 +9368,7 @@ public final class GameCore {
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
                     "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet",
                     "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
-                    "warden_brand", "assembly_frame", "discipline_chart", "overload_etch", "trial_ledger",
+                    "warden_brand", "assembly_frame", "echoflow_charm", "markchain_seal", "discipline_chart", "overload_etch", "trial_ledger",
                     "tuning_fork", "conductor_baton", "verdict_seal", "judgment_codex", "gyro_wrench",
                     "clockwork_core", "hourglass_charm", "time_engine", "split_anvil",
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown") ? 3 : 0;
@@ -9258,7 +9376,7 @@ public final class GameCore {
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
                     "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "spirit_bell", "spirit_processional", "void_anchor",
-                    "echo_crown") ? 3 : 0;
+                    "echoflow_charm", "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
@@ -9281,12 +9399,12 @@ public final class GameCore {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
                     "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
                     "split_anvil", "bloodspark_contract", "tuning_fork", "conductor_baton", "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
-                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "warden_brand", "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger") ? 3 : 0;
+                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "warden_brand", "markchain_seal", "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
                 "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "conductor_baton", "gyro_wrench", "clockwork_core", "assembly_frame", "flash_heel", "pattern_spool",
-                    "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "discipline_chart", "trial_ledger", "hourglass_charm", "time_engine") ? 3 : 0;
+                    "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "echoflow_charm", "discipline_chart", "trial_ledger", "hourglass_charm", "time_engine") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -9344,7 +9462,8 @@ public final class GameCore {
                 || hasRelic(s, "crimson_seal") || hasRelic(s, "pattern_spool") || hasRelic(s, "spirit_bell")
                 || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus") || hasRelic(s, "tuning_fork")
                 || hasRelic(s, "verdict_seal") || hasRelic(s, "star_compass") || hasRelic(s, "gyro_wrench")
-                || hasRelic(s, "hourglass_charm") || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
+                || hasRelic(s, "hourglass_charm") || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
+                || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
 
     private static CardDef randomOverloadCard(State s, boolean allowRare) {
@@ -9506,11 +9625,30 @@ public final class GameCore {
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
             if ("forge_signal".equals(d.id) || "confluence_chord".equals(d.id) || "prism_anchor".equals(d.id)
                     || "hybrid_rift_engine".equals(d.id)) bonus += 4;
+        } else if ("spec_echoflow".equals(spec.id)) {
+            if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
+            if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
+            if ("hybrid_echo_step".equals(d.id) || "echo_matrix".equals(d.id) || "cycle_metronome".equals(d.id)
+                    || "void_glimpse".equals(d.id) || "quick_cut".equals(d.id) || "hybrid_rift_engine".equals(d.id)) bonus += 4;
+        } else if ("spec_markchain".equals(spec.id)) {
+            if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
+            if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
+            if ("clean_arc".equals(d.id) || "status_spill".equals(d.id) || "plague_vector".equals(d.id)
+                    || "apex_confluence".equals(d.id) || "hybrid_hexdance".equals(d.id)
+                    || "tuner_harmonic".equals(d.id) || "adjudicator_clause".equals(d.id)
+                    || "ranger_overmark".equals(d.id) || "inscriber_codex".equals(d.id)) bonus += 4;
         }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
         }
         return bonus;
+    }
+
+    private static boolean cedesTempo(String id) {
+        return "battle_trance".equals(id) || "double_step".equals(id) || "golden_focus".equals(id)
+                || "glass_sprint".equals(id) || "tuner_note".equals(id) || "tuner_loop".equals(id)
+                || "astrologer_chart".equals(id) || "astrologer_ephemeris".equals(id)
+                || "chronomancer_tick".equals(id) || "chronomancer_loop".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -9597,6 +9735,12 @@ public final class GameCore {
             bonus += 3;
         }
         if (hasRelic(s, "time_engine") && (d.skillChargeGain > 0 || d.createEcho || d.energyGain > 0 || d.draw > 0 || d.rarity == 2)) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "markchain_seal") && (d.vulnerable > 0 || d.bind > 0 || d.burn > 0 || d.addStatusToEnemy || d.spreadStatus || d.skillChargeGain > 0)) {
             bonus += 4;
         }
         return bonus;
@@ -9843,6 +9987,8 @@ public final class GameCore {
         if ("spec_mastery".equals(spec.id) && "mastery_badge".equals(id)) return 5;
         if ("spec_control".equals(spec.id) && "warden_brand".equals(id)) return 5;
         if ("spec_assembly".equals(spec.id) && "assembly_frame".equals(id)) return 5;
+        if ("spec_echoflow".equals(spec.id) && "echoflow_charm".equals(id)) return 5;
+        if ("spec_markchain".equals(spec.id) && "markchain_seal".equals(id)) return 5;
         if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark", "conductor_baton")) return 1;
         if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork")) return 1;
         if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist", "bloodspark_contract")) return 1;
@@ -9851,6 +9997,8 @@ public final class GameCore {
         if ("spec_mastery".equals(spec.id) && isSkillRelicForProfession(s, id)) return 2;
         if ("spec_control".equals(spec.id) && isAny(id, "curse_censer", "stormglass_seal", "apex_compass", "fallen_crown", "judgment_codex", "hex_moon")) return 1;
         if ("spec_assembly".equals(spec.id) && isAny(id, "mirror_anvil", "polished_cog", "confluence_map", "prism_gear", "starforge_lens", "clockwork_core")) return 1;
+        if ("spec_echoflow".equals(spec.id) && isAny(id, "void_abacus", "echo_ledger", "echo_crown", "tempo_spindle", "moon_lantern", "tuning_fork", "hourglass_charm", "time_engine")) return 1;
+        if ("spec_markchain".equals(spec.id) && isAny(id, "hunter_mark", "root_drum", "stormglass_seal", "curse_censer", "apex_compass", "hex_moon", "conductor_baton", "judgment_codex", "warden_brand")) return 1;
         if (isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
         if ("spec_burst".equals(spec.id) && "overload_etch".equals(id)) return 2;
         if ("spec_tempo".equals(spec.id) && "discipline_chart".equals(id)) return 2;
@@ -9859,6 +10007,8 @@ public final class GameCore {
         if ("spec_mastery".equals(spec.id) && "overload_etch".equals(id)) return 2;
         if ("spec_control".equals(spec.id) && "trial_ledger".equals(id)) return 2;
         if ("spec_assembly".equals(spec.id) && "discipline_chart".equals(id)) return 2;
+        if ("spec_echoflow".equals(spec.id) && "discipline_chart".equals(id)) return 2;
+        if ("spec_markchain".equals(spec.id) && "overload_etch".equals(id)) return 2;
         return 0;
     }
 
@@ -9874,6 +10024,8 @@ public final class GameCore {
         if ("spec_mastery".equals(spec.id)) return "mastery_badge";
         if ("spec_control".equals(spec.id)) return "warden_brand";
         if ("spec_assembly".equals(spec.id)) return "assembly_frame";
+        if ("spec_echoflow".equals(spec.id)) return "echoflow_charm";
+        if ("spec_markchain".equals(spec.id)) return "markchain_seal";
         return randomSkillRelicFor(s);
     }
 
@@ -10037,6 +10189,12 @@ public final class GameCore {
             upgradeRandomDeckCard(s);
             s.maxHp += 3;
             s.hp += 3;
+        } else if ("echoflow_charm".equals(id)) {
+            addUpgradedDeckCard(s, "hybrid_echo_step");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("markchain_seal".equals(id)) {
+            addUpgradedDeckCard(s, "status_spill");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         } else if ("split_anvil".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_forgebrand");
             upgradeRandomDeckCard(s);
@@ -10742,6 +10900,8 @@ public final class GameCore {
         addRelicDef("mastery_badge", "本职徽章", "本职专修释放职业技时追加职业牌、升级或资源，并推动充能。");
         addRelicDef("warden_brand", "镇压烙印", "镇压专修释放职业技时扩散易伤、束缚和印记，并追加穿透与格挡。");
         addRelicDef("assembly_frame", "装配框架", "装配专修释放职业技时升级手牌、制造临时锻痕信标，并返还格挡与充能。");
+        addRelicDef("echoflow_charm", "流转棱片", "回声流转专修释放职业技时制造临时回声步、抽牌并回收充能；临时、消耗和节奏牌会推动回声势。");
+        addRelicDef("markchain_seal", "标链印", "标链专修释放职业技时扩散印记、易伤和束缚；异常、印记和充能牌会引发穿透追击。");
         addRelicDef("discipline_chart", "专修图谱", "获得升级专修适配牌；打出专修适配牌会获得格挡、职业技充能，高阶专修可续抽。");
         addRelicDef("overload_etch", "过载刻针", "获得升级权能导管并提高初始充能；过载释放职业技时追加标记、穿透、格挡与充能回收。");
         addRelicDef("trial_ledger", "试炼卷宗", "获得金币并提高初始充能；目标达成和誓约兑现会转为格挡、抽牌、升级与职业技资源。");
@@ -10887,6 +11047,8 @@ public final class GameCore {
         addSkillSpec("spec_mastery", "本职专修", "职业技追加一段职业身份效果，并获得对应职业过载牌。");
         addSkillSpec("spec_control", "镇压专修", "职业技扩散易伤、束缚和印记，并把异常压力转为穿透、格挡与抽牌。");
         addSkillSpec("spec_assembly", "装配专修", "职业技升级手牌、制造临时构件，并按汇流链与装配节奏返还格挡、充能和能量。");
+        addSkillSpec("spec_echoflow", "回声流转专修", "职业技制造临时回声牌、抽牌返能，并让临时、消耗和循环牌更快回充。");
+        addSkillSpec("spec_markchain", "标链专修", "职业技铺开印记、易伤和束缚，并把敌方异常压力转成连锁穿透追击。");
     }
 
     private static void addSkillSpec(String id, String name, String text) {

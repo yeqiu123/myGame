@@ -362,8 +362,17 @@ public final class SimulationHarness {
             else if ("spec_tempo".equals(id)) score += 28;
             else if ("spec_burst".equals(id)) score += GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession) ? 32 : 22;
             else if ("spec_sustain".equals(id)) score += GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession) ? 32 : 20;
+            else if ("spec_control".equals(id)) score += GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
+                    || GameCore.PROF_INSCRIBER.equals(s.profession) ? 31 : 24;
+            else if ("spec_assembly".equals(id)) score += GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_MACHINIST.equals(s.profession)
+                    || GameCore.PROF_ASTROLOGER.equals(s.profession) ? 31 : 24;
+            else if ("spec_echoflow".equals(id)) score += GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
+                    || GameCore.PROF_CHRONOMANCER.equals(s.profession) ? 33 : 26;
+            else if ("spec_markchain".equals(id)) score += GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
+                    || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession) ? 33 : 25;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
+            if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id))) score += 4;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
