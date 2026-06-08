@@ -109,12 +109,13 @@ public final class GameCore {
     public static final String PROF_PACTMAKER = "契约师";
     public static final String PROF_STORMCALLER = "风暴使";
     public static final String PROF_SHADOWDANCER = "影舞者";
+    public static final String PROF_RUNEBLADE = "符刃师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
-            PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER
+            PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -789,6 +790,7 @@ public final class GameCore {
         if (PROF_PACTMAKER.equals(profession)) return "兑现";
         if (PROF_STORMCALLER.equals(profession)) return "唤雷";
         if (PROF_SHADOWDANCER.equals(profession)) return "影袭";
+        if (PROF_RUNEBLADE.equals(profession)) return "符斩";
         return "职业技";
     }
 
@@ -843,6 +845,7 @@ public final class GameCore {
         if (PROF_PACTMAKER.equals(profession)) return "满充能：兑现战斗目标、誓约与金币，把进度转成格挡、印记、抽牌和返能。";
         if (PROF_STORMCALLER.equals(profession)) return "满充能：释放连锁雷暴，按雷势、燃灼、印记和过载对敌群造成穿透，并转化为格挡、抽牌和返能。";
         if (PROF_SHADOWDANCER.equals(profession)) return "满充能：消耗影势突袭目标，按低费连打、临时牌、消耗和印记造成穿透处决，并回流抽牌、能量与临时影刃。";
+        if (PROF_RUNEBLADE.equals(profession)) return "满充能：消耗符势斩击目标，按升级牌、检视、格挡、易伤和过载造成穿透，并升级手牌、抽牌与制造临时符刃。";
         return "选择职业后可用。";
     }
 
@@ -1234,6 +1237,46 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, shadow / 2);
+        } else if (PROF_RUNEBLADE.equals(s.profession)) {
+            int rune = Math.max(1, s.professionCharge);
+            int upgraded = Math.min(32, upgradedCardCount(s));
+            int targetPressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 4 + target.bind + target.burn / 2;
+            int damage = 10 + s.act * 3 + Math.min(42, rune * 3 + upgraded * 2 + s.block / 3 + targetPressure) + overload * 5;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(3, upgraded / 6) + overload / 2;
+                target.vulnerable += 1 + overload / 4;
+                if (target.mark >= 5 || target.vulnerable >= 2 || target.hp <= 0) {
+                    draw(s, 1);
+                    addProfessionSkillCharge(s, 1 + overload / 2);
+                }
+            }
+            gainBlock(s, 6 + s.act * 2 + Math.min(24, rune * 2 + upgraded + s.block / 4) + overload * 3);
+            int upgrades = 1 + overload / 3 + (hasTalent(s, "t_runeblade_grand") ? 1 : 0);
+            for (int i = 0; i < upgrades; i++) {
+                upgradeRandomHandCard(s);
+            }
+            draw(s, 1 + Math.min(2, rune / 5) + overload / 4);
+            if (rune >= 5 || upgraded >= 8 || overload >= 3) {
+                s.energy++;
+            }
+            Card blade = new Card(overload >= 4 || hasTalent(s, "t_runeblade_grand") ? "runeblade_grand_seal" : "runeblade_glyphcut");
+            blade.temp = true;
+            blade.upgraded = rune >= 5 || hasTalent(s, "t_runeblade_stylus");
+            addToHand(s, blade);
+            if (hasTalent(s, "t_runeblade_grand")) {
+                Card ward = new Card("runeblade_ward");
+                ward.temp = true;
+                ward.upgraded = true;
+                addToHand(s, ward);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_FORGE, 1 + upgrades);
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_GUARD, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, rune / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2491,6 +2534,9 @@ public final class GameCore {
         if (PROF_SHADOWDANCER.equals(profession)) {
             return "用0费牌、临时牌、消耗和印记积累影势，在连打中寻找处决窗口。适合循环、回声、过载和单体爆发构筑。";
         }
+        if (PROF_RUNEBLADE.equals(profession)) {
+            return "用升级牌、检视、攻防混合和易伤积累符势，把工坊节奏转成穿透符斩。适合工坊、过载、标链和守势构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2551,6 +2597,9 @@ public final class GameCore {
         }
         if (PROF_SHADOWDANCER.equals(profession)) {
             return 0xffb48cff;
+        }
+        if (PROF_RUNEBLADE.equals(profession)) {
+            return 0xff8fd6a8;
         }
         return 0xffd6c07a;
     }
@@ -2814,6 +2863,12 @@ public final class GameCore {
             s.maxHp += 1;
             s.hp += 1;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_RUNEBLADE.equals(profession)) {
+            s.deck.add(new Card("runeblade_glyphcut"));
+            s.deck.add(new Card("runeblade_ward"));
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -2854,6 +2909,7 @@ public final class GameCore {
         else if (PROF_PACTMAKER.equals(profession)) upgradeDeckCard(s, "pactmaker_clause");
         else if (PROF_STORMCALLER.equals(profession)) upgradeDeckCard(s, "stormcaller_sparkline");
         else if (PROF_SHADOWDANCER.equals(profession)) upgradeDeckCard(s, "shadowdancer_blade");
+        else if (PROF_RUNEBLADE.equals(profession)) upgradeDeckCard(s, "runeblade_glyphcut");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -2916,6 +2972,9 @@ public final class GameCore {
         } else if (PROF_SHADOWDANCER.equals(profession)) {
             addUpgradedDeckCard(s, "shadowdancer_step");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_RUNEBLADE.equals(profession)) {
+            addUpgradedDeckCard(s, "runeblade_inscribe");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -2939,6 +2998,7 @@ public final class GameCore {
         if (PROF_PACTMAKER.equals(profession)) return "pactmaker_overdeal";
         if (PROF_STORMCALLER.equals(profession)) return "stormcaller_overstorm";
         if (PROF_SHADOWDANCER.equals(profession)) return "shadowdancer_overstrike";
+        if (PROF_RUNEBLADE.equals(profession)) return "runeblade_overglyph";
         return "forge_signal";
     }
 
@@ -3222,6 +3282,18 @@ public final class GameCore {
         } else if ("t_shadowdancer_grand".equals(id)) {
             addUpgradedDeckCard(s, "shadowdancer_eclipse");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_runeblade_stylus".equals(id)) {
+            addUpgradedDeckCard(s, "runeblade_inscribe");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_runeblade_guard".equals(id)) {
+            addUpgradedDeckCard(s, "runeblade_ward");
+        } else if ("t_runeblade_execution".equals(id)) {
+            addUpgradedDeckCard(s, "runeblade_overglyph");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_runeblade_grand".equals(id)) {
+            addUpgradedDeckCard(s, "runeblade_grand_seal");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -3241,7 +3313,7 @@ public final class GameCore {
                 || "t_adjudicator_grand".equals(id) || "t_astrologer_grand".equals(id)
                 || "t_machinist_grand".equals(id) || "t_chronomancer_grand".equals(id)
                 || "t_pactmaker_grand".equals(id) || "t_stormcaller_grand".equals(id)
-                || "t_shadowdancer_grand".equals(id);
+                || "t_shadowdancer_grand".equals(id) || "t_runeblade_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -3254,7 +3326,7 @@ public final class GameCore {
                 || "adjudicator_final_decree".equals(id) || "astrologer_grand_orrery".equals(id)
                 || "machinist_grand_engine".equals(id) || "chronomancer_time_engine".equals(id)
                 || "pactmaker_grand_contract".equals(id) || "stormcaller_tempest_crown".equals(id)
-                || "shadowdancer_eclipse".equals(id);
+                || "shadowdancer_eclipse".equals(id) || "runeblade_grand_seal".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -3267,7 +3339,7 @@ public final class GameCore {
                 || "judgment_codex".equals(id) || "celestial_orrery".equals(id)
                 || "clockwork_core".equals(id) || "time_engine".equals(id)
                 || "grand_ledger".equals(id) || "tempest_crown".equals(id)
-                || "eclipse_mask".equals(id);
+                || "eclipse_mask".equals(id) || "grand_rune_blade".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -3681,6 +3753,8 @@ public final class GameCore {
         else if (PROF_SHADOWDANCER.equals(s.profession) && d != null && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
                 || d.createEcho || d.exhaust || d.skillChargeGain > 0 || d.comboDamage > 0 || d.vulnerable > 0
                 || d.profession.equals(PROF_SHADOWDANCER))) amount++;
+        else if (PROF_RUNEBLADE.equals(s.profession) && d != null && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.block > 0 || d.damage > 0 && d.block > 0 || d.profession.equals(PROF_RUNEBLADE))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -4233,6 +4307,24 @@ public final class GameCore {
             if (level >= 3 || s.cardsPlayedThisTurn >= 4 || overload >= 3) {
                 s.energy++;
             }
+        } else if (PROF_RUNEBLADE.equals(s.profession)) {
+            s.professionCharge += level + 1 + overload / 2;
+            upgradeRandomHandCard(s);
+            draw(s, 1);
+            gainBlock(s, 4 + level * 3 + Math.min(14, s.professionCharge + upgradedCardCount(s) / 2 + s.block / 8));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card glyph = new Card(level >= 3 || overload >= 3 ? "runeblade_overglyph" : "runeblade_glyphcut");
+            glyph.temp = true;
+            glyph.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, glyph);
+            if (target != null) {
+                target.mark += level + overload / 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(22, s.professionCharge * 2 + upgradedCardCount(s) + target.mark * 2), true);
+            }
+            if (level >= 3 || upgradedCardCount(s) >= 8 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -4453,6 +4545,31 @@ public final class GameCore {
                 target.mark += 2;
             }
         }
+        if (hasRelic(s, "rune_stylus") && PROF_RUNEBLADE.equals(s.profession)) {
+            upgradeRandomHandCard(s);
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, upgradedCardCount(s) / 5));
+            gainBlock(s, 4 + s.act + Math.min(10, s.professionCharge + upgradedCardCount(s) / 2));
+            if (target != null) {
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(16, target.mark * 2 + upgradedCardCount(s)), true);
+            }
+        }
+        if (hasRelic(s, "grand_rune_blade") && PROF_RUNEBLADE.equals(s.profession)) {
+            Card seal = new Card("runeblade_glyphcut");
+            seal.temp = true;
+            seal.upgraded = true;
+            addToHand(s, seal);
+            upgradeRandomHandCard(s);
+            draw(s, 1);
+            if (s.professionCharge >= 5 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.vulnerable += 1;
+                target.mark += 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -4487,6 +4604,8 @@ public final class GameCore {
                 && (s.professionCharge >= 3 || firstLiving(s) != null && (firstLiving(s).burn > 0 || firstLiving(s).mark > 0))) amount++;
         if (hasRelic(s, "shadow_sash") && PROF_SHADOWDANCER.equals(s.profession) && amount > 0
                 && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 3 || tempOrEchoHandCount(s) >= 2)) amount++;
+        if (hasRelic(s, "rune_stylus") && PROF_RUNEBLADE.equals(s.profession) && amount > 0
+                && (upgradedCardCount(s) >= 4 || s.professionCharge >= 3 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -4665,6 +4784,7 @@ public final class GameCore {
         }
         if (quest == QUEST_FORGE && (PROF_WEAVER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
+                || PROF_RUNEBLADE.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -4684,6 +4804,7 @@ public final class GameCore {
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
                 || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
+                || PROF_RUNEBLADE.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -4694,7 +4815,8 @@ public final class GameCore {
                 && (hasSkillRelic(s) || PROF_TUNER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
                 || PROF_ARCANIST.equals(s.profession) || PROF_WEAVER.equals(s.profession)
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
-                || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession))) {
+                || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
+                || PROF_RUNEBLADE.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -5492,6 +5614,27 @@ public final class GameCore {
                 blade.temp = true;
                 blade.upgraded = true;
                 addToHand(s, blade);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_RUNEBLADE.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2;
+            gainBlock(s, 3 + s.act);
+            upgradeRandomHandCard(s);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+                firstLiving(s).vulnerable += hasTalent(s, "t_runeblade_execution") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_runeblade_guard")) {
+                gainBlock(s, 4 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_runeblade_grand")) {
+                Card glyph = new Card("runeblade_glyphcut");
+                glyph.temp = true;
+                glyph.upgraded = true;
+                addToHand(s, glyph);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -6784,6 +6927,61 @@ public final class GameCore {
                 target.vulnerable += 1;
             }
             if (s.cardsPlayedThisTurn >= 4 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("runeblade_glyphcut".equals(d.id) && target != null) {
+            int upgraded = upgradedCardCount(s);
+            damage += Math.min(c.upgraded ? 18 : 12, s.professionCharge * 2 + upgraded + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            if (c.upgraded || upgraded >= 5 || target.mark >= 3) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("runeblade_ward".equals(d.id)) {
+            int upgraded = upgradedCardCount(s);
+            block += Math.min(c.upgraded ? 18 : 12, upgraded + s.professionCharge * 2 + s.block / 6);
+            if (upgraded >= 5 || s.professionCharge >= 3 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("runeblade_inscribe".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            if (upgradedCardCount(s) >= 5 || c.upgraded) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+            Enemy e = target != null ? target : firstLiving(s);
+            if (e != null && (upgradedCardCount(s) >= 4 || c.upgraded)) {
+                e.mark += c.upgraded ? 2 : 1;
+                e.vulnerable += 1;
+            }
+        }
+        if ("runeblade_cleave".equals(d.id) && target != null) {
+            damage += Math.min(c.upgraded ? 26 : 18, s.block / 4 + upgradedCardCount(s) + s.professionCharge * 2);
+            block += Math.min(c.upgraded ? 12 : 8, target.mark * 2 + s.professionCharge);
+            target.mark += c.upgraded ? 2 : 1;
+        }
+        if ("runeblade_overglyph".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            block += Math.min(c.upgraded ? 26 : 18, upgradedCardCount(s) + s.professionCharge * 2 + overloadNow * 5);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 30 : 20, overloadNow * 6 + target.mark * 3 + upgradedCardCount(s));
+            }
+            if (overloadNow >= 2 || upgradedCardCount(s) >= 8 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("runeblade_grand_seal".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            damage += Math.min(c.upgraded ? 52 : 38, s.professionCharge * 4 + upgradedCardCount(s) * 2 + overloadNow * 6 + s.block / 3);
+            block += Math.min(c.upgraded ? 36 : 25, s.professionCharge * 3 + upgradedCardCount(s) + s.block / 5);
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.vulnerable += 1;
+            }
+            if (upgradedCardCount(s) >= 8 || overloadNow >= 2 || c.upgraded) {
                 draw += 1;
             }
         }
@@ -8368,6 +8566,66 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_RUNEBLADE.equals(s.profession) && (c.upgraded || d.upgradeRandom || d.scry > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.block > 0 || d.damage > 0 && d.block > 0
+                || d.profession.equals(PROF_RUNEBLADE))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (c.upgraded || d.upgradeRandom || d.skillChargeGain > 0 || d.profession.equals(PROF_RUNEBLADE)) {
+                    e.mark += 1;
+                }
+                if (s.professionCharge >= 4 || upgradedCardCount(s) >= 6) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(18, e.mark * 2 + s.professionCharge * 2 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(12, s.professionCharge + upgradedCardCount(s) / 2 + s.block / 8));
+                upgradeRandomHandCard(s);
+                if (s.cardsPlayedThisTurn >= 3 || hasTalent(s, "t_runeblade_guard")) {
+                    draw(s, 1);
+                }
+                if (e != null) {
+                    e.vulnerable += 1;
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_runeblade_stylus") && (c.upgraded || d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(15, e.mark * 2 + upgradedCardCount(s)), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_runeblade_guard") && (d.block > 0 || d.type == 1 || c.upgraded)) {
+            gainBlock(s, 2 + s.act + Math.min(7, upgradedCardCount(s) / 2));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 24 + s.act * 4) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_runeblade_execution") && (d.vulnerable > 0 || d.damage > 0 || c.upgraded)) {
+            Enemy e = firstLiving(s);
+            if (e != null && (e.mark >= 3 || e.vulnerable > 0)) {
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(18, e.mark * 2 + upgradedCardCount(s)), true);
+            }
+        }
+        if (hasTalent(s, "t_runeblade_grand") && (c.upgraded || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0 || d.rarity == 2)) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4)) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(20, e.mark * 2 + s.professionCharge * 2 + upgradedCardCount(s) / 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -8450,6 +8708,36 @@ public final class GameCore {
             }
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
+            }
+        }
+        if (hasRelic(s, "rune_stylus") && (c.upgraded || d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.profession.equals(PROF_RUNEBLADE))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                upgradeRandomHandCard(s);
+                gainBlock(s, 3 + s.act);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 4 || upgradedCardCount(s) >= 7) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(18, e.mark * 2 + upgradedCardCount(s)), true);
+                }
+            }
+        }
+        if (hasRelic(s, "grand_rune_blade") && (c.upgraded || d.skillChargeGain > 0 || d.upgradeRandom || d.rarity == 2
+                || d.profession.equals(PROF_RUNEBLADE))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(20, e.mark * 2 + s.professionCharge + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -9624,6 +9912,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_ECHO ? 14 : focus == BUILD_OVERLOAD ? 14
                     : focus == BUILD_STATUS ? 10 : focus == BUILD_GUARD ? 6 : 0;
         }
+        if (PROF_RUNEBLADE.equals(s.profession)) {
+            return focus == BUILD_FORGE ? 18 : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_STATUS ? 12
+                    : focus == BUILD_GUARD ? 10 : focus == BUILD_CYCLE ? 6 : 0;
+        }
         return 0;
     }
 
@@ -9668,6 +9960,9 @@ public final class GameCore {
         }
         if (PROF_SHADOWDANCER.equals(d.profession)) {
             return shadowdancerFocusCardValue(d, focus);
+        }
+        if (PROF_RUNEBLADE.equals(d.profession)) {
+            return runebladeFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -9848,6 +10143,39 @@ public final class GameCore {
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.type == 1 ? 4 : 0) + ("shadowdancer_veil".equals(d.id) ? 14 : 0)
                     + ("shadowdancer_overstrike".equals(d.id) ? 10 : 0) + ("shadowdancer_eclipse".equals(d.id) ? 10 : 0);
+        }
+        return 0;
+    }
+
+    private static int runebladeFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + (d.draw > 0 ? 3 : 0) + (d.upgradeRandom ? 4 : 0)
+                    + ("runeblade_inscribe".equals(d.id) ? 8 : 0) + ("runeblade_overglyph".equals(d.id) ? 14 : 0)
+                    + ("runeblade_grand_seal".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.scry * 3 + d.skillChargeGain * 2 + (d.rarity == 2 ? 2 : 0)
+                    + ("runeblade_glyphcut".equals(d.id) ? 8 : 0) + ("runeblade_ward".equals(d.id) ? 14 : 0)
+                    + ("runeblade_inscribe".equals(d.id) ? 14 : 0) + ("runeblade_overglyph".equals(d.id) ? 12 : 0)
+                    + ("runeblade_grand_seal".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 6 + d.skillChargeGain * 2
+                    + ("runeblade_glyphcut".equals(d.id) ? 8 : 0) + ("runeblade_cleave".equals(d.id) ? 12 : 0)
+                    + ("runeblade_overglyph".equals(d.id) ? 14 : 0) + ("runeblade_grand_seal".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 6 : 0) + d.scry * 2 + d.skillChargeGain * 2
+                    + ("runeblade_glyphcut".equals(d.id) ? 12 : 0) + ("runeblade_ward".equals(d.id) ? 8 : 0)
+                    + ("runeblade_inscribe".equals(d.id) ? 8 : 0) + ("runeblade_overglyph".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0)
+                    + ("runeblade_ward".equals(d.id) ? 16 : 0) + ("runeblade_cleave".equals(d.id) ? 12 : 0)
+                    + ("runeblade_overglyph".equals(d.id) ? 12 : 0) + ("runeblade_grand_seal".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return ("runeblade_glyphcut".equals(d.id) ? 3 : 0) + ("runeblade_inscribe".equals(d.id) ? 4 : 0);
         }
         return 0;
     }
@@ -10073,6 +10401,10 @@ public final class GameCore {
         else if ("t_shadowdancer_vanish".equals(id)) bonus += tempOrEchoDeckCards(s) * 3 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_CYCLE);
         else if ("t_shadowdancer_execution".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
         else if ("t_shadowdancer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_runeblade_stylus".equals(id)) bonus += buildFocusDeckCards(s, BUILD_FORGE) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards + (upgraded < 6 ? 7 : 3);
+        else if ("t_runeblade_guard".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2 + buildFocusDeckCards(s, BUILD_FORGE) + professionCards;
+        else if ("t_runeblade_execution".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_runeblade_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_FORGE) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_STATUS);
         return Math.min(36, bonus);
     }
 
@@ -10086,6 +10418,7 @@ public final class GameCore {
                     "t_chronomancer_clockwork", "t_chronomancer_grand", "t_pactmaker_notary",
                     "t_pactmaker_grand", "t_stormcaller_rod", "t_stormcaller_front",
                     "t_stormcaller_grand", "t_shadowdancer_mask", "t_shadowdancer_grand",
+                    "t_runeblade_stylus", "t_runeblade_execution", "t_runeblade_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -10115,7 +10448,8 @@ public final class GameCore {
                     "t_weaver_mastery", "t_weaver_grandpattern", "t_inscriber_rubbing",
                     "t_inscriber_grandcodex", "t_adjudicator_docket", "t_astrologer_chart",
                     "t_astrologer_grand", "t_machinist_blueprint", "t_machinist_foundry",
-                    "t_machinist_grand") ? 3 : 0;
+                    "t_machinist_grand", "t_runeblade_stylus", "t_runeblade_guard",
+                    "t_runeblade_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -10127,7 +10461,8 @@ public final class GameCore {
                     "t_machinist_turret", "t_machinist_grand", "t_pactmaker_notary",
                     "t_pactmaker_bloodseal", "t_pactmaker_grand", "t_stormcaller_rod",
                     "t_stormcaller_front", "t_stormcaller_grand", "t_shadowdancer_mask",
-                    "t_shadowdancer_execution", "t_shadowdancer_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_shadowdancer_execution", "t_shadowdancer_grand", "t_runeblade_stylus",
+                    "t_runeblade_execution", "t_runeblade_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -10139,7 +10474,7 @@ public final class GameCore {
                     "t_chronomancer_clockwork", "t_chronomancer_grand", "t_pactmaker_notary",
                     "t_pactmaker_collector", "t_stormcaller_pressure", "t_stormcaller_grand",
                     "t_shadowdancer_mask", "t_shadowdancer_vanish", "t_shadowdancer_grand",
-                    "t_shared_longnight") ? 3 : 0;
+                    "t_runeblade_stylus", "t_runeblade_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
@@ -10147,7 +10482,8 @@ public final class GameCore {
                     "t_summoner_bond", "t_weaver_grandpattern", "t_adjudicator_oath",
                     "t_machinist_blueprint", "t_machinist_foundry", "t_chronomancer_anchor",
                     "t_pactmaker_collector", "t_pactmaker_grand", "t_stormcaller_front",
-                    "t_stormcaller_grand", "t_shadowdancer_vanish", "t_shadowdancer_execution") ? 3 : 0;
+                    "t_stormcaller_grand", "t_shadowdancer_vanish", "t_shadowdancer_execution",
+                    "t_runeblade_guard", "t_runeblade_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -10266,6 +10602,18 @@ public final class GameCore {
         if (isAny(id, "t_shadowdancer_execution")
                 && (buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3)) {
             return "背刺窗口";
+        }
+        if (isAny(id, "t_runeblade_stylus", "t_runeblade_grand")
+                && (upgradedDeckCards(s) >= 4 || buildFocusDeckCards(s, BUILD_FORGE) >= 2)) {
+            return "符刻工坊";
+        }
+        if (isAny(id, "t_runeblade_guard", "t_runeblade_grand")
+                && buildFocusDeckCards(s, BUILD_GUARD) >= 2) {
+            return "符纹护势";
+        }
+        if (isAny(id, "t_runeblade_execution")
+                && (buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
+            return "符斩窗口";
         }
         return "";
     }
@@ -10532,7 +10880,8 @@ public final class GameCore {
                 || (PROF_CHRONOMANCER.equals(s.profession) && "hourglass_charm".equals(id))
                 || (PROF_PACTMAKER.equals(s.profession) && "contract_stamp".equals(id))
                 || (PROF_STORMCALLER.equals(s.profession) && "storm_rod".equals(id))
-                || (PROF_SHADOWDANCER.equals(s.profession) && "shadow_sash".equals(id));
+                || (PROF_SHADOWDANCER.equals(s.profession) && "shadow_sash".equals(id))
+                || (PROF_RUNEBLADE.equals(s.profession) && "rune_stylus".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -10565,6 +10914,7 @@ public final class GameCore {
                 || hasRelic(s, "verdict_seal") || hasRelic(s, "star_compass") || hasRelic(s, "gyro_wrench")
                 || hasRelic(s, "hourglass_charm") || hasRelic(s, "contract_stamp") || hasRelic(s, "grand_ledger")
                 || hasRelic(s, "storm_rod") || hasRelic(s, "tempest_crown") || hasRelic(s, "shadow_sash") || hasRelic(s, "eclipse_mask")
+                || hasRelic(s, "rune_stylus") || hasRelic(s, "grand_rune_blade")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
@@ -10697,6 +11047,11 @@ public final class GameCore {
                 || d.vulnerable > 0 || d.profession.equals(PROF_SHADOWDANCER))) {
             return 4;
         }
+        if (PROF_RUNEBLADE.equals(s.profession) && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.block > 0 || d.damage > 0 && d.block > 0
+                || d.profession.equals(PROF_RUNEBLADE))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -10720,19 +11075,22 @@ public final class GameCore {
             if (d.vulnerable > 0 || d.skillChargeGain > 0) bonus += 2;
             if ("heavy_line".equals(d.id) || "clean_arc".equals(d.id) || "stormcaller_chain".equals(d.id)
                     || "stormcaller_tempest_crown".equals(d.id) || "shadowdancer_mark".equals(d.id)
-                    || "shadowdancer_eclipse".equals(d.id)) bonus += 4;
+                    || "shadowdancer_eclipse".equals(d.id) || "runeblade_cleave".equals(d.id)
+                    || "runeblade_grand_seal".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
             if ("quick_cut".equals(d.id) || "double_step".equals(d.id) || "battle_trance".equals(d.id)
                     || "stormcaller_sparkline".equals(d.id) || "stormcaller_gust".equals(d.id)
                     || "stormcaller_overstorm".equals(d.id) || "shadowdancer_blade".equals(d.id)
-                    || "shadowdancer_step".equals(d.id) || "shadowdancer_overstrike".equals(d.id)) bonus += 4;
+                    || "shadowdancer_step".equals(d.id) || "shadowdancer_overstrike".equals(d.id)
+                    || "runeblade_glyphcut".equals(d.id) || "runeblade_overglyph".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
             if ("focus_breath".equals(d.id) || "last_light".equals(d.id) || "blood_suture".equals(d.id)
-                    || "pactmaker_collection".equals(d.id) || "pactmaker_bloodnote".equals(d.id)) bonus += 4;
+                    || "pactmaker_collection".equals(d.id) || "pactmaker_bloodnote".equals(d.id)
+                    || "runeblade_ward".equals(d.id) || "runeblade_grand_seal".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -10750,12 +11108,15 @@ public final class GameCore {
                     || "stormcaller_sparkline".equals(d.id) || "stormcaller_chain".equals(d.id)
                     || "stormcaller_overstorm".equals(d.id) || "stormcaller_tempest_crown".equals(d.id)
                     || "shadowdancer_blade".equals(d.id) || "shadowdancer_mark".equals(d.id)
-                    || "shadowdancer_overstrike".equals(d.id) || "shadowdancer_eclipse".equals(d.id)) bonus += 4;
+                    || "shadowdancer_overstrike".equals(d.id) || "shadowdancer_eclipse".equals(d.id)
+                    || "runeblade_glyphcut".equals(d.id) || "runeblade_cleave".equals(d.id)
+                    || "runeblade_overglyph".equals(d.id) || "runeblade_grand_seal".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
             if ("forge_signal".equals(d.id) || "confluence_chord".equals(d.id) || "prism_anchor".equals(d.id)
-                    || "hybrid_rift_engine".equals(d.id)) bonus += 4;
+                    || "hybrid_rift_engine".equals(d.id) || "runeblade_ward".equals(d.id)
+                    || "runeblade_inscribe".equals(d.id) || "runeblade_overglyph".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -10773,7 +11134,9 @@ public final class GameCore {
                     || "stormcaller_chain".equals(d.id) || "stormcaller_overstorm".equals(d.id)
                     || "stormcaller_tempest_crown".equals(d.id) || "shadowdancer_blade".equals(d.id)
                     || "shadowdancer_mark".equals(d.id) || "shadowdancer_overstrike".equals(d.id)
-                    || "shadowdancer_eclipse".equals(d.id)) bonus += 4;
+                    || "shadowdancer_eclipse".equals(d.id) || "runeblade_glyphcut".equals(d.id)
+                    || "runeblade_cleave".equals(d.id) || "runeblade_overglyph".equals(d.id)
+                    || "runeblade_grand_seal".equals(d.id)) bonus += 4;
         }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
@@ -10790,7 +11153,9 @@ public final class GameCore {
                 || "pactmaker_overdeal".equals(id) || "stormcaller_sparkline".equals(id)
                 || "stormcaller_gust".equals(id) || "stormcaller_overstorm".equals(id)
                 || "shadowdancer_blade".equals(id) || "shadowdancer_step".equals(id)
-                || "shadowdancer_overstrike".equals(id);
+                || "shadowdancer_overstrike".equals(id) || "runeblade_glyphcut".equals(id)
+                || "runeblade_ward".equals(id) || "runeblade_inscribe".equals(id)
+                || "runeblade_overglyph".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -10903,6 +11268,14 @@ public final class GameCore {
                 || d.rarity == 2 || d.profession.equals(PROF_SHADOWDANCER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "rune_stylus") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.block > 0 || d.profession.equals(PROF_RUNEBLADE))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "grand_rune_blade") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.vulnerable > 0 || d.profession.equals(PROF_RUNEBLADE))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -10936,7 +11309,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -10956,6 +11329,7 @@ public final class GameCore {
         if (PROF_PACTMAKER.equals(s.profession)) return "contract_stamp";
         if (PROF_STORMCALLER.equals(s.profession)) return "storm_rod";
         if (PROF_SHADOWDANCER.equals(s.profession)) return "shadow_sash";
+        if (PROF_RUNEBLADE.equals(s.profession)) return "rune_stylus";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -11092,6 +11466,15 @@ public final class GameCore {
         if (PROF_SHADOWDANCER.equals(s.profession) && "eclipse_mask".equals(id)) {
             return 4;
         }
+        if (PROF_RUNEBLADE.equals(s.profession) && ("rune_stylus".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "starforge_lens".equals(id) || "overload_etch".equals(id)
+                || "markchain_seal".equals(id) || "stormglass_seal".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "discipline_chart".equals(id))) {
+            return 2;
+        }
+        if (PROF_RUNEBLADE.equals(s.profession) && "grand_rune_blade".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -11129,7 +11512,7 @@ public final class GameCore {
         if ((PROF_WEAVER.equals(s.profession) || PROF_SUMMONER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
                 || PROF_TUNER.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_STORMCALLER.equals(s.profession)
-                || PROF_SHADOWDANCER.equals(s.profession))
+                || PROF_SHADOWDANCER.equals(s.profession) || PROF_RUNEBLADE.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -11411,6 +11794,16 @@ public final class GameCore {
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         } else if ("eclipse_mask".equals(id)) {
             addUpgradedDeckCard(s, "shadowdancer_eclipse");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("rune_stylus".equals(id)) {
+            addUpgradedDeckCard(s, "runeblade_inscribe");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("grand_rune_blade".equals(id)) {
+            addUpgradedDeckCard(s, "runeblade_grand_seal");
+            upgradeRandomDeckCard(s);
             upgradeRandomDeckCard(s);
             s.maxHp += 3;
             s.hp += 3;
@@ -11961,6 +12354,19 @@ public final class GameCore {
         c = addCard("shadowdancer_eclipse", "月蚀终舞", "通用", 2, 2, 0, 9, 13, 8, 12, "造成伤害并获得格挡；按影势、连打、临时牌和过载追加终局收益。", "更高伤害、格挡和影刃返还。");
         c.profession = PROF_SHADOWDANCER; c.draw = c.drawUp = 1; c.energyGain = 1; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("runeblade_glyphcut", "符刃刻痕", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害，抽1张并施加易伤；符势、升级牌和印记会追加伤害。", "更高伤害、更多印记，职业技充能更快。");
+        c.profession = PROF_RUNEBLADE; c.draw = c.drawUp = 1; c.vulnerable = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("runeblade_ward", "符纹护势", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡，检视牌库并升级手牌；升级牌和符势会追加防线。", "更多格挡、检视和抽牌窗口。");
+        c.profession = PROF_RUNEBLADE; c.scry = 2; c.draw = c.drawUp = 1; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("runeblade_inscribe", "刃上刻印", "通用", 1, 1, 2, 0, 0, 4, 7, "获得格挡，抽1张，升级手牌并积累符势；升级牌足够时标记目标，消耗。", "更多格挡、符势和充能。");
+        c.profession = PROF_RUNEBLADE; c.draw = c.drawUp = 1; c.upgradeRandom = true; c.skillChargeGain = 2; c.exhaust = true;
+        c = addCard("runeblade_cleave", "符刃横断", "通用", 1, 1, 0, 6, 9, 3, 5, "造成伤害并获得格挡，施加易伤；当前格挡和升级牌会追加伤害。", "更高伤害、格挡和印记。");
+        c.profession = PROF_RUNEBLADE; c.vulnerable = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("runeblade_overglyph", "过载符阵", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和职业技充能；过载会强化标记符斩。", "更多格挡，职业技充能+4。");
+        c.profession = PROF_RUNEBLADE; c.draw = c.drawUp = 1; c.vulnerable = 1; c.skillChargeGain = 3; c.upgradeRandom = true; c.targetEnemy = true;
+        c = addCard("runeblade_grand_seal", "终局符刃", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按符势、升级牌、格挡和过载追加终局收益。", "更高伤害、格挡和符刃返还。");
+        c.profession = PROF_RUNEBLADE; c.draw = c.drawUp = 1; c.vulnerable = 1; c.skillChargeGain = 2; c.upgradeRandom = true; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -12189,6 +12595,7 @@ public final class GameCore {
         addRelicDef("contract_stamp", "契印章", "契约师兑现目标、金币和誓约时职业技更快充能；释放后登记印记、格挡并入账金币。");
         addRelicDef("storm_rod", "风暴引雷针", "风暴使异常、充能和雷系牌更快推动职业技；释放后扩散燃灼、印记与雷链追击。");
         addRelicDef("shadow_sash", "影缎", "影舞者低费、临时、抽牌和充能牌更快推动职业技；释放后抽牌、加固并追加印记处决。");
+        addRelicDef("rune_stylus", "符刃刻笔", "符刃师升级、检视、充能和易伤牌更快推动职业技；释放后升级手牌、加固并追加符斩印记。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -12208,6 +12615,7 @@ public final class GameCore {
         addRelicDef("grand_ledger", "总契账", "获得升级终局契约；目标、誓约、金币、自损和控制牌会滚动印记、抽牌与职业技资源。");
         addRelicDef("tempest_crown", "风暴冠冕", "获得升级风暴冠冕；雷系、异常和过载牌会积累印记、抽牌并引发群体雷链。");
         addRelicDef("eclipse_mask", "月蚀面具", "获得升级月蚀终舞；影舞者低费、临时、充能和稀有牌会滚动印记、抽牌并触发处决追击。");
+        addRelicDef("grand_rune_blade", "终局符刃", "获得升级终局符刃；符刃师升级、充能和稀有牌会滚动印记、抽牌并把工坊牌势转为穿透裁切。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -12393,6 +12801,9 @@ public final class GameCore {
         addTalent("t_shadowdancer_mask", PROF_SHADOWDANCER, "夜面具", "获得升级无声步；低费、充能和影系牌追加印记，并把影势转成穿透追击。");
         addTalent("t_shadowdancer_vanish", PROF_SHADOWDANCER, "隐没步", "获得升级影幕；消耗、临时和抽牌牌提供格挡，并在关键节奏补职业技。");
         addTalent("t_shadowdancer_execution", PROF_SHADOWDANCER, "背刺窗口", "获得生命和升级过载影袭；易伤、连打和伤害牌会对重标记目标追加处决。");
+        addTalent("t_runeblade_stylus", PROF_RUNEBLADE, "符刻笔法", "获得升级刃上刻印；升级、检视、充能和符刃牌追加印记，并把符势转成穿透追击。");
+        addTalent("t_runeblade_guard", PROF_RUNEBLADE, "护势符纹", "获得升级符纹护势；格挡、技能和升级牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_runeblade_execution", PROF_RUNEBLADE, "刻痕处决", "获得生命和升级过载符阵；易伤、伤害和升级牌会对重标记目标追加符斩。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -12412,6 +12823,7 @@ public final class GameCore {
         addTalent("t_pactmaker_grand", PROF_PACTMAKER, "总契终局", "获得升级终局契约；目标、誓约、金币与控制牌持续抽牌、返能并把印记转为兑约裁切。");
         addTalent("t_stormcaller_grand", PROF_STORMCALLER, "风暴之眼", "获得升级风暴冠冕；雷系、循环、异常与过载牌持续抽牌、充能并把印记转为雷暴裁切。");
         addTalent("t_shadowdancer_grand", PROF_SHADOWDANCER, "月蚀终舞", "获得升级月蚀终舞；低费、临时、循环与过载牌持续抽牌、充能并把印记转为影舞裁切。");
+        addTalent("t_runeblade_grand", PROF_RUNEBLADE, "终局符刃", "获得升级终局符刃；升级、充能、工坊与过载牌持续抽牌、升级并把印记转为符刃裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
