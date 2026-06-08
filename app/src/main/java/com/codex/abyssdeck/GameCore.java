@@ -26,6 +26,7 @@ public final class GameCore {
     public static final int MODE_CLASS = 13;
     public static final int MODE_TALENT = 14;
     public static final int MODE_PACT = 15;
+    public static final int MODE_SKILL_SPEC = 16;
 
     public static final int ENEMY_ATTACK = 0;
     public static final int ENEMY_BUFF = 1;
@@ -107,6 +108,7 @@ public final class GameCore {
     public static final ArrayList<PotionDef> POTION_LIBRARY = new ArrayList<>();
     public static final ArrayList<BoonDef> BOON_LIBRARY = new ArrayList<>();
     public static final ArrayList<PactDef> PACT_LIBRARY = new ArrayList<>();
+    public static final ArrayList<SkillSpecDef> SKILL_SPEC_LIBRARY = new ArrayList<>();
     public static final ArrayList<TalentDef> TALENT_LIBRARY = new ArrayList<>();
 
     static {
@@ -115,6 +117,7 @@ public final class GameCore {
         seedPotions();
         seedBoons();
         seedPacts();
+        seedSkillSpecs();
         seedTalents();
     }
 
@@ -261,8 +264,25 @@ public final class GameCore {
         s.pactChoices.clear();
         s.pactFulfilled = 0;
         applyPactStart(s, p.id);
-        s.mode = MODE_MAP;
+        rollSkillSpecs(s);
+        s.mode = MODE_SKILL_SPEC;
         log(s, "立下誓约：" + p.name);
+    }
+
+    public static void chooseSkillSpec(State s, int index) {
+        if (s.mode != MODE_SKILL_SPEC || index < 0 || index >= s.skillSpecChoices.size()) {
+            return;
+        }
+        SkillSpecDef spec = skillSpec(s.skillSpecChoices.get(index));
+        if (spec == null) {
+            s.mode = MODE_MAP;
+            return;
+        }
+        s.skillSpec = spec.id;
+        s.skillSpecChoices.clear();
+        applySkillSpecPickup(s, spec.id);
+        s.mode = MODE_MAP;
+        log(s, "职业技专修：" + spec.name);
     }
 
     public static void chooseTalent(State s, int index) {
@@ -311,6 +331,31 @@ public final class GameCore {
             return "选择誓约后显示构筑目标。";
         }
         return p.name + " " + s.pactFulfilled + "/3";
+    }
+
+    public static SkillSpecDef skillSpec(String id) {
+        if (id == null) {
+            return null;
+        }
+        for (SkillSpecDef spec : SKILL_SPEC_LIBRARY) {
+            if (id.equals(spec.id)) {
+                return spec;
+            }
+        }
+        return null;
+    }
+
+    public static String skillSpecName(State s) {
+        SkillSpecDef spec = s == null ? null : skillSpec(s.skillSpec);
+        return spec == null ? "未专修" : spec.name;
+    }
+
+    public static String skillSpecText(State s) {
+        SkillSpecDef spec = s == null ? null : skillSpec(s.skillSpec);
+        if (spec == null) {
+            return "选择一条职业技专修后，职业技会获得长期分支效果。";
+        }
+        return spec.text;
     }
 
     private static void applyDepthStartPenalty(State s) {
@@ -649,10 +694,12 @@ public final class GameCore {
         String text = professionSkillTextFor(profession);
         int overload = professionSkillOverload(s);
         String resonance = professionSkillResonanceText(s);
+        SkillSpecDef specDef = s == null ? null : skillSpec(s.skillSpec);
+        String spec = specDef == null ? "" : specDef.text;
         if (overload > 0) {
-            return text + " 当前过载+" + overload + "。" + (resonance.length() > 0 ? " " + resonance : "");
+            return text + " 当前过载+" + overload + "。" + (spec.length() > 0 ? " " + spec : "") + (resonance.length() > 0 ? " " + resonance : "");
         }
-        return text + " 满充能后可继续积蓄过载。" + (resonance.length() > 0 ? " " + resonance : "");
+        return text + " 满充能后可继续积蓄过载。" + (spec.length() > 0 ? " " + spec : "") + (resonance.length() > 0 ? " " + resonance : "");
     }
 
     public static String professionSkillResonanceText(State s) {
@@ -791,6 +838,7 @@ public final class GameCore {
             s.energy += 1 + overload / 5;
         }
         applyProfessionSkillResonance(s, target, overload);
+        applySkillSpecOnUse(s, target, overload);
         applyProfessionSkillRelics(s, target);
         log(s, "释放职业技：" + professionSkillName(s.profession) + (overload > 0 ? " 过载+" + overload : ""));
         updateQuestProgress(s);
@@ -2102,6 +2150,8 @@ public final class GameCore {
         s.boonChoices.clear();
         s.pactChoices.clear();
         s.pact = "";
+        s.skillSpec = "";
+        s.skillSpecChoices.clear();
         s.pactFulfilled = 0;
         s.masterySkillCharge = 0;
         s.runGuardMilestone = 0;
@@ -2504,6 +2554,39 @@ public final class GameCore {
         }
     }
 
+    private static void rollSkillSpecs(State s) {
+        s.skillSpecChoices.clear();
+        HashSet<String> offered = new HashSet<>();
+        for (int i = 0; i < 3 && i < SKILL_SPEC_LIBRARY.size(); i++) {
+            SkillSpecDef spec;
+            do {
+                spec = SKILL_SPEC_LIBRARY.get(s.run.nextInt(SKILL_SPEC_LIBRARY.size()));
+            } while (offered.contains(spec.id));
+            offered.add(spec.id);
+            s.skillSpecChoices.add(spec.id);
+        }
+    }
+
+    private static void applySkillSpecPickup(State s, String id) {
+        if ("spec_burst".equals(id)) {
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+            s.gold += 18;
+        } else if ("spec_tempo".equals(id)) {
+            Card c = new Card("quick_cut");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("spec_sustain".equals(id)) {
+            s.maxHp += 5;
+            s.hp += 5;
+        } else if ("spec_resonance".equals(id)) {
+            Card c = new Card("overload_conduit");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("spec_mastery".equals(id)) {
+            addUpgradedDeckCard(s, masteryOverloadCard(s.profession));
+        }
+    }
+
     private static void removeStarterJunk(State s) {
         for (int i = 0; i < s.deck.size(); i++) {
             String id = s.deck.get(i).id;
@@ -2844,13 +2927,127 @@ public final class GameCore {
                 || s.buildResonanceFocus >= BUILD_FOCUS_NAMES.length || s.buildResonanceScore < 35) {
             return 0;
         }
-        if (s.buildResonanceScore >= 80) {
-            return 3;
+        int tier = s.buildResonanceScore >= 80 ? 3 : s.buildResonanceScore >= 55 ? 2 : 1;
+        if ("spec_resonance".equals(s.skillSpec)) {
+            tier = Math.min(3, tier + 1);
         }
-        if (s.buildResonanceScore >= 55) {
-            return 2;
+        return tier;
+    }
+
+    private static void applySkillSpecOnUse(State s, Enemy chosenTarget, int overload) {
+        SkillSpecDef spec = skillSpec(s.skillSpec);
+        if (spec == null) {
+            return;
         }
-        return 1;
+        Enemy target = chosenTarget != null && chosenTarget.hp > 0 ? chosenTarget : firstLiving(s);
+        if ("spec_burst".equals(spec.id)) {
+            if (target != null) {
+                int damage = 8 + s.act * 3 + overload * 3 + Math.min(12, s.cardsPlayedThisTurn * 2);
+                damageEnemy(s, target, damage, true);
+                if (target.hp <= 0) {
+                    s.energy++;
+                    addProfessionSkillCharge(s, 2);
+                }
+            }
+        } else if ("spec_tempo".equals(spec.id)) {
+            draw(s, 1 + overload / 4);
+            Card cut = new Card("quick_cut");
+            cut.temp = true;
+            addToHand(s, cut);
+            addProfessionSkillCharge(s, 1 + overload / 3);
+        } else if ("spec_sustain".equals(spec.id)) {
+            int low = s.hp <= s.maxHp / 2 ? 4 : 0;
+            gainBlock(s, 8 + s.act * 2 + overload * 2 + low);
+            s.hp = Math.min(s.maxHp, s.hp + 3 + overload + low / 2);
+        } else if ("spec_resonance".equals(spec.id)) {
+            addProfessionSkillCharge(s, 2 + overload / 2);
+            int focus = s.buildResonanceFocus;
+            if (focus >= 0 && focus < BUILD_FOCUS_NAMES.length) {
+                if (focus == BUILD_ECHO || focus == BUILD_CYCLE) {
+                    draw(s, 1);
+                } else if (focus == BUILD_GUARD || focus == BUILD_FORGE) {
+                    gainBlock(s, 6 + s.act);
+                } else if (focus == BUILD_BREW || focus == BUILD_STATUS) {
+                    for (Enemy e : livingEnemies(s)) {
+                        e.bind += 1 + s.bindPower / 2;
+                        e.vulnerable += 1;
+                    }
+                } else if (focus == BUILD_GOLD) {
+                    s.gold += 8 + s.act * 2;
+                } else if (focus == BUILD_BLOOD) {
+                    s.hp = Math.min(s.maxHp, s.hp + 4 + overload);
+                } else if (target != null) {
+                    damageEnemy(s, target, 8 + overload * 2, true);
+                }
+            }
+        } else if ("spec_mastery".equals(spec.id)) {
+            applyMasterySkillSpec(s, target, overload);
+        }
+        log(s, "专修触发：" + spec.name + "。");
+    }
+
+    private static void applyMasterySkillSpec(State s, Enemy target, int overload) {
+        if (PROF_WARDEN.equals(s.profession)) {
+            s.steelEngine++;
+            gainBlock(s, 6 + s.steelEngine * 2 + overload);
+            if (target != null) {
+                damageEnemy(s, target, Math.min(24, s.block / 5 + overload * 2), true);
+            }
+        } else if (PROF_DUELIST.equals(s.profession)) {
+            draw(s, 1);
+            s.energy += s.cardsPlayedThisTurn >= 4 ? 1 : 0;
+            if (target != null) {
+                damageEnemy(s, target, 6 + s.cardsPlayedThisTurn * 2 + overload * 2, true);
+            }
+        } else if (PROF_ALCHEMIST.equals(s.profession)) {
+            s.burnPower++;
+            s.bindPower++;
+            if (s.potions.size() < potionLimit(s) && overload >= 2) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if (PROF_RANGER.equals(s.profession)) {
+            if (target != null) {
+                target.mark += 2 + overload / 2;
+                target.bind += 2 + s.bindPower;
+                damageEnemy(s, target, 5 + target.mark * 2, true);
+            }
+        } else if (PROF_ARCANIST.equals(s.profession)) {
+            s.voidEngine++;
+            Card glyph = new Card("arcanist_glyph");
+            glyph.temp = true;
+            addToHand(s, glyph);
+            if (overload >= 3) {
+                s.energy++;
+            }
+        } else if (PROF_MERCHANT.equals(s.profession)) {
+            int income = 12 + s.act * 4 + overload * 2;
+            s.gold += income;
+            gainBlock(s, Math.min(18, 5 + income / 2));
+        } else if (PROF_BLOODBOUND.equals(s.profession)) {
+            addStatusCard(s, "wound");
+            s.hp = Math.min(s.maxHp, s.hp + 4 + overload);
+            if (target != null) {
+                target.vulnerable++;
+            }
+        } else if (PROF_WEAVER.equals(s.profession)) {
+            upgradeRandomHandCard(s);
+            draw(s, 1);
+            gainBlock(s, 5 + upgradedCardCount(s) / 3);
+        } else if (PROF_SUMMONER.equals(s.profession)) {
+            Card spirit = new Card("summoner_sprite");
+            spirit.temp = true;
+            addToHand(s, spirit);
+            for (Enemy e : livingEnemies(s)) {
+                e.bind += 1 + s.bindPower;
+            }
+            gainBlock(s, 5 + s.act);
+        } else if (PROF_HEXER.equals(s.profession)) {
+            addStatusCard(s, "daze");
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable++;
+                e.mark += 1 + overload / 3;
+            }
+        }
     }
 
     private static void applyProfessionSkillRelics(State s, Enemy target) {
@@ -7407,6 +7604,22 @@ public final class GameCore {
         PACT_LIBRARY.add(p);
     }
 
+    private static void seedSkillSpecs() {
+        addSkillSpec("spec_burst", "裂锋专修", "职业技造成额外穿透伤害；若击杀敌人，返还能量并少量充能。");
+        addSkillSpec("spec_tempo", "疾调专修", "职业技抽牌并制造临时疾切；释放后保留少量节奏充能。");
+        addSkillSpec("spec_sustain", "续战专修", "职业技获得格挡并治疗；低血线时治疗与格挡更强。");
+        addSkillSpec("spec_resonance", "共鸣专修", "职业技强化当前构筑共鸣，释放时额外获得充能并提高共鸣收益。");
+        addSkillSpec("spec_mastery", "本职专修", "职业技追加一段职业身份效果，并获得对应职业过载牌。");
+    }
+
+    private static void addSkillSpec(String id, String name, String text) {
+        SkillSpecDef spec = new SkillSpecDef();
+        spec.id = id;
+        spec.name = name;
+        spec.text = text;
+        SKILL_SPEC_LIBRARY.add(spec);
+    }
+
     private static void seedTalents() {
         addTalent("t_shared_masterwork", "", "匠心牌组", "获得时升级2张牌；之后每幕首场战斗首回合抽1张。");
         addTalent("t_shared_hunter", "", "猎取路线", "精英和Boss额外金币；卡牌奖励更偏向当前职业。");
@@ -7471,6 +7684,7 @@ public final class GameCore {
         public String origin = "";
         public String profession = "";
         public String pact = "";
+        public String skillSpec = "";
         public String lastRunSummary = "";
         public int ascension;
         public int hp;
@@ -7495,6 +7709,7 @@ public final class GameCore {
         public final ArrayList<String> relicRewards = new ArrayList<>();
         public final ArrayList<String> boonChoices = new ArrayList<>();
         public final ArrayList<String> pactChoices = new ArrayList<>();
+        public ArrayList<String> skillSpecChoices = new ArrayList<>();
         public ArrayList<String> talentChoices = new ArrayList<>();
         public final ArrayList<String> relics = new ArrayList<>();
         public ArrayList<String> talents = new ArrayList<>();
@@ -7573,6 +7788,12 @@ public final class GameCore {
             }
             if (pact == null) {
                 pact = "";
+            }
+            if (skillSpec == null) {
+                skillSpec = "";
+            }
+            if (skillSpecChoices == null) {
+                skillSpecChoices = new ArrayList<>();
             }
             if (talentChoices == null) {
                 talentChoices = new ArrayList<>();
@@ -7744,6 +7965,12 @@ public final class GameCore {
     }
 
     public static final class PactDef implements Serializable {
+        public String id;
+        public String name;
+        public String text;
+    }
+
+    public static final class SkillSpecDef implements Serializable {
         public String id;
         public String name;
         public String text;

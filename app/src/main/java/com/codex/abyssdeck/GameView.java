@@ -76,6 +76,8 @@ public final class GameView extends View {
             drawBoons(c);
         } else if (s.mode == GameCore.MODE_PACT) {
             drawPacts(c);
+        } else if (s.mode == GameCore.MODE_SKILL_SPEC) {
+            drawSkillSpecs(c);
         } else if (s.mode == GameCore.MODE_TALENT) {
             drawTalents(c);
         } else if (s.mode == GameCore.MODE_MAP) {
@@ -185,6 +187,8 @@ public final class GameView extends View {
             GameCore.chooseBoon(s, index);
         } else if ("pact".equals(action)) {
             GameCore.choosePact(s, index);
+        } else if ("skill_spec".equals(action)) {
+            GameCore.chooseSkillSpec(s, index);
         } else if ("talent".equals(action)) {
             GameCore.chooseTalent(s, index);
         } else if ("depth".equals(action)) {
@@ -451,6 +455,25 @@ public final class GameView extends View {
         }
     }
 
+    private void drawSkillSpecs(Canvas c) {
+        int w = getWidth();
+        drawText(c, "选择职业技专修", dp(24), dp(86), 30, 0xfff4d580, true);
+        drawText(c, s.origin + " / " + s.profession + " / " + GameCore.pactName(s), dp(26), dp(116), 15, 0xffc9d2d2, false);
+        drawText(c, "专修会改变职业技释放后的分支收益，并与构筑共鸣叠加。", dp(26), dp(136), 12, 0xffaebdc0, false);
+        for (int i = 0; i < s.skillSpecChoices.size(); i++) {
+            GameCore.SkillSpecDef spec = GameCore.skillSpec(s.skillSpecChoices.get(i));
+            float y = dp(160) + i * dp(122);
+            p.setColor(0xcc121923);
+            c.drawRoundRect(new RectF(dp(24), y, w - dp(24), y + dp(98)), dp(8), dp(8), p);
+            p.setColor(0xff9fd5c5);
+            c.drawCircle(dp(58), y + dp(49), dp(24), p);
+            drawProfessionMark(c, s.profession, dp(58), y + dp(49), dp(15));
+            drawText(c, spec == null ? "" : spec.name, dp(96), y + dp(36), 22, 0xfff5ead2, true);
+            drawWrappedLines(c, spec == null ? "" : spec.text, dp(96), y + dp(58), w - dp(218), 12, 0xffc5d0cf, 2);
+            addButton(w - dp(112), y + dp(32), dp(86), dp(38), "专修", "skill_spec", i);
+        }
+    }
+
     private void drawTalents(Canvas c) {
         int w = getWidth();
         drawText(c, "选择职业专精", dp(24), dp(86), 30, 0xfff4d580, true);
@@ -562,10 +585,10 @@ public final class GameView extends View {
         drawText(c, "能量 " + s.energy + "   格挡 " + s.block + "   回合 " + s.turn, dp(22), dp(82), 22, 0xfff2d373, true);
         String job = s.profession == null || s.profession.length() == 0 ? "未定" : s.profession;
         int overload = GameCore.professionSkillOverload(s);
-        String engines = job + "  专精 " + s.talents.size() + "  职技 " + GameCore.professionSkillName(s.profession)
+        String engines = job + "  " + GameCore.skillSpecName(s) + "  专精 " + s.talents.size() + "  职技 " + GameCore.professionSkillName(s.profession)
                 + " " + s.professionSkillCharge + "/" + GameCore.PROF_SKILL_MAX
                 + (overload > 0 ? " 过载+" + overload : "") + (GameCore.professionSkillReady(s) ? " 可释放" : "");
-        drawText(c, engines, dp(22), dp(104), 13, GameCore.professionSkillReady(s) ? 0xfff5d276 : 0xffd6dfda, true);
+        drawText(c, fitText(engines, 13, w - dp(44)), dp(22), dp(104), 13, GameCore.professionSkillReady(s) ? 0xfff5d276 : 0xffd6dfda, true);
         String powers = "被动 " + s.professionCharge + "  守势 " + s.steelEngine + "  热度 " + s.ashEngine + "  再生 " + s.wildEngine + "  回声势 " + s.voidEngine;
         if (s.burnPower > 0 || s.bindPower > 0) {
             powers += "  燃势 " + s.burnPower + "  束缚势 " + s.bindPower;

@@ -46,6 +46,8 @@ public final class SimulationHarness {
             GameCore.chooseBoon(s, chooseBoon(s));
         } else if (s.mode == GameCore.MODE_PACT) {
             GameCore.choosePact(s, choosePact(s));
+        } else if (s.mode == GameCore.MODE_SKILL_SPEC) {
+            GameCore.chooseSkillSpec(s, chooseSkillSpec(s));
         } else if (s.mode == GameCore.MODE_MAP) {
             int pick = chooseMapNode(s);
             if (pick >= 0) {
@@ -291,6 +293,27 @@ public final class SimulationHarness {
         int bestScore = -9999;
         for (int i = 0; i < s.talentChoices.size(); i++) {
             int score = GameCore.talentSynergyScore(s, s.talentChoices.get(i));
+            if (score > bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private static int chooseSkillSpec(GameCore.State s) {
+        int best = 0;
+        int bestScore = -9999;
+        for (int i = 0; i < s.skillSpecChoices.size(); i++) {
+            String id = s.skillSpecChoices.get(i);
+            int score = 0;
+            if ("spec_mastery".equals(id)) score += 34;
+            else if ("spec_resonance".equals(id)) score += 30;
+            else if ("spec_tempo".equals(id)) score += 28;
+            else if ("spec_burst".equals(id)) score += GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession) ? 32 : 22;
+            else if ("spec_sustain".equals(id)) score += GameCore.PROF_WARDEN.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession) ? 32 : 20;
+            if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
+            if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
