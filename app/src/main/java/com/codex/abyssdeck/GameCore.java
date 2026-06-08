@@ -756,15 +756,22 @@ public final class GameCore {
             return;
         }
         boolean shopScout = shopScoutDraftActive(s);
+        boolean restAttune = restAttuneDraftActive(s);
         String id = s.cardRewards.get(index).id;
         s.deck.add(new Card(id));
         s.seenCards.add(id);
-        log(s, (shopScout ? "商栈寻路获得：" : "获得卡牌：") + card(id).name);
+        log(s, (shopScout ? "商栈寻路获得：" : restAttune ? "营地调校获得：" : "获得卡牌：") + card(id).name);
         clearRewards(s);
         if (shopScout) {
             s.pendingAction = "";
             s.cardRewardSkipped = false;
             s.mode = MODE_SHOP;
+            return;
+        }
+        if (restAttune) {
+            s.pendingAction = "";
+            s.cardRewardSkipped = false;
+            s.mode = MODE_MAP;
             return;
         }
         if (s.relicRewards.isEmpty()) {
@@ -1110,6 +1117,35 @@ public final class GameCore {
         }
         s.pendingAction = action;
         openDeck(s, MODE_REST);
+    }
+
+    public static void restAttuneBuild(State s) {
+        if (s.mode != MODE_REST) {
+            return;
+        }
+        s.cardRewards.clear();
+        s.relicRewards.clear();
+        s.cardRewardSkipped = false;
+        int focus = buildScoutFocus(s);
+        HashSet<String> offered = new HashSet<>();
+        int choices = s.currentRoute == ROUTE_FORGE ? 4 : 3;
+        for (int i = 0; i < choices; i++) {
+            CardDef d = randomBuildScoutCard(s, s.act >= 2 || s.currentRoute == ROUTE_FORGE, offered);
+            if (d == null) {
+                break;
+            }
+            offered.add(d.id);
+            RewardCard rc = new RewardCard();
+            rc.id = d.id;
+            rc.hint = rewardCardHint(s, d);
+            s.cardRewards.add(rc);
+        }
+        if (s.cardRewards.isEmpty()) {
+            return;
+        }
+        s.pendingAction = "rest_attune";
+        s.mode = MODE_REWARD;
+        log(s, "营地调校锁定：" + BUILD_FOCUS_NAMES[focus] + "。");
     }
 
     public static void eventChoose(State s, int choice) {
@@ -1479,6 +1515,10 @@ public final class GameCore {
 
     public static boolean shopScoutDraftActive(State s) {
         return s != null && "shop_scout".equals(s.pendingAction);
+    }
+
+    public static boolean restAttuneDraftActive(State s) {
+        return s != null && "rest_attune".equals(s.pendingAction);
     }
 
     public static String shopScoutText(State s) {

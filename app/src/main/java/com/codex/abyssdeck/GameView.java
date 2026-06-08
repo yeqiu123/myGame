@@ -232,6 +232,8 @@ public final class GameView extends View {
             GameCore.restChoose(s, "rest_remove");
         } else if ("rest_transform".equals(action)) {
             GameCore.restChoose(s, "rest_transform");
+        } else if ("rest_attune".equals(action)) {
+            GameCore.restAttuneBuild(s);
         } else if ("event".equals(action)) {
             GameCore.eventChoose(s, index);
         } else if ("title".equals(action)) {
@@ -687,8 +689,9 @@ public final class GameView extends View {
     private void drawReward(Canvas c) {
         int w = getWidth();
         boolean shopScout = GameCore.shopScoutDraftActive(s);
-        drawText(c, shopScout ? "商栈寻路" : "战利品", dp(24), dp(88), 30, 0xfff4d580, true);
-        if (!shopScout && s.encounterModifier != GameCore.MOD_NONE) {
+        boolean restAttune = GameCore.restAttuneDraftActive(s);
+        drawText(c, shopScout ? "商栈寻路" : restAttune ? "营地调校" : "战利品", dp(24), dp(88), 30, 0xfff4d580, true);
+        if (!shopScout && !restAttune && s.encounterModifier != GameCore.MOD_NONE) {
             drawText(c, "本场词缀：" + GameCore.modifierName(s.encounterModifier), dp(126), dp(88), 14, 0xffc7d4d0, false);
         }
         int rewardCards = Math.max(1, s.cardRewards.size());
@@ -699,6 +702,8 @@ public final class GameView extends View {
             drawText(c, status, dp(24), dp(136), 17, 0xffc9d2d2, true);
         } else if (shopScout) {
             drawText(c, "选择一张定向补强牌，拿完返回商店", dp(24), dp(112), 13, 0xffc9d2d2, false);
+        } else if (restAttune) {
+            drawText(c, "选择一张营地调校牌，拿完继续路线", dp(24), dp(112), 13, 0xffc9d2d2, false);
         } else {
             drawText(c, "选择一张卡牌，或跳过获得金币", dp(24), dp(112), 13, 0xffc9d2d2, false);
         }
@@ -721,7 +726,7 @@ public final class GameView extends View {
             drawRelicRow(c, r, dp(24), y + i * dp(62), w - dp(48));
             addButton(w - dp(104), y + i * dp(62) + dp(10), dp(82), dp(36), "拿取", "reward_relic", i);
         }
-        if (!shopScout && !s.cardRewards.isEmpty() && !s.cardRewardSkipped) {
+        if (!shopScout && !restAttune && !s.cardRewards.isEmpty() && !s.cardRewardSkipped) {
             int gold = s.relics.contains("cracked_compass") ? 14 : 10;
             addButton(dp(24), getHeight() - dp(62), w - dp(48), dp(42), "跳过卡牌奖励 +" + gold + "金", "skip", 0);
         }
@@ -775,10 +780,12 @@ public final class GameView extends View {
         int w = getWidth();
         drawText(c, "静火营地", dp(24), dp(88), 30, 0xfff4d580, true);
         drawText(c, "火光不问你来处，只问你下一层要付出什么。", dp(24), dp(120), 15, 0xffc8d2ce, false);
-        addButton(dp(28), dp(170), w - dp(56), dp(54), "休整：恢复" + GameCore.restHealAmount(s) + "生命", "rest_heal", 0);
-        addButton(dp(28), dp(240), w - dp(56), dp(54), "锻造：升级一张牌", "rest_upgrade", 0);
-        addButton(dp(28), dp(310), w - dp(56), dp(54), "净化：移除一张牌", "rest_remove", 0);
-        addButton(dp(28), dp(380), w - dp(56), dp(54), "转化：重塑一张牌", "rest_transform", 0);
+        drawText(c, shortText("当前构筑 " + GameCore.buildSummaryText(s), 50), dp(24), dp(144), 13, 0xff9fd5c5, true);
+        addButton(dp(28), dp(166), w - dp(56), dp(48), "休整：恢复" + GameCore.restHealAmount(s) + "生命", "rest_heal", 0);
+        addButton(dp(28), dp(224), w - dp(56), dp(48), "锻造：升级一张牌", "rest_upgrade", 0);
+        addButton(dp(28), dp(282), w - dp(56), dp(48), "净化：移除一张牌", "rest_remove", 0);
+        addButton(dp(28), dp(340), w - dp(56), dp(48), "转化：重塑一张牌", "rest_transform", 0);
+        addButton(dp(28), dp(398), w - dp(56), dp(48), "调校：构筑补强三选一", "rest_attune", 0);
     }
 
     private void drawEvent(Canvas c) {

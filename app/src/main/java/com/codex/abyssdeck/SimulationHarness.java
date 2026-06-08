@@ -79,6 +79,8 @@ public final class SimulationHarness {
         } else if (s.mode == GameCore.MODE_REST) {
             if (s.hp < s.maxHp * 0.55f) {
                 GameCore.restHeal(s);
+            } else if (shouldAttuneRest(s)) {
+                GameCore.restAttuneBuild(s);
             } else if (hasUpgradableCard(s)) {
                 GameCore.restChoose(s, "rest_upgrade");
                 upgradeFirst(s);
@@ -135,6 +137,11 @@ public final class SimulationHarness {
     private static boolean shouldScoutShop(GameCore.State s) {
         return !s.shopScoutUsed && s.deck.size() < 36 && s.gold >= GameCore.shopServicePrice(s, "shop_scout")
                 && (s.act >= 2 || s.relics.size() >= 3 || s.shopCards.size() <= 2);
+    }
+
+    private static boolean shouldAttuneRest(GameCore.State s) {
+        return s.deck.size() < 34 && (s.act >= 2 || s.currentRoute == GameCore.ROUTE_FORGE)
+                && s.hp >= s.maxHp * 0.72f;
     }
 
     private static int chooseRewardCard(GameCore.State s) {
