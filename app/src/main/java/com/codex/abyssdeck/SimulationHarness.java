@@ -202,6 +202,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_BARD.equals(s.profession) && isBardSignal(d)) score += 14;
             if (GameCore.PROF_MIRRORIST.equals(s.profession) && isMirroristSignal(d)) score += 14;
             if (GameCore.PROF_PUPPETEER.equals(s.profession) && isPuppeteerSignal(d)) score += 14;
+            if (GameCore.PROF_SCAVENGER.equals(s.profession) && isScavengerSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -240,6 +241,9 @@ public final class SimulationHarness {
             if ("puppeteer_grand_stage".equals(d.id) || "puppeteer_overpull".equals(d.id)
                     || "puppeteer_thread".equals(d.id) || "puppeteer_screen".equals(d.id)
                     || "puppeteer_rehearse".equals(d.id) || "puppeteer_needle".equals(d.id)) score += 14;
+            if ("scavenger_grand_foundry".equals(d.id) || "scavenger_overhaul".equals(d.id)) score += 18;
+            if ("scavenger_pick".equals(d.id) || "scavenger_sort".equals(d.id)
+                    || "scavenger_patch".equals(d.id) || "scavenger_magnet".equals(d.id)) score += 14;
             if (isStormcallerCard(d)) score += 14;
             if (isShadowdancerCard(d)) score += 14;
             if (isRunebladeCard(d)) score += 14;
@@ -252,6 +256,7 @@ public final class SimulationHarness {
             if (isBardCard(d)) score += 14;
             if (isMirroristCard(d)) score += 14;
             if (isPuppeteerCard(d)) score += 14;
+            if (isScavengerCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -301,6 +306,10 @@ public final class SimulationHarness {
                     || d.createEcho || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("marionette_crown") && (isPuppeteerSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.createEcho || d.bind > 0 || d.block > 0)) score += 20;
+            if (s.relics.contains("scrap_magnet") && (isScavengerSignal(d) || d.draw > 0 || d.goldGain > 0
+                    || d.exhaust || d.createWound || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("scrap_king_crown") && (isScavengerSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.draw > 0 || d.goldGain > 0 || d.vulnerable > 0 || d.bind > 0)) score += 20;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
@@ -414,18 +423,25 @@ public final class SimulationHarness {
                     || "markchain_seal".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
                     || "pressure_gauge".equals(id) || "stormglass_seal".equals(id) || "tempo_metronome".equals(id) || "confluence_map".equals(id)
                     || "prism_gear".equals(id))) score += 36;
+            if (GameCore.PROF_SCAVENGER.equals(s.profession) && ("scrap_king_crown".equals(id) || "scrap_magnet".equals(id)
+                    || "empty_coin".equals(id) || "void_abacus".equals(id) || "echo_ledger".equals(id)
+                    || "bloodcoin_broach".equals(id) || "curse_censer".equals(id) || "stormglass_seal".equals(id)
+                    || "tempo_metronome".equals(id) || "tuning_fork".equals(id) || "markchain_seal".equals(id)
+                    || "overload_etch".equals(id) || "discipline_chart".equals(id) || "pressure_gauge".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
                     || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_CHEF.equals(s.profession)
                     || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession)
-                    || GameCore.PROF_PUPPETEER.equals(s.profession))) score += 28;
+                    || GameCore.PROF_PUPPETEER.equals(s.profession) || GameCore.PROF_SCAVENGER.equals(s.profession))) score += 28;
             if ("echo_ledger".equals(id) && (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
                     || GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession) || GameCore.PROF_MEDIUM.equals(s.profession)
                     || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession)
-                    || GameCore.PROF_PUPPETEER.equals(s.profession))) score += 28;
+                    || GameCore.PROF_PUPPETEER.equals(s.profession) || GameCore.PROF_SCAVENGER.equals(s.profession))) score += 28;
             if ("bloodspark_contract".equals(id) && (GameCore.PROF_BLOODBOUND.equals(s.profession) || GameCore.PROF_MERCHANT.equals(s.profession)
                     || GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_ALCHEMIST.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession))) score += 28;
@@ -442,6 +458,7 @@ public final class SimulationHarness {
             if ("songbook".equals(id) || "finale_crown".equals(id)) score += 20;
             if ("mirror_lens".equals(id) || "mirror_crown".equals(id)) score += 20;
             if ("string_spool".equals(id) || "marionette_crown".equals(id)) score += 20;
+            if ("scrap_magnet".equals(id) || "scrap_king_crown".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
@@ -568,6 +585,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_PUPPETEER.equals(s.profession) && ("pact_summon".equals(id) || "pact_suppression".equals(id)
                     || "pact_guardian".equals(id) || "pact_void".equals(id) || "pact_hunter".equals(id)
                     || "pact_sprinter".equals(id) || "pact_confluence".equals(id))) score += 24;
+            if (GameCore.PROF_SCAVENGER.equals(s.profession) && ("pact_merchant".equals(id) || "pact_hex".equals(id)
+                    || "pact_sprinter".equals(id) || "pact_void".equals(id) || "pact_suppression".equals(id)
+                    || "pact_hunter".equals(id) || "pact_confluence".equals(id) || "pact_guardian".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -605,14 +625,16 @@ public final class SimulationHarness {
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
                     || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
-                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 32 : 20;
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)
+                    || GameCore.PROF_SCAVENGER.equals(s.profession)) ? 32 : 20;
             else if ("spec_control".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_INSCRIBER.equals(s.profession) || GameCore.PROF_PACTMAKER.equals(s.profession)
                     || GameCore.PROF_STORMCALLER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
                     || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
                     || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
-                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 31 : 24;
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)
+                    || GameCore.PROF_SCAVENGER.equals(s.profession)) ? 31 : 24;
             else if ("spec_assembly".equals(id)) score += (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_MACHINIST.equals(s.profession)
                     || GameCore.PROF_ASTROLOGER.equals(s.profession) || GameCore.PROF_RUNEBLADE.equals(s.profession)
                     || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)
@@ -621,7 +643,8 @@ public final class SimulationHarness {
                     || GameCore.PROF_CHRONOMANCER.equals(s.profession) || GameCore.PROF_SHADOWDANCER.equals(s.profession)
                     || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_DREAMWALKER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
-                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 33 : 26;
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)
+                    || GameCore.PROF_SCAVENGER.equals(s.profession)) ? 33 : 26;
             else if ("spec_markchain".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
                     || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_PACTMAKER.equals(s.profession) || GameCore.PROF_STORMCALLER.equals(s.profession)
@@ -629,7 +652,8 @@ public final class SimulationHarness {
                     || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)
                     || GameCore.PROF_DREAMWALKER.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
                     || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
-                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 33 : 25;
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)
+                    || GameCore.PROF_SCAVENGER.equals(s.profession)) ? 33 : 25;
             else if ("spec_pressure".equals(id)) score += (GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession)
                     || GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
                     || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_PACTMAKER.equals(s.profession)
@@ -638,7 +662,7 @@ public final class SimulationHarness {
                     || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_DREAMWALKER.equals(s.profession)
                     || GameCore.PROF_GARDENER.equals(s.profession) || GameCore.PROF_CHEF.equals(s.profession)
                     || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession)
-                    || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 34 : 26;
+                    || GameCore.PROF_PUPPETEER.equals(s.profession) || GameCore.PROF_SCAVENGER.equals(s.profession)) ? 34 : 26;
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && ("spec_sustain".equals(id) || "spec_resonance".equals(id)
                     || "spec_mastery".equals(id) || "spec_pressure".equals(id))) score += 6;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
@@ -675,6 +699,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_PUPPETEER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_echoflow".equals(id) || "spec_markchain".equals(id) || "spec_control".equals(id)
                     || "spec_tempo".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
+            if (GameCore.PROF_SCAVENGER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id)
+                    || "spec_control".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id) || "spec_pressure".equals(id))) score += 4;
@@ -744,7 +771,7 @@ public final class SimulationHarness {
                         || "tuner_note".equals(c.id) || "tuner_harmonic".equals(c.id) || "tuner_grand_cadence".equals(c.id)
                         || isStormcallerCard(d) || isShadowdancerCard(d) || isRunebladeCard(d) || isMediumCard(d)
                         || isTacticianCard(d) || isPrismistCard(d) || isDreamwalkerCard(d) || isGardenerCard(d)
-                        || isBardCard(d) || isMirroristCard(d) || isPuppeteerCard(d))) score += 20;
+                        || isBardCard(d) || isMirroristCard(d) || isPuppeteerCard(d) || isScavengerCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -900,6 +927,17 @@ public final class SimulationHarness {
                     if ((tempOrEchoHandCards(s) >= 2 || s.block >= 14) && (d.draw > 0 || d.block > 0
                             || d.skillChargeGain > 0 || isPuppeteerCard(d))) score += 5;
                 }
+                if (GameCore.PROF_SCAVENGER.equals(s.profession) && (isScavengerSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.draw > 0 || d.goldGain > 0 || d.exhaust || d.createWound || "wound".equals(c.id) || "daze".equals(c.id)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isScavengerCard(d)
+                            || d.goldGain > 0 || d.draw > 0)) score += 6;
+                    if (scavengerEnemyPressure(s) >= 8 && ("scavenger_magnet".equals(c.id)
+                            || "scavenger_overhaul".equals(c.id) || "scavenger_grand_foundry".equals(c.id))) score += 8;
+                    if ((statusDeckCards(s) >= 1 || s.discard.size() >= 8 || s.gold >= 120)
+                            && (d.draw > 0 || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0 || isScavengerCard(d))) score += 5;
+                    if (s.hp < s.maxHp && ("scavenger_patch".equals(c.id) || "scavenger_grand_foundry".equals(c.id))) score += 6;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1001,6 +1039,14 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_puppeteer_grand") && (d.bind > 0 || d.createEcho
                         || c.temp || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
                         || isPuppeteerCard(d))) score += 14;
+                if (s.talents.contains("t_scavenger_salvage") && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                        || "wound".equals(c.id) || "daze".equals(c.id) || isScavengerCard(d))) score += 12;
+                if (s.talents.contains("t_scavenger_patch") && (d.block > 0 || d.heal > 0 || d.type == 1
+                        || "wound".equals(c.id) || "daze".equals(c.id) || isScavengerCard(d))) score += 12;
+                if (s.talents.contains("t_scavenger_market") && (d.goldGain > 0 || d.draw > 0 || d.exhaust
+                        || d.skillChargeGain > 0 || isScavengerCard(d))) score += 12;
+                if (s.talents.contains("t_scavenger_grand") && (d.goldGain > 0 || d.draw > 0 || d.exhaust
+                        || d.skillChargeGain > 0 || d.rarity == 2 || isScavengerCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1061,6 +1107,9 @@ public final class SimulationHarness {
                 if ("puppeteer_grand_stage".equals(c.id) || "puppeteer_overpull".equals(c.id)) score += 18;
                 if ("puppeteer_thread".equals(c.id) || "puppeteer_screen".equals(c.id)
                         || "puppeteer_rehearse".equals(c.id) || "puppeteer_needle".equals(c.id)) score += 14;
+                if ("scavenger_grand_foundry".equals(c.id) || "scavenger_overhaul".equals(c.id)) score += 18;
+                if ("scavenger_pick".equals(c.id) || "scavenger_sort".equals(c.id)
+                        || "scavenger_patch".equals(c.id) || "scavenger_magnet".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -1165,6 +1214,10 @@ public final class SimulationHarness {
                         || d.bind > 0 || d.createEcho || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 14;
                 if (s.relics.contains("marionette_crown") && (isPuppeteerSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.createEcho || d.bind > 0 || d.block > 0)) score += 16;
+                if (s.relics.contains("scrap_magnet") && (isScavengerSignal(d) || c.temp
+                        || d.draw > 0 || d.goldGain > 0 || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("scrap_king_crown") && (isScavengerSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.draw > 0 || d.goldGain > 0 || d.vulnerable > 0 || d.bind > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -1313,6 +1366,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_SCAVENGER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean salvageWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).vulnerable > 0 || s.enemies.get(target).bind >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || salvageWindow || s.discard.size() >= 8
+                    || statusDeckCards(s) >= 1 || s.gold >= 130 || scavengerEnemyPressure(s) >= 7
+                    || s.hp < s.maxHp * 0.75f || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -1351,7 +1414,8 @@ public final class SimulationHarness {
                 || s.relics.contains("recipe_book") || s.relics.contains("banquet_crown")
                 || s.relics.contains("songbook") || s.relics.contains("finale_crown")
                 || s.relics.contains("mirror_lens") || s.relics.contains("mirror_crown")
-                || s.relics.contains("string_spool") || s.relics.contains("marionette_crown");
+                || s.relics.contains("string_spool") || s.relics.contains("marionette_crown")
+                || s.relics.contains("scrap_magnet") || s.relics.contains("scrap_king_crown");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
@@ -1502,6 +1566,19 @@ public final class SimulationHarness {
                 || "puppeteer_overpull".equals(d.id) || "puppeteer_grand_stage".equals(d.id));
     }
 
+    private static boolean isScavengerSignal(GameCore.CardDef d) {
+        return d != null && (d.draw > 0 || d.goldGain > 0 || d.exhaust || d.exhaustTopDiscard
+                || d.createWound || d.heal > 0 || d.block > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || GameCore.PROF_SCAVENGER.equals(d.profession));
+    }
+
+    private static boolean isScavengerCard(GameCore.CardDef d) {
+        return d != null && ("scavenger_pick".equals(d.id) || "scavenger_sort".equals(d.id)
+                || "scavenger_patch".equals(d.id) || "scavenger_magnet".equals(d.id)
+                || "scavenger_overhaul".equals(d.id) || "scavenger_grand_foundry".equals(d.id));
+    }
+
     private static int stormcallerEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -1617,6 +1694,16 @@ public final class SimulationHarness {
         for (GameCore.Enemy e : s.enemies) {
             if (e.hp > 0) {
                 pressure += e.bind * 3 + e.mark * 2 + e.vulnerable * 2 + e.burn;
+            }
+        }
+        return pressure;
+    }
+
+    private static int scavengerEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 2 + e.vulnerable * 2 + e.bind * 2 + e.burn;
             }
         }
         return pressure;

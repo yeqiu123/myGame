@@ -119,6 +119,7 @@ public final class GameCore {
     public static final String PROF_BARD = "吟游诗人";
     public static final String PROF_MIRRORIST = "镜术师";
     public static final String PROF_PUPPETEER = "傀儡师";
+    public static final String PROF_SCAVENGER = "拾荒者";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -126,7 +127,7 @@ public final class GameCore {
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
-            PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER
+            PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -811,6 +812,7 @@ public final class GameCore {
         if (PROF_BARD.equals(profession)) return "终曲";
         if (PROF_MIRRORIST.equals(profession)) return "万镜";
         if (PROF_PUPPETEER.equals(profession)) return "牵丝";
+        if (PROF_SCAVENGER.equals(profession)) return "归炉";
         return "职业技";
     }
 
@@ -875,6 +877,7 @@ public final class GameCore {
         if (PROF_BARD.equals(profession)) return "满充能：消耗旋律终曲，按出牌节奏、临时牌、回声、印记和过载造成穿透，抽牌、格挡、返能并制造曲牌。";
         if (PROF_MIRRORIST.equals(profession)) return "满充能：消耗镜纹万镜，按检视、升级牌、临时牌、汇流、印记和过载造成穿透，抽牌、格挡、升级并制造镜像牌。";
         if (PROF_PUPPETEER.equals(profession)) return "满充能：消耗丝线牵丝，按束缚、临时傀儡、回声、格挡和过载造成穿透，施加控制、抽牌并制造傀儡牌。";
+        if (PROF_SCAVENGER.equals(profession)) return "满充能：消耗废料归炉，按弃牌、状态牌、消耗、金币和过载造成穿透，回收状态、抽牌、治疗并制造拾荒牌。";
         return "选择职业后可用。";
     }
 
@@ -1682,6 +1685,48 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, strings / 2);
+        } else if (PROF_SCAVENGER.equals(s.profession)) {
+            int scrap = Math.max(1, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int discard = Math.min(24, s.discard.size());
+            int exhausted = Math.min(18, s.exhaust.size());
+            int pressure = target == null ? Math.max(1, bestEnemyPressure(s) / 4)
+                    : target.mark * 2 + target.vulnerable * 2 + target.bind * 2 + target.burn / 2;
+            int damage = 8 + s.act * 3 + Math.min(56, scrap * 3 + discard * 2 + exhausted * 3
+                    + statuses * 5 + s.gold / 22 + pressure * 3) + overload * 6;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 1 + Math.min(4, scrap / 3) + Math.min(3, statuses) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, discard / 8) + overload / 4;
+                target.bind += Math.min(3, statuses + exhausted / 6) + s.bindPower / 2;
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.hp = Math.min(s.maxHp, s.hp + 3 + s.act + Math.min(6, statuses * 2));
+                gainBlock(s, 3 + s.act + Math.min(10, statuses * 3 + scrap));
+            }
+            draw(s, 1 + Math.min(2, scrap / 5 + discard / 10) + overload / 4);
+            gainBlock(s, 6 + s.act * 2 + Math.min(32, scrap * 2 + discard + exhausted * 2 + statuses * 4) + overload * 3);
+            s.gold += 6 + s.act * 2 + Math.min(16, discard + exhausted + statuses * 3);
+            if (scrap >= 5 || discard >= 10 || statuses >= 2 || overload >= 3) {
+                s.energy++;
+            }
+            Card salvage = new Card(overload >= 4 || hasTalent(s, "t_scavenger_grand") ? "scavenger_grand_foundry" : "scavenger_pick");
+            salvage.temp = true;
+            salvage.upgraded = scrap >= 5 || hasTalent(s, "t_scavenger_salvage");
+            addToHand(s, salvage);
+            if (hasTalent(s, "t_scavenger_grand")) {
+                Card sort = new Card("scavenger_sort");
+                sort.temp = true;
+                sort.upgraded = true;
+                addToHand(s, sort);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_BLOODCOIN, 1 + Math.min(3, statuses + s.gold / 120));
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.min(3, exhausted / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, scrap / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3039,6 +3084,9 @@ public final class GameCore {
         if (PROF_PUPPETEER.equals(profession)) {
             return "用束缚、临时傀儡、回声和格挡积累丝线，把控场、防线和操偶牌转成牵丝爆发。适合控制、回声、守势、循环和过载构筑。";
         }
+        if (PROF_SCAVENGER.equals(profession)) {
+            return "用弃牌堆、状态牌、消耗和金币积累废料，把杂牌回收成治疗、抽牌、标记和归炉爆发。适合状态转化、回声、金币、循环和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3129,6 +3177,9 @@ public final class GameCore {
         }
         if (PROF_PUPPETEER.equals(profession)) {
             return 0xffd7c0f2;
+        }
+        if (PROF_SCAVENGER.equals(profession)) {
+            return 0xffc4d28a;
         }
         return 0xffd6c07a;
     }
@@ -3459,6 +3510,14 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_SCAVENGER.equals(profession)) {
+            s.deck.add(new Card("scavenger_pick"));
+            s.deck.add(new Card("scavenger_sort"));
+            s.deck.add(new Card("daze"));
+            s.gold += 25;
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3509,6 +3568,7 @@ public final class GameCore {
         else if (PROF_BARD.equals(profession)) upgradeDeckCard(s, "bard_note");
         else if (PROF_MIRRORIST.equals(profession)) upgradeDeckCard(s, "mirrorist_shard");
         else if (PROF_PUPPETEER.equals(profession)) upgradeDeckCard(s, "puppeteer_thread");
+        else if (PROF_SCAVENGER.equals(profession)) upgradeDeckCard(s, "scavenger_pick");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3616,6 +3676,11 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_SCAVENGER.equals(profession)) {
+            addUpgradedDeckCard(s, "scavenger_patch");
+            removeStatusCard(s);
+            s.gold += 25;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3649,6 +3714,7 @@ public final class GameCore {
         if (PROF_BARD.equals(profession)) return "bard_overcrescendo";
         if (PROF_MIRRORIST.equals(profession)) return "mirrorist_overimage";
         if (PROF_PUPPETEER.equals(profession)) return "puppeteer_overpull";
+        if (PROF_SCAVENGER.equals(profession)) return "scavenger_overhaul";
         return "forge_signal";
     }
 
@@ -4075,6 +4141,22 @@ public final class GameCore {
         } else if ("t_puppeteer_grand".equals(id)) {
             addUpgradedDeckCard(s, "puppeteer_grand_stage");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_scavenger_salvage".equals(id)) {
+            addUpgradedDeckCard(s, "scavenger_pick");
+            draw(s, s.mode == MODE_COMBAT ? 1 : 0);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_scavenger_patch".equals(id)) {
+            addUpgradedDeckCard(s, "scavenger_patch");
+            s.maxHp += 3;
+            s.hp += 3;
+            removeStatusCard(s);
+        } else if ("t_scavenger_market".equals(id)) {
+            addUpgradedDeckCard(s, "scavenger_sort");
+            s.gold += 45;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_scavenger_grand".equals(id)) {
+            addUpgradedDeckCard(s, "scavenger_grand_foundry");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -4099,7 +4181,7 @@ public final class GameCore {
                 || "t_prismist_grand".equals(id) || "t_dreamwalker_grand".equals(id)
                 || "t_gardener_grand".equals(id) || "t_chef_grand".equals(id)
                 || "t_bard_grand".equals(id) || "t_mirrorist_grand".equals(id)
-                || "t_puppeteer_grand".equals(id);
+                || "t_puppeteer_grand".equals(id) || "t_scavenger_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -4117,7 +4199,7 @@ public final class GameCore {
                 || "prismist_grand_spectrum".equals(id) || "dreamwalker_grand_dream".equals(id)
                 || "gardener_grand_grove".equals(id) || "chef_grand_banquet".equals(id)
                 || "bard_grand_finale".equals(id) || "mirrorist_grand_mirror".equals(id)
-                || "puppeteer_grand_stage".equals(id);
+                || "puppeteer_grand_stage".equals(id) || "scavenger_grand_foundry".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -4135,7 +4217,7 @@ public final class GameCore {
                 || "spectrum_crown".equals(id) || "oneiric_crown".equals(id)
                 || "verdant_crown".equals(id) || "banquet_crown".equals(id)
                 || "finale_crown".equals(id) || "mirror_crown".equals(id)
-                || "marionette_crown".equals(id);
+                || "marionette_crown".equals(id) || "scrap_king_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -4586,6 +4668,10 @@ public final class GameCore {
         else if (PROF_PUPPETEER.equals(s.profession) && d != null && (d.bind > 0 || d.createEcho
                 || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || d.type == 1
                 || d.vulnerable > 0 || d.profession.equals(PROF_PUPPETEER))) amount++;
+        else if (PROF_SCAVENGER.equals(s.profession) && d != null && (d.draw > 0 || d.goldGain > 0
+                || d.createWound || d.exhaust || d.exhaustTopDiscard || d.skillChargeGain > 0
+                || d.heal > 0 || d.vulnerable > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_SCAVENGER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -5407,6 +5493,34 @@ public final class GameCore {
             if (level >= 3 || echoes >= 3 || guard >= 12 || overload >= 3) {
                 s.energy++;
             }
+        } else if (PROF_SCAVENGER.equals(s.profession)) {
+            int scrap = Math.max(1, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int discard = Math.min(18, s.discard.size());
+            int exhausted = Math.min(14, s.exhaust.size());
+            s.professionCharge += level + 1 + Math.min(3, statuses + discard / 8 + exhausted / 5) + overload / 2;
+            draw(s, 1);
+            if (statuses > 0 || level >= 3) {
+                removeStatusCard(s);
+                s.hp = Math.min(s.maxHp, s.hp + 2 + level + overload);
+            }
+            gainBlock(s, 5 + level * 3 + Math.min(20, scrap * 2 + discard + exhausted * 2 + statuses * 4));
+            addProfessionSkillCharge(s, level + overload / 2);
+            s.gold += 5 + level * 3 + Math.min(12, discard + exhausted + statuses * 3);
+            Card pick = new Card(level >= 3 || overload >= 3 ? "scavenger_overhaul" : "scavenger_pick");
+            pick.temp = true;
+            pick.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, pick);
+            if (target != null) {
+                target.mark += level + 1 + overload / 2;
+                target.vulnerable += 1;
+                target.bind += Math.min(3, statuses + exhausted / 6);
+                damageEnemy(s, target, 4 + level * 3 + Math.min(24, scrap * 2 + discard
+                        + exhausted * 3 + statuses * 4 + s.gold / 25 + target.mark * 2), true);
+            }
+            if (level >= 3 || statuses >= 2 || discard >= 10 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -5942,6 +6056,46 @@ public final class GameCore {
                 target.vulnerable += 1;
             }
         }
+        if (hasRelic(s, "scrap_magnet") && PROF_SCAVENGER.equals(s.profession)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int discard = Math.min(20, s.discard.size());
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + statuses + discard / 8));
+            gainBlock(s, 5 + s.act + Math.min(15, s.professionCharge + discard + statuses * 4));
+            s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(5, statuses * 2 + s.exhaust.size() / 4));
+            s.gold += 8 + s.act * 2 + Math.min(12, discard + statuses * 3);
+            Card pick = new Card("scavenger_pick");
+            pick.temp = true;
+            pick.upgraded = true;
+            addToHand(s, pick);
+            if (statuses > 0) {
+                removeStatusCard(s);
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(22, target.mark * 2
+                        + s.professionCharge * 2 + discard + statuses * 4), true);
+            }
+        }
+        if (hasRelic(s, "scrap_king_crown") && PROF_SCAVENGER.equals(s.profession)) {
+            Card forge = new Card("scavenger_overhaul");
+            forge.temp = true;
+            forge.upgraded = true;
+            addToHand(s, forge);
+            draw(s, 1);
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(6, statusDeckCards(s) * 2 + s.exhaust.size() / 4));
+            s.gold += 12 + s.act * 3;
+            if (s.professionCharge >= 5 || statusDeckCards(s) + statusHandCards(s) >= 2
+                    || s.discard.size() >= 10 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -6171,7 +6325,7 @@ public final class GameCore {
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_CHEF.equals(s.profession)
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
-                || PROF_PUPPETEER.equals(s.profession)
+                || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
                 || hasRelic(s, "echo_prism") || hasRelic(s, "echoflow_charm")
@@ -6181,7 +6335,7 @@ public final class GameCore {
         if (quest == QUEST_BLOODCOIN && (PROF_MERCHANT.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
                 || PROF_HEXER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession) || PROF_ADJUDICATOR.equals(s.profession)
                 || PROF_PACTMAKER.equals(s.profession)
-                || PROF_DREAMWALKER.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
                 || hasTalent(s, "t_hexer_darkdeal") || hasRelic(s, "bloodcoin_broach") || hasRelic(s, "kingmaker_seal"))) {
             return true;
@@ -6191,7 +6345,7 @@ public final class GameCore {
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
                 || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
-                || PROF_MIRRORIST.equals(s.profession)
+                || PROF_MIRRORIST.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -6203,7 +6357,7 @@ public final class GameCore {
         }
         if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
-                || PROF_MIRRORIST.equals(s.profession)
+                || PROF_MIRRORIST.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
@@ -6218,7 +6372,7 @@ public final class GameCore {
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_CHEF.equals(s.profession)
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
-                || PROF_PUPPETEER.equals(s.profession)
+                || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec) || "spec_pressure".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -6235,7 +6389,8 @@ public final class GameCore {
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
-                || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession))) {
+                || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
+                || PROF_SCAVENGER.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -7311,6 +7466,36 @@ public final class GameCore {
                 puppet.temp = true;
                 puppet.upgraded = true;
                 addToHand(s, puppet);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_SCAVENGER.equals(s.profession) && s.turn == 1) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, statuses + s.discard.size() / 8 + s.gold / 120);
+            gainBlock(s, 3 + s.act + Math.min(6, statuses * 2));
+            s.gold += 6 + s.act * 2;
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1 + (hasTalent(s, "t_scavenger_salvage") ? 1 : 0);
+                firstLiving(s).vulnerable += hasTalent(s, "t_scavenger_market") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_scavenger_salvage")) {
+                Card pick = new Card("scavenger_pick");
+                pick.temp = true;
+                pick.upgraded = true;
+                addToHand(s, pick);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_scavenger_patch")) {
+                removeStatusCard(s);
+                s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+                gainBlock(s, 4 + s.act);
+            }
+            if (hasTalent(s, "t_scavenger_grand")) {
+                Card pick = new Card("scavenger_pick");
+                pick.temp = true;
+                pick.upgraded = true;
+                addToHand(s, pick);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -9294,6 +9479,98 @@ public final class GameCore {
                 target.vulnerable += 1;
             }
             if (overloadNow >= 2 || echoes >= 3 || s.block >= 20 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("scavenger_pick".equals(d.id) && target != null) {
+            int scrap = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            damage += Math.min(c.upgraded ? 24 : 16, scrap * 2 + s.discard.size() + statuses * 4 + s.gold / 35);
+            target.mark += 1 + (c.upgraded ? 1 : 0);
+            if (statuses > 0 || s.discard.size() >= 6 || c.temp || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("scavenger_sort".equals(d.id)) {
+            int scrap = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 24 : 16, scrap * 2 + s.discard.size() + statuses * 4);
+            if (statuses > 0) {
+                removeStatusCard(s);
+                draw += 1;
+                s.gold += 7 + s.act * 2;
+            }
+            if (s.discard.size() >= 8 || c.upgraded) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("scavenger_patch".equals(d.id)) {
+            int scrap = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 26 : 18, scrap * 2 + statuses * 5 + s.exhaust.size() * 2);
+            if (statuses > 0) {
+                removeStatusCard(s);
+                heal += 2 + s.act;
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+            if (s.hp < s.maxHp || c.upgraded) {
+                s.gold += 5 + s.act;
+            }
+        }
+        if ("scavenger_magnet".equals(d.id) && target != null) {
+            int scrap = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            damage += Math.min(c.upgraded ? 40 : 28, scrap * 2 + s.discard.size() * 2
+                    + statuses * 5 + target.mark * 2 + target.vulnerable * 2);
+            target.mark += 2;
+            target.vulnerable += 1;
+            target.bind += 1 + s.bindPower / 2;
+            if (target.mark >= 3 || statuses > 0 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("scavenger_overhaul".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int scrap = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 34 : 23, scrap * 2 + overloadNow * 6 + s.discard.size()
+                    + statuses * 5 + s.exhaust.size() * 2);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 46 : 32, overloadNow * 7 + scrap * 2
+                        + s.discard.size() * 2 + statuses * 6 + target.mark * 3);
+            }
+            if (statuses > 0 || overloadNow >= 2 || s.discard.size() >= 10 || c.upgraded) {
+                draw += 1;
+                if (statuses > 0) {
+                    removeStatusCard(s);
+                }
+            }
+            if (overloadNow >= 2 || statuses >= 2) {
+                s.energy++;
+            }
+        }
+        if ("scavenger_grand_foundry".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int scrap = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            damage += Math.min(c.upgraded ? 72 : 52, scrap * 4 + s.discard.size() * 2
+                    + s.exhaust.size() * 4 + statuses * 7 + s.gold / 16 + overloadNow * 8 + bestEnemyPressure(s));
+            block += Math.min(c.upgraded ? 50 : 36, scrap * 3 + s.discard.size()
+                    + s.exhaust.size() * 3 + statuses * 6 + overloadNow * 5);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                heal += 3 + s.act;
+            }
+            if (overloadNow >= 2 || statuses >= 2 || s.discard.size() >= 12 || c.upgraded) {
                 draw += 1;
             }
         }
@@ -11965,6 +12242,84 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_SCAVENGER.equals(s.profession) && (d.draw > 0 || d.goldGain > 0 || d.exhaust
+                || d.exhaustTopDiscard || d.createWound || d.skillChargeGain > 0 || d.heal > 0
+                || d.vulnerable > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_SCAVENGER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int discard = Math.min(18, s.discard.size());
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.goldGain > 0 || d.draw > 0 || d.profession.equals(PROF_SCAVENGER)) {
+                    e.mark += 1;
+                }
+                if (d.vulnerable > 0 || "wound".equals(c.id) || "daze".equals(c.id)) {
+                    e.vulnerable += 1;
+                }
+                if (s.professionCharge >= 4 || discard >= 8 || statuses > 0) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(25, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge * 2 + discard + statuses * 4 + s.gold / 35), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(15, s.professionCharge + discard + statuses * 3 + s.exhaust.size()));
+                if (statuses > 0 || hasTalent(s, "t_scavenger_patch")) {
+                    s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, statuses * 2 + s.act));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || discard >= 8 || hasTalent(s, "t_scavenger_market")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_scavenger_salvage") && (d.cost == 0 || d.goldGain > 0 || d.draw > 0
+                || d.profession.equals(PROF_SCAVENGER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(20, e.mark * 2
+                        + s.professionCharge * 2 + s.discard.size() + s.gold / 35), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || s.discard.size() >= 8) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_scavenger_patch") && (d.block > 0 || d.heal > 0 || d.type == 1
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_SCAVENGER))) {
+            gainBlock(s, 3 + s.act + Math.min(12, s.professionCharge + statusDeckCards(s) * 3 + s.exhaust.size()));
+            if (s.cardsPlayedThisTurn == 3 || s.hp < s.maxHp || statusDeckCards(s) + statusHandCards(s) > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_scavenger_market") && (d.goldGain > 0 || d.draw > 0 || d.exhaust
+                || d.skillChargeGain > 0 || d.profession.equals(PROF_SCAVENGER))) {
+            if (s.cardsPlayedThisTurn == 2 || s.discard.size() >= 10) {
+                draw(s, 1);
+            }
+            if (s.cardsPlayedThisTurn <= 4 && (s.gold >= 120 || d.goldGain > 0 || s.discard.size() >= 8)) {
+                s.energy++;
+            }
+            s.gold += 3 + s.act;
+            addProfessionSkillCharge(s, 1);
+        }
+        if (hasTalent(s, "t_scavenger_grand") && (d.goldGain > 0 || d.draw > 0 || d.exhaust
+                || d.skillChargeGain > 0 || d.rarity == 2 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_SCAVENGER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4 || s.discard.size() >= 8)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(28, e.mark * 2 + e.vulnerable * 2
+                        + s.professionCharge * 2 + s.discard.size() + s.exhaust.size() * 2 + s.gold / 28), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -12382,6 +12737,44 @@ public final class GameCore {
             }
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
+            }
+        }
+        if (hasRelic(s, "scrap_magnet") && (d.draw > 0 || d.goldGain > 0 || d.exhaust
+                || d.exhaustTopDiscard || d.skillChargeGain > 0 || d.heal > 0
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_SCAVENGER))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(8, s.professionCharge + statusDeckCards(s) * 3 + s.discard.size() / 2));
+                if (statusDeckCards(s) + statusHandCards(s) > 0 && s.relicTriggersThisTurn == 0) {
+                    removeStatusCard(s);
+                    s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.goldGain > 0 || e.mark >= 4 || s.discard.size() >= 8) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(22, e.mark * 2
+                            + s.professionCharge * 2 + s.discard.size() + statusDeckCards(s) * 4), true);
+                }
+            }
+        }
+        if (hasRelic(s, "scrap_king_crown") && (d.draw > 0 || d.goldGain > 0 || d.exhaust
+                || d.skillChargeGain > 0 || d.rarity == 2 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_SCAVENGER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || s.discard.size() >= 10) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(25, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge + s.discard.size() + s.gold / 25), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -13674,6 +14067,11 @@ public final class GameCore {
             return focus == BUILD_STATUS ? 18 : focus == BUILD_ECHO ? 16 : focus == BUILD_GUARD ? 14
                     : focus == BUILD_CYCLE ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_FORGE ? 5 : 0;
         }
+        if (PROF_SCAVENGER.equals(s.profession)) {
+            return focus == BUILD_STATUS ? 18 : focus == BUILD_GOLD ? 16 : focus == BUILD_CYCLE ? 14
+                    : focus == BUILD_ECHO ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 10
+                    : focus == BUILD_BLOOD ? 8 : focus == BUILD_FORGE ? 6 : 0;
+        }
         return 0;
     }
 
@@ -13748,6 +14146,9 @@ public final class GameCore {
         }
         if (PROF_PUPPETEER.equals(d.profession)) {
             return puppeteerFocusCardValue(d, focus);
+        }
+        if (PROF_SCAVENGER.equals(d.profession)) {
+            return scavengerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -14304,6 +14705,54 @@ public final class GameCore {
         return 0;
     }
 
+    private static int scavengerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + (d.createEcho ? 3 : 0) + d.goldGain / 3
+                    + ("scavenger_pick".equals(d.id) ? 6 : 0) + ("scavenger_magnet".equals(d.id) ? 8 : 0)
+                    + ("scavenger_overhaul".equals(d.id) ? 14 : 0) + ("scavenger_grand_foundry".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + d.draw * 3 + (d.cost == 0 ? 5 : 0) + (d.exhaust ? 4 : 0)
+                    + ("scavenger_pick".equals(d.id) ? 8 : 0) + ("scavenger_overhaul".equals(d.id) ? 12 : 0)
+                    + ("scavenger_grand_foundry".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_GOLD) {
+            return d.goldGain + d.draw * 3 + (d.exhaust ? 4 : 0) + d.skillChargeGain * 2
+                    + ("scavenger_pick".equals(d.id) ? 14 : 0) + ("scavenger_sort".equals(d.id) ? 10 : 0)
+                    + ("scavenger_overhaul".equals(d.id) ? 10 : 0) + ("scavenger_grand_foundry".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return d.heal * 6 + (d.createWound ? 6 : 0) + (d.exhaust ? 3 : 0)
+                    + ("scavenger_patch".equals(d.id) ? 14 : 0) + ("scavenger_grand_foundry".equals(d.id) ? 8 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return d.scry * 3 + d.skillChargeGain * 2 + (d.rarity == 2 ? 2 : 0)
+                    + ("scavenger_sort".equals(d.id) ? 12 : 0) + ("scavenger_patch".equals(d.id) ? 5 : 0)
+                    + ("scavenger_grand_foundry".equals(d.id) ? 5 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 7 + d.bind * 5 + d.heal * 2 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("scavenger_pick".equals(d.id) ? 10 : 0) + ("scavenger_sort".equals(d.id) ? 12 : 0)
+                    + ("scavenger_patch".equals(d.id) ? 16 : 0) + ("scavenger_magnet".equals(d.id) ? 18 : 0)
+                    + ("scavenger_overhaul".equals(d.id) ? 16 : 0) + ("scavenger_grand_foundry".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 6 : 0) + d.scry * 2 + d.skillChargeGain * 2
+                    + (d.createEcho ? 4 : 0) + d.goldGain / 4
+                    + ("scavenger_pick".equals(d.id) ? 14 : 0) + ("scavenger_sort".equals(d.id) ? 14 : 0)
+                    + ("scavenger_overhaul".equals(d.id) ? 12 : 0) + ("scavenger_grand_foundry".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + d.heal * 3 + d.draw * 2
+                    + ("scavenger_sort".equals(d.id) ? 14 : 0) + ("scavenger_patch".equals(d.id) ? 16 : 0)
+                    + ("scavenger_overhaul".equals(d.id) ? 14 : 0) + ("scavenger_grand_foundry".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return ("scavenger_magnet".equals(d.id) ? 3 : 0) + ("scavenger_grand_foundry".equals(d.id) ? 3 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -14588,6 +15037,15 @@ public final class GameCore {
         else if ("t_puppeteer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_STATUS) * 2
                 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_scavenger_salvage".equals(id)) bonus += zeroCost * 2 + status * 3
+                + buildFocusDeckCards(s, BUILD_GOLD) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_scavenger_patch".equals(id)) bonus += status * 4 + healingDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_GUARD) * 2 + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_scavenger_market".equals(id)) bonus += Math.min(16, s.gold / 25)
+                + buildFocusDeckCards(s, BUILD_GOLD) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_scavenger_grand".equals(id)) bonus += professionCards + status * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_GOLD)
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -14607,7 +15065,8 @@ public final class GameCore {
                     "t_prismist_spill", "t_prismist_grand", "t_dreamwalker_lucid",
                     "t_dreamwalker_grand", "t_gardener_compost", "t_gardener_grand",
                     "t_chef_spice", "t_chef_grand", "t_bard_chorus", "t_bard_grand",
-                    "t_mirrorist_reflect", "t_mirrorist_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_mirrorist_reflect", "t_mirrorist_grand", "t_scavenger_market",
+                    "t_scavenger_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -14631,7 +15090,8 @@ public final class GameCore {
         if (focus == BUILD_GOLD) {
             return isAny(id, "t_shared_hunter", "t_shared_wayfarer", "t_merchant_interest",
                     "t_merchant_contract", "t_merchant_blackmarket", "t_merchant_monopoly",
-                    "t_hexer_darkdeal", "t_pactmaker_collector", "t_pactmaker_grand") ? 3 : 0;
+                    "t_hexer_darkdeal", "t_pactmaker_collector", "t_pactmaker_grand",
+                    "t_scavenger_salvage", "t_scavenger_market", "t_scavenger_grand") ? 3 : 0;
         }
         if (focus == BUILD_BLOOD) {
             return isAny(id, "t_bloodbound_scar", "t_bloodbound_feast", "t_bloodbound_crimson",
@@ -14669,7 +15129,8 @@ public final class GameCore {
                     "t_dreamwalker_grand", "t_gardener_sprout", "t_gardener_compost",
                     "t_gardener_grand", "t_chef_prep", "t_chef_spice", "t_chef_grand",
                     "t_bard_note", "t_bard_grand", "t_mirrorist_shard",
-                    "t_mirrorist_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_mirrorist_grand", "t_scavenger_salvage", "t_scavenger_patch",
+                    "t_scavenger_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -14689,6 +15150,7 @@ public final class GameCore {
                     "t_chef_prep", "t_chef_stew", "t_chef_grand",
                     "t_bard_note", "t_bard_chorus", "t_bard_grand",
                     "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
+                    "t_scavenger_salvage", "t_scavenger_market", "t_scavenger_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -14703,7 +15165,8 @@ public final class GameCore {
                     "t_prismist_anchor", "t_prismist_grand", "t_dreamwalker_veil",
                     "t_dreamwalker_grand", "t_gardener_rootwall", "t_gardener_grand",
                     "t_chef_stew", "t_chef_grand", "t_bard_ballad", "t_bard_grand",
-                    "t_mirrorist_guard", "t_mirrorist_grand") ? 3 : 0;
+                    "t_mirrorist_guard", "t_mirrorist_grand", "t_scavenger_patch",
+                    "t_scavenger_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -14930,6 +15393,18 @@ public final class GameCore {
         if (isAny(id, "t_mirrorist_reflect", "t_mirrorist_grand")
                 && (upgradedDeckCards(s) >= 4 || tempOrEchoDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_FORGE) >= 2 || buildFocusDeckCards(s, BUILD_ECHO) >= 2)) {
             return "映照转写";
+        }
+        if (isAny(id, "t_scavenger_salvage", "t_scavenger_grand")
+                && (statusDeckCards(s) > 0 || buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_GOLD) >= 2)) {
+            return "废堆变现";
+        }
+        if (isAny(id, "t_scavenger_patch", "t_scavenger_grand")
+                && (statusDeckCards(s) > 0 || buildFocusDeckCards(s, BUILD_GUARD) >= 2 || s.hp < s.maxHp)) {
+            return "补丁防线";
+        }
+        if (isAny(id, "t_scavenger_market", "t_scavenger_grand")
+                && (s.gold >= 100 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3 || buildFocusDeckCards(s, BUILD_GOLD) >= 2)) {
+            return "黑摊循环";
         }
         return "";
     }
@@ -15162,7 +15637,8 @@ public final class GameCore {
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
-                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown") ? 3 : 0;
+                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
+                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
@@ -15170,7 +15646,8 @@ public final class GameCore {
                     "echoflow_charm", "shadow_sash", "eclipse_mask", "spirit_planchette", "ancestral_planchette", "echo_crown",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
-                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown") ? 3 : 0;
+                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
+                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
@@ -15181,7 +15658,8 @@ public final class GameCore {
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
                     "ledger_stamp", "kingmaker_seal", "bloodcoin_broach", "echo_ledger", "bloodspark_contract",
-                    "contract_stamp", "grand_ledger", "mosaic_core", "runic_shackle", "golden_throne") ? 3 : 0;
+                    "contract_stamp", "grand_ledger", "mosaic_core", "runic_shackle", "golden_throne",
+                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
         }
         if (focus == BUILD_BLOOD) {
             return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
@@ -15194,7 +15672,8 @@ public final class GameCore {
                     "ability_crown", "time_engine", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "finale_crown",
-                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown") ? 3 : 0;
+                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
+                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -15205,7 +15684,8 @@ public final class GameCore {
                     "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger", "spirit_planchette", "ancestral_planchette",
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
-                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown") ? 3 : 0;
+                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
+                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -15215,7 +15695,8 @@ public final class GameCore {
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
-                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown") ? 3 : 0;
+                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
+                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -15226,7 +15707,8 @@ public final class GameCore {
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
-                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown") ? 3 : 0;
+                    "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
+                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -15260,7 +15742,8 @@ public final class GameCore {
                 || (PROF_CHEF.equals(s.profession) && "recipe_book".equals(id))
                 || (PROF_BARD.equals(s.profession) && "songbook".equals(id))
                 || (PROF_MIRRORIST.equals(s.profession) && "mirror_lens".equals(id))
-                || (PROF_PUPPETEER.equals(s.profession) && "string_spool".equals(id));
+                || (PROF_PUPPETEER.equals(s.profession) && "string_spool".equals(id))
+                || (PROF_SCAVENGER.equals(s.profession) && "scrap_magnet".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -15303,6 +15786,7 @@ public final class GameCore {
                 || hasRelic(s, "songbook") || hasRelic(s, "finale_crown")
                 || hasRelic(s, "mirror_lens") || hasRelic(s, "mirror_crown")
                 || hasRelic(s, "string_spool") || hasRelic(s, "marionette_crown")
+                || hasRelic(s, "scrap_magnet") || hasRelic(s, "scrap_king_crown")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
@@ -15476,6 +15960,12 @@ public final class GameCore {
         if (PROF_MIRRORIST.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.createEcho || d.draw > 0
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_MIRRORIST))) {
+            return 4;
+        }
+        if (PROF_SCAVENGER.equals(s.profession) && (d.draw > 0 || d.goldGain > 0 || d.exhaust
+                || d.exhaustTopDiscard || d.createWound || d.heal > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_SCAVENGER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -15688,7 +16178,9 @@ public final class GameCore {
                 || "bard_ballad".equals(id) || "bard_chorus".equals(id)
                 || "bard_overcrescendo".equals(id) || "mirrorist_shard".equals(id)
                 || "mirrorist_guard".equals(id) || "mirrorist_reflect".equals(id)
-                || "mirrorist_overimage".equals(id);
+                || "mirrorist_overimage".equals(id)
+                || "scavenger_pick".equals(id) || "scavenger_sort".equals(id)
+                || "scavenger_patch".equals(id) || "scavenger_overhaul".equals(id);
     }
 
     private static boolean pressureCardId(String id) {
@@ -15727,7 +16219,9 @@ public final class GameCore {
                 || "mirrorist_shard".equals(id) || "mirrorist_prismcut".equals(id)
                 || "mirrorist_overimage".equals(id) || "mirrorist_grand_mirror".equals(id)
                 || "puppeteer_thread".equals(id) || "puppeteer_needle".equals(id)
-                || "puppeteer_overpull".equals(id) || "puppeteer_grand_stage".equals(id);
+                || "puppeteer_overpull".equals(id) || "puppeteer_grand_stage".equals(id)
+                || "scavenger_pick".equals(id) || "scavenger_magnet".equals(id)
+                || "scavenger_overhaul".equals(id) || "scavenger_grand_foundry".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -15923,6 +16417,16 @@ public final class GameCore {
                 || d.rarity == 2 || d.block > 0 || d.profession.equals(PROF_PUPPETEER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "scrap_magnet") && (d.draw > 0 || d.goldGain > 0 || d.exhaust || d.exhaustTopDiscard
+                || d.createWound || d.heal > 0 || d.block > 0 || d.skillChargeGain > 0
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_SCAVENGER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "scrap_king_crown") && (d.draw > 0 || d.goldGain > 0 || d.exhaust || d.exhaustTopDiscard
+                || d.createWound || d.heal > 0 || d.skillChargeGain > 0 || d.vulnerable > 0
+                || d.bind > 0 || d.rarity == 2 || d.profession.equals(PROF_SCAVENGER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -15960,7 +16464,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -15990,6 +16494,7 @@ public final class GameCore {
         if (PROF_BARD.equals(s.profession)) return "songbook";
         if (PROF_MIRRORIST.equals(s.profession)) return "mirror_lens";
         if (PROF_PUPPETEER.equals(s.profession)) return "string_spool";
+        if (PROF_SCAVENGER.equals(s.profession)) return "scrap_magnet";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -16222,6 +16727,17 @@ public final class GameCore {
         if (PROF_PUPPETEER.equals(s.profession) && "marionette_crown".equals(id)) {
             return 4;
         }
+        if (PROF_SCAVENGER.equals(s.profession) && ("scrap_magnet".equals(id) || "empty_coin".equals(id)
+                || "void_abacus".equals(id) || "echo_ledger".equals(id) || "bloodcoin_broach".equals(id)
+                || "curse_censer".equals(id) || "stormglass_seal".equals(id) || "discipline_chart".equals(id)
+                || "overload_etch".equals(id) || "tempo_metronome".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                || "tuning_fork".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id))) {
+            return 2;
+        }
+        if (PROF_SCAVENGER.equals(s.profession) && "scrap_king_crown".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession)
                 || PROF_SUMMONER.equals(s.profession) || PROF_CHEF.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
@@ -16264,7 +16780,8 @@ public final class GameCore {
                 || PROF_MEDIUM.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
                 || PROF_PRISMIST.equals(s.profession) || PROF_DREAMWALKER.equals(s.profession)
                 || PROF_GARDENER.equals(s.profession) || PROF_CHEF.equals(s.profession)
-                || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession))
+                || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
+                || PROF_SCAVENGER.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -16281,7 +16798,8 @@ public final class GameCore {
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
-                || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession))
+                || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
+                || PROF_SCAVENGER.equals(s.profession))
                 && "pressure_gauge".equals(id)) {
             return 2;
         }
@@ -16334,16 +16852,16 @@ public final class GameCore {
         if ("spec_markchain".equals(spec.id) && "markchain_seal".equals(id)) return 5;
         if ("spec_pressure".equals(spec.id) && "pressure_gauge".equals(id)) return 5;
         if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark", "conductor_baton")) return 1;
-        if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork", "storm_rod", "shadow_sash", "eclipse_mask")) return 1;
+        if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork", "storm_rod", "shadow_sash", "eclipse_mask", "scrap_magnet", "scrap_king_crown")) return 1;
         if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist", "bloodspark_contract")) return 1;
         if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown", "confluence_map", "split_anvil", "conductor_baton", "prism_gear")) return 1;
         if ("spec_resonance".equals(spec.id) && isAny(id, "mosaic_core", "starforge_lens", "tempest_crown", "eclipse_mask")) return 1;
         if ("spec_mastery".equals(spec.id) && isSkillRelicForProfession(s, id)) return 2;
-        if ("spec_control".equals(spec.id) && isAny(id, "curse_censer", "stormglass_seal", "apex_compass", "fallen_crown", "judgment_codex", "hex_moon", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask")) return 1;
+        if ("spec_control".equals(spec.id) && isAny(id, "curse_censer", "stormglass_seal", "apex_compass", "fallen_crown", "judgment_codex", "hex_moon", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "scrap_magnet", "scrap_king_crown")) return 1;
         if ("spec_assembly".equals(spec.id) && isAny(id, "mirror_anvil", "polished_cog", "confluence_map", "prism_gear", "starforge_lens", "clockwork_core")) return 1;
-        if ("spec_echoflow".equals(spec.id) && isAny(id, "void_abacus", "echo_ledger", "echo_crown", "tempo_spindle", "moon_lantern", "tuning_fork", "hourglass_charm", "time_engine", "shadow_sash", "eclipse_mask")) return 1;
-        if ("spec_markchain".equals(spec.id) && isAny(id, "hunter_mark", "root_drum", "stormglass_seal", "curse_censer", "apex_compass", "hex_moon", "conductor_baton", "judgment_codex", "warden_brand", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask")) return 1;
-        if ("spec_pressure".equals(spec.id) && isAny(id, "root_drum", "green_bell", "stormglass_seal", "curse_censer", "emberroot_charm", "apex_compass", "hex_moon", "warden_brand", "markchain_seal", "storm_rod", "tempest_crown", "conductor_baton", "judgment_codex", "spirit_planchette", "songbook", "string_spool")) return 1;
+        if ("spec_echoflow".equals(spec.id) && isAny(id, "void_abacus", "echo_ledger", "echo_crown", "tempo_spindle", "moon_lantern", "tuning_fork", "hourglass_charm", "time_engine", "shadow_sash", "eclipse_mask", "scrap_magnet", "scrap_king_crown")) return 1;
+        if ("spec_markchain".equals(spec.id) && isAny(id, "hunter_mark", "root_drum", "stormglass_seal", "curse_censer", "apex_compass", "hex_moon", "conductor_baton", "judgment_codex", "warden_brand", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "scrap_magnet", "scrap_king_crown")) return 1;
+        if ("spec_pressure".equals(spec.id) && isAny(id, "root_drum", "green_bell", "stormglass_seal", "curse_censer", "emberroot_charm", "apex_compass", "hex_moon", "warden_brand", "markchain_seal", "storm_rod", "tempest_crown", "conductor_baton", "judgment_codex", "spirit_planchette", "songbook", "string_spool", "scrap_magnet", "scrap_king_crown")) return 1;
         if (isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
         if ("spec_burst".equals(spec.id) && "overload_etch".equals(id)) return 2;
         if ("spec_tempo".equals(spec.id) && "discipline_chart".equals(id)) return 2;
@@ -16676,6 +17194,22 @@ public final class GameCore {
             addUpgradedDeckCard(s, "puppeteer_thread");
             s.maxHp += 4;
             s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("scrap_magnet".equals(id)) {
+            addUpgradedDeckCard(s, s.run.nextBoolean() ? "scavenger_sort" : "scavenger_patch");
+            removeStatusCard(s);
+            s.gold += 30;
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("scrap_king_crown".equals(id)) {
+            addUpgradedDeckCard(s, "scavenger_grand_foundry");
+            addUpgradedDeckCard(s, "scavenger_pick");
+            removeStatusCard(s);
+            upgradeRandomDeckCard(s);
+            s.gold += 50;
+            s.maxHp += 5;
+            s.hp += 5;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -17357,6 +17891,19 @@ public final class GameCore {
         c = addCard("puppeteer_grand_stage", "终局傀儡台", "通用", 2, 2, 0, 9, 13, 10, 14, "造成伤害并获得格挡；按丝线、临时傀儡、束缚、防线和过载追加终局收益。", "更高伤害、格挡和傀儡返还。");
         c.profession = PROF_PUPPETEER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 4; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "puppeteer_thread"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("scavenger_pick", "废堆挑拣", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害，抽牌并登记废料；弃牌、状态牌和金币会提高收益。", "更高伤害、更多抽牌和充能。");
+        c.profession = PROF_SCAVENGER; c.draw = 1; c.drawUp = 2; c.skillChargeGain = 1; c.goldGain = 4; c.targetEnemy = true;
+        c = addCard("scavenger_sort", "废料分拣", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌并检视牌库；可把状态牌转成废料资源。", "更多格挡、抽牌和检视。");
+        c.profession = PROF_SCAVENGER; c.draw = c.drawUp = 1; c.scry = 3; c.skillChargeGain = 1;
+        c = addCard("scavenger_patch", "补丁缝合", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡并治疗；若牌组带状态牌，会回收一张状态并追加资源。", "更多格挡、治疗和回收收益。");
+        c.profession = PROF_SCAVENGER; c.heal = 2; c.healUp = 4; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("scavenger_magnet", "磁钩拖拽", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加易伤、束缚和印记；弃牌堆越厚越强。", "更高伤害、控制和废料收益。");
+        c.profession = PROF_SCAVENGER; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("scavenger_overhaul", "过载翻修", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和职业技充能；按弃牌与状态牌追加返能。", "更多格挡、抽牌和职业技充能。");
+        c.profession = PROF_SCAVENGER; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "scavenger_pick"; c.skillChargeGain = 3;
+        c = addCard("scavenger_grand_foundry", "终局回收炉", "通用", 2, 2, 0, 10, 14, 8, 12, "造成伤害并获得格挡；按废料、状态、弃牌、消耗和金币追加终局收益。", "更高伤害、格挡和回收返还。");
+        c.profession = PROF_SCAVENGER; c.draw = c.drawUp = 1; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.createEcho = true; c.echoCardId = "scavenger_pick"; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -17596,6 +18143,7 @@ public final class GameCore {
         addRelicDef("songbook", "行旅歌本", "吟游诗人低费、抽牌、临时和印记牌更快推动职业技；释放后制造音符并把旋律转为格挡与标记。");
         addRelicDef("mirror_lens", "映镜透镜", "镜术师检视、升级、临时和汇流牌更快推动职业技；释放后制造碎片、升级手牌并把镜纹转为标记。");
         addRelicDef("string_spool", "操线轴", "傀儡师束缚、临时、回声和格挡牌更快推动职业技；释放后制造牵线并把丝线转为束缚与标记。");
+        addRelicDef("scrap_magnet", "废料磁芯", "拾荒者弃牌、状态、金币、消耗和回收牌更快推动职业技；释放后制造挑拣并把废料转为治疗、格挡与标记。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -17625,6 +18173,7 @@ public final class GameCore {
         addRelicDef("finale_crown", "终曲冠", "获得升级终局终曲；吟游诗人低费、临时、抽牌、充能和稀有牌会滚动印记、抽牌、升级与终曲追击。");
         addRelicDef("mirror_crown", "万镜冠", "获得升级终局万镜；镜术师检视、升级、临时、汇流、充能和稀有牌会滚动印记、抽牌、升级与万镜追击。");
         addRelicDef("marionette_crown", "牵丝冠", "获得升级终局傀儡台；傀儡师束缚、临时、回声、格挡、充能和稀有牌会滚动束缚、抽牌与牵丝追击。");
+        addRelicDef("scrap_king_crown", "拾荒王冠", "获得升级终局回收炉；拾荒者状态、弃牌、消耗、金币、充能和稀有牌会滚动标记、治疗、抽牌与归炉追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -17841,6 +18390,9 @@ public final class GameCore {
         addTalent("t_puppeteer_thread", PROF_PUPPETEER, "短线控场", "获得升级牵丝短线；低费、束缚、临时和傀儡牌追加印记，并把丝线转成穿透追击。");
         addTalent("t_puppeteer_screen", PROF_PUPPETEER, "幕后防线", "获得生命和升级傀幕防线；格挡、技能、回声和傀儡牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_puppeteer_rehearse", PROF_PUPPETEER, "排练回环", "获得升级排练牵线；临时、回声、抽牌和充能牌会转成抽牌、能量和丝线。");
+        addTalent("t_scavenger_salvage", PROF_SCAVENGER, "废堆寻宝", "获得升级废堆挑拣；弃牌、状态、金币和拾荒牌追加标记，并把废料转成穿透追击。");
+        addTalent("t_scavenger_patch", PROF_SCAVENGER, "补丁工坊", "获得生命和升级补丁缝合；格挡、治疗、状态和回收牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_scavenger_market", PROF_SCAVENGER, "黑摊倒卖", "获得金币和升级废料分拣；金币、抽牌、消耗和充能牌会转成抽牌、金币与废料。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -17870,6 +18422,7 @@ public final class GameCore {
         addTalent("t_bard_grand", PROF_BARD, "终局终曲", "获得升级终局终曲；低费、临时、回声、印记与过载牌持续抽牌、升级并把旋律印记转为终曲裁切。");
         addTalent("t_mirrorist_grand", PROF_MIRRORIST, "终局万镜", "获得升级终局万镜；检视、升级、临时、汇流与过载牌持续抽牌、升级并把镜纹印记转为万镜裁切。");
         addTalent("t_puppeteer_grand", PROF_PUPPETEER, "终局傀儡台", "获得升级终局傀儡台；束缚、临时、回声、格挡与过载牌持续抽牌并把丝线印记转为傀儡裁切。");
+        addTalent("t_scavenger_grand", PROF_SCAVENGER, "终局回收炉", "获得升级终局回收炉；状态、弃牌、消耗、金币与过载牌持续抽牌、治疗并把废料印记转为归炉裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
