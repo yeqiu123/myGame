@@ -57,7 +57,7 @@ public final class GameCore {
     public static final int QUEST_CONFLUENCE = 13;
     public static final int QUEST_MARK = 14;
     public static final int QUEST_OVERLOAD = 15;
-    public static final int EVENT_COUNT = 16;
+    public static final int EVENT_COUNT = 17;
     private static final int MILESTONE_GUARD = 1;
     private static final int MILESTONE_COMBO = 1 << 1;
     private static final int MILESTONE_HEX = 1 << 2;
@@ -1620,7 +1620,7 @@ public final class GameCore {
                     log(s, "你拿走合约金与升级能力牌：" + d.name);
                 }
             }
-        } else {
+        } else if (e == 15) {
             if (choice == 0) {
                 String[] ids = {"hybrid_coinwall", "hybrid_bloodcharge", "hybrid_echo_vial", "hybrid_hexdance", "hybrid_spirit_anvil"};
                 String id = ids[s.run.nextInt(ids.length)];
@@ -1638,6 +1638,36 @@ public final class GameCore {
                 addStatusCard(s, "daze");
                 addStatusCard(s, "wound");
                 log(s, "棱庭把构筑碎片压成遗物，也留下裂隙杂质。");
+            }
+        } else {
+            SkillSpecDef spec = skillSpec(s.skillSpec);
+            if (choice == 0) {
+                if (spec != null && s.skillSpecLevel < 3) {
+                    advanceSkillSpec(s);
+                    s.hp = Math.max(1, s.hp - (5 + s.act));
+                    CardDef d = randomSkillSpecCard(s, true);
+                    Card c = new Card(d.id);
+                    c.upgraded = true;
+                    s.deck.add(c);
+                    log(s, "讲堂强行推进" + spec.name + "，并抄下：" + d.name);
+                } else {
+                    s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+                    CardDef d = randomSkillSpecCard(s, true);
+                    Card c = new Card(d.id);
+                    c.upgraded = true;
+                    s.deck.add(c);
+                    upgradeRandomDeckCard(s);
+                    log(s, "讲堂无可再进，只留下满阶批注：" + d.name);
+                }
+            } else {
+                String relicId = skillSpecRelicFor(s);
+                addRelic(s, relicId);
+                CardDef d = randomSkillSpecCard(s, s.act >= 2);
+                Card c = new Card(d.id);
+                c.upgraded = s.run.nextInt(100) < 55;
+                s.deck.add(c);
+                addStatusCard(s, s.act >= 2 ? "wound" : "daze");
+                log(s, "讲堂借出" + relic(relicId).name + "，并塞来一张适配牌：" + d.name);
             }
         }
         s.mode = MODE_MAP;
@@ -7686,7 +7716,7 @@ public final class GameCore {
         s.mode = MODE_EVENT;
         applyRouteArrival(s, '?');
         if (s.currentRoute == ROUTE_SECRET && s.run.nextInt(100) < 45) {
-            int[] rareEvents = {2, 4, 7, 10, 11, 15};
+            int[] rareEvents = {2, 4, 7, 10, 11, 15, 16};
             s.eventId = rareEvents[s.run.nextInt(rareEvents.length)];
         } else {
             s.eventId = s.run.nextInt(EVENT_COUNT);
@@ -7751,6 +7781,42 @@ public final class GameCore {
             }
         }
         return pool.isEmpty() ? null : pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static CardDef randomSkillSpecCard(State s, boolean allowRare) {
+        ArrayList<CardDef> pool = new ArrayList<>();
+        for (CardDef d : CARD_LIBRARY) {
+            if (d.type == 3) {
+                continue;
+            }
+            if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            if (s.act < 2 && isCapstoneCard(d.id)) {
+                continue;
+            }
+            int bonus = skillSpecCardBonus(s, d);
+            if (bonus <= 0) {
+                continue;
+            }
+            int weight = 2 + Math.min(14, bonus * 2);
+            if (d.profession.equals(s.profession)) {
+                weight += 4;
+            }
+            if (d.origin.equals(s.origin) || "通用".equals(d.origin)) {
+                weight += 2;
+            }
+            if (d.skillChargeGain > 0) {
+                weight += 2;
+            }
+            for (int i = 0; i < weight; i++) {
+                pool.add(d);
+            }
+        }
+        if (pool.isEmpty()) {
+            return randomOverloadCard(s, allowRare);
+        }
+        return pool.get(s.run.nextInt(pool.size()));
     }
 
     private static CardDef randomCard(State s, String origin, boolean allowRare, Set<String> excluded) {
@@ -9215,6 +9281,21 @@ public final class GameCore {
         if ("spec_control".equals(spec.id) && isAny(id, "curse_censer", "stormglass_seal", "apex_compass", "fallen_crown", "judgment_codex", "hex_moon")) return 1;
         if ("spec_assembly".equals(spec.id) && isAny(id, "mirror_anvil", "polished_cog", "confluence_map", "prism_gear", "starforge_lens", "clockwork_core")) return 1;
         return 0;
+    }
+
+    private static String skillSpecRelicFor(State s) {
+        SkillSpecDef spec = skillSpec(s.skillSpec);
+        if (spec == null) {
+            return randomSkillRelicFor(s);
+        }
+        if ("spec_burst".equals(spec.id)) return "razor_pactstone";
+        if ("spec_tempo".equals(spec.id)) return "tempo_spindle";
+        if ("spec_sustain".equals(spec.id)) return "vigil_bloom";
+        if ("spec_resonance".equals(spec.id)) return "resonance_lens";
+        if ("spec_mastery".equals(spec.id)) return "mastery_badge";
+        if ("spec_control".equals(spec.id)) return "warden_brand";
+        if ("spec_assembly".equals(spec.id)) return "assembly_frame";
+        return randomSkillRelicFor(s);
     }
 
     private static RelicDef randomBossRelic(State s, Set<String> excluded) {

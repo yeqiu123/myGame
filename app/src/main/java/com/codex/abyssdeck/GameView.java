@@ -1388,7 +1388,8 @@ public final class GameView extends View {
                 "黑水圣龛", "裂币喷泉", "会呼吸的书页", "无名旅人",
                 "石刻囚笼", "炼金雨棚", "无灯影市", "旧王雾门",
                 "职业导师", "深渊账本", "药剂实验台", "镜面牌桌",
-                "过载训练场", "裂隙交换会", "工坊合约", "汇流棱庭"
+                "过载训练场", "裂隙交换会", "工坊合约", "汇流棱庭",
+                "专修讲堂"
         };
         return t[Math.max(0, Math.min(t.length - 1, s.eventId))];
     }
@@ -1410,7 +1411,8 @@ public final class GameView extends View {
                 "训练场的刻线专为职业技而生。导师要求你把满溢的力量压进牌面。",
                 "交换会的摊位来自不同派系与职业。越不像你的东西，越可能打开新路线。",
                 "工坊合约写着两种报酬：稳定锻造，或带着伤口拿走一张能力牌。",
-                "棱庭里漂浮着不同构筑的碎片。它们可以拼成一张新核心，也能被压成一件危险遗物。"
+                "棱庭里漂浮着不同构筑的碎片。它们可以拼成一张新核心，也能被压成一件危险遗物。",
+                "讲堂里没有老师，只有一圈会自动批改牌面的黑板。它们认识你的职业技专修，也索取代价。"
         };
         return t[Math.max(0, Math.min(t.length - 1, s.eventId))];
     }
@@ -1431,7 +1433,8 @@ public final class GameView extends View {
         if (s.eventId == 12) return new String[]{"支付35金币，获得升级过载职业牌", "获得职业技遗物，加入1张眩光"};
         if (s.eventId == 13) return new String[]{"最大生命-4，获得升级跨池牌", "获得裂隙罗盘，加入1张眩光"};
         if (s.eventId == 14) return new String[]{"升级两张牌，获得过载职业牌", "获得45金币和升级能力牌，加入1张裂伤"};
-        return new String[]{"获得升级混搭核心牌并升级1张牌", "获得混搭遗物，加入眩光和裂伤"};
+        if (s.eventId == 15) return new String[]{"获得升级混搭核心牌并升级1张牌", "获得混搭遗物，加入眩光和裂伤"};
+        return new String[]{"失去生命，晋阶专修并获得升级适配牌", "获得专修遗物和适配牌，加入状态牌"};
     }
 
     private int dp(float v) {
