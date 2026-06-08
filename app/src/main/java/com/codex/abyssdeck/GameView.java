@@ -1193,6 +1193,13 @@ public final class GameView extends View {
             c.drawLine(cx, cy - size * 0.95f, cx, cy + size * 0.95f, p);
             c.drawLine(cx - size * 0.65f, cy - size * 0.65f, cx + size * 0.65f, cy + size * 0.65f, p);
             c.drawCircle(cx + size * 0.62f, cy - size * 0.42f, size * 0.18f, p);
+        } else if (GameCore.PROF_CHRONOMANCER.equals(profession)) {
+            c.drawLine(cx - size * 0.65f, cy - size, cx + size * 0.65f, cy - size, p);
+            c.drawLine(cx - size * 0.65f, cy + size, cx + size * 0.65f, cy + size, p);
+            c.drawLine(cx - size * 0.65f, cy - size, cx + size * 0.65f, cy + size, p);
+            c.drawLine(cx + size * 0.65f, cy - size, cx - size * 0.65f, cy + size, p);
+            c.drawLine(cx - size * 0.32f, cy, cx + size * 0.32f, cy, p);
+            c.drawCircle(cx, cy, size * 0.18f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

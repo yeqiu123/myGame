@@ -105,11 +105,12 @@ public final class GameCore {
     public static final String PROF_ADJUDICATOR = "裁定官";
     public static final String PROF_ASTROLOGER = "星象师";
     public static final String PROF_MACHINIST = "机巧师";
+    public static final String PROF_CHRONOMANCER = "时术师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
-            PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST
+            PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -765,6 +766,7 @@ public final class GameCore {
         if (PROF_ADJUDICATOR.equals(profession)) return "裁令";
         if (PROF_ASTROLOGER.equals(profession)) return "星盘";
         if (PROF_MACHINIST.equals(profession)) return "总装";
+        if (PROF_CHRONOMANCER.equals(profession)) return "回溯";
         return "职业技";
     }
 
@@ -815,6 +817,7 @@ public final class GameCore {
         if (PROF_ADJUDICATOR.equals(profession)) return "满充能：按战斗目标进度与誓约兑现裁决目标，目标完成后返还资源。";
         if (PROF_ASTROLOGER.equals(profession)) return "满充能：观测星轨，按检视、临时牌与汇流链抽牌、加固并标记敌人。";
         if (PROF_MACHINIST.equals(profession)) return "满充能：消耗装配，对目标穿透轰击，获得格挡、抽牌并制造临时机巧牌。";
+        if (PROF_CHRONOMANCER.equals(profession)) return "满充能：消耗时砂回溯资源，抽牌返能，制造临时刻秒并按节奏标记敌人。";
         return "选择职业后可用。";
     }
 
@@ -1059,6 +1062,34 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1 + overload / 2);
             }
             s.professionCharge = Math.max(0, assembly / 2);
+        } else if (PROF_CHRONOMANCER.equals(s.profession)) {
+            int sand = Math.max(1, s.professionCharge);
+            int cycle = Math.max(1, s.cardsPlayedThisTurn);
+            int damage = 10 + s.act * 3 + Math.min(28, sand * 3 + cycle * 2) + overload * 4;
+            int block = 6 + s.act * 2 + Math.min(20, sand * 2 + cycle) + overload * 3;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(3, sand / 3) + overload / 2;
+                target.vulnerable += 1 + overload / 4;
+            }
+            gainBlock(s, block);
+            draw(s, 1 + Math.min(2, sand / 4) + overload / 4);
+            if (sand >= 4 || cycle >= 4 || overload >= 3) {
+                s.energy++;
+            }
+            Card tick = new Card(overload >= 4 || hasTalent(s, "t_chronomancer_grand") ? "chronomancer_loop" : "chronomancer_tick");
+            tick.temp = true;
+            tick.upgraded = sand >= 5 || hasTalent(s, "t_chronomancer_moment");
+            addToHand(s, tick);
+            if (hasTalent(s, "t_chronomancer_clockwork")) {
+                addProfessionSkillCharge(s, 1 + overload / 2);
+                if (target != null) {
+                    damageEnemy(s, target, 4 + s.act * 2 + Math.min(14, target.mark * 2), true);
+                }
+            }
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(0, sand / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2304,6 +2335,9 @@ public final class GameCore {
         if (PROF_MACHINIST.equals(profession)) {
             return "用装配串联升级、检视、临时构件和汇流链，把工坊节奏转化为炮台、格挡、抽牌和过载爆发。";
         }
+        if (PROF_CHRONOMANCER.equals(profession)) {
+            return "积累时砂，在低费、抽牌、返能和临时牌之间回溯节奏。适合循环、回声、过载和精准爆发构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2352,6 +2386,9 @@ public final class GameCore {
         }
         if (PROF_MACHINIST.equals(profession)) {
             return 0xff9ecb6f;
+        }
+        if (PROF_CHRONOMANCER.equals(profession)) {
+            return 0xffb7a7ff;
         }
         return 0xffd6c07a;
     }
@@ -2590,6 +2627,12 @@ public final class GameCore {
             s.hp += 3;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_CHRONOMANCER.equals(profession)) {
+            s.deck.add(new Card("chronomancer_tick"));
+            s.deck.add(new Card("chronomancer_rewind"));
+            s.maxHp += 1;
+            s.hp += 1;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -2626,6 +2669,7 @@ public final class GameCore {
         else if (PROF_ADJUDICATOR.equals(profession)) upgradeDeckCard(s, "adjudicator_writ");
         else if (PROF_ASTROLOGER.equals(profession)) upgradeDeckCard(s, "astrologer_chart");
         else if (PROF_MACHINIST.equals(profession)) upgradeDeckCard(s, "machinist_spanner");
+        else if (PROF_CHRONOMANCER.equals(profession)) upgradeDeckCard(s, "chronomancer_tick");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -2675,6 +2719,9 @@ public final class GameCore {
             addUpgradedDeckCard(s, "machinist_turret");
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_CHRONOMANCER.equals(profession)) {
+            addUpgradedDeckCard(s, "chronomancer_loop");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -2694,6 +2741,7 @@ public final class GameCore {
         if (PROF_ADJUDICATOR.equals(profession)) return "adjudicator_overrule";
         if (PROF_ASTROLOGER.equals(profession)) return "astrologer_overstar";
         if (PROF_MACHINIST.equals(profession)) return "machinist_overdrive";
+        if (PROF_CHRONOMANCER.equals(profession)) return "chronomancer_overloop";
         return "forge_signal";
     }
 
@@ -2927,6 +2975,18 @@ public final class GameCore {
         } else if ("t_machinist_grand".equals(id)) {
             addUpgradedDeckCard(s, "machinist_grand_engine");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_chronomancer_anchor".equals(id)) {
+            addUpgradedDeckCard(s, "chronomancer_anchor");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_chronomancer_moment".equals(id)) {
+            addUpgradedDeckCard(s, "chronomancer_rewind");
+        } else if ("t_chronomancer_clockwork".equals(id)) {
+            addUpgradedDeckCard(s, "chronomancer_loop");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_chronomancer_grand".equals(id)) {
+            addUpgradedDeckCard(s, "chronomancer_time_engine");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -2944,7 +3004,7 @@ public final class GameCore {
                 || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id)
                 || "t_inscriber_grandcodex".equals(id) || "t_tuner_grand".equals(id)
                 || "t_adjudicator_grand".equals(id) || "t_astrologer_grand".equals(id)
-                || "t_machinist_grand".equals(id);
+                || "t_machinist_grand".equals(id) || "t_chronomancer_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -2955,7 +3015,7 @@ public final class GameCore {
                 || "summoner_procession".equals(id) || "hexer_crownfall".equals(id)
                 || "inscriber_codex".equals(id) || "tuner_grand_cadence".equals(id)
                 || "adjudicator_final_decree".equals(id) || "astrologer_grand_orrery".equals(id)
-                || "machinist_grand_engine".equals(id);
+                || "machinist_grand_engine".equals(id) || "chronomancer_time_engine".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -2966,7 +3026,7 @@ public final class GameCore {
                 || "spirit_processional".equals(id) || "fallen_crown".equals(id)
                 || "living_codex".equals(id) || "conductor_baton".equals(id)
                 || "judgment_codex".equals(id) || "celestial_orrery".equals(id)
-                || "clockwork_core".equals(id);
+                || "clockwork_core".equals(id) || "time_engine".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -3354,6 +3414,8 @@ public final class GameCore {
                 || d.skillChargeGain > 0 || d.upgradeRandom || d.energyGain > 0 || d.cost == 0 || d.profession.equals(PROF_ASTROLOGER))) amount++;
         else if (PROF_MACHINIST.equals(s.profession) && d != null && (d.upgradeRandom || d.scry > 0 || d.createEcho
                 || d.skillChargeGain > 0 || d.energyGain > 0 || d.block > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MACHINIST))) amount++;
+        else if (PROF_CHRONOMANCER.equals(s.profession) && d != null && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.skillChargeGain > 0 || d.createEcho || d.exhaust || d.profession.equals(PROF_CHRONOMANCER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -3772,6 +3834,22 @@ public final class GameCore {
             if (level >= 3 || s.professionCharge >= 5) {
                 s.energy++;
             }
+        } else if (PROF_CHRONOMANCER.equals(s.profession)) {
+            s.professionCharge += level + 1 + overload / 2;
+            draw(s, 1);
+            gainBlock(s, 4 + level * 3 + Math.min(12, s.professionCharge + s.cardsPlayedThisTurn));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card tick = new Card(level >= 3 || overload >= 3 ? "chronomancer_loop" : "chronomancer_tick");
+            tick.temp = true;
+            tick.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, tick);
+            if (target != null) {
+                target.mark += level + overload / 2;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(20, s.professionCharge * 2 + s.cardsPlayedThisTurn * 2), true);
+            }
+            if (level >= 3 || s.cardsPlayedThisTurn >= 4 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -3904,6 +3982,24 @@ public final class GameCore {
             }
             upgradeRandomHandCard(s);
         }
+        if (hasRelic(s, "hourglass_charm") && PROF_CHRONOMANCER.equals(s.profession)) {
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3));
+            if (target != null) {
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(14, target.mark * 2 + s.cardsPlayedThisTurn), true);
+            }
+        }
+        if (hasRelic(s, "time_engine") && PROF_CHRONOMANCER.equals(s.profession)) {
+            Card tick = new Card(s.professionCharge >= 5 || s.cardsPlayedThisTurn >= 4 ? "chronomancer_loop" : "chronomancer_tick");
+            tick.temp = true;
+            tick.upgraded = true;
+            addToHand(s, tick);
+            if (s.professionCharge >= 4 || s.cardsPlayedThisTurn >= 4) {
+                s.energy++;
+            }
+            draw(s, 1);
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -3930,6 +4026,8 @@ public final class GameCore {
                 && (s.professionCharge >= 3 || s.confluenceChain >= 2 || s.voidEngine > 0)) amount++;
         if (hasRelic(s, "gyro_wrench") && PROF_MACHINIST.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.confluenceChain >= 2 || upgradedCardCount(s) >= 5)) amount++;
+        if (hasRelic(s, "hourglass_charm") && PROF_CHRONOMANCER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.cardsPlayedThisTurn >= 3 || s.hand.size() >= 5)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -4086,6 +4184,7 @@ public final class GameCore {
             return true;
         }
         if (quest == QUEST_ECHO && (PROF_ARCANIST.equals(s.profession) || PROF_SUMMONER.equals(s.profession)
+                || PROF_CHRONOMANCER.equals(s.profession)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
                 || hasRelic(s, "echo_prism") || hasRelic(s, "singularity_orb") || hasRelic(s, "spirit_processional"))) {
             return true;
@@ -4106,13 +4205,14 @@ public final class GameCore {
                 || hasTalent(s, "t_merchant_monopoly") || hasRelic(s, "tithe_box") || hasRelic(s, "kingmaker_seal"))) {
             return true;
         }
-        if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession)
+        if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
             return true;
         }
         if (quest == QUEST_MARK && (PROF_RANGER.equals(s.profession) || PROF_TUNER.equals(s.profession)
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
+                || PROF_CHRONOMANCER.equals(s.profession)
                 || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton") || hasRelic(s, "trial_ledger"))) {
@@ -4121,7 +4221,8 @@ public final class GameCore {
         if (quest == QUEST_OVERLOAD && (s.profession != null && s.profession.length() > 0)
                 && (hasSkillRelic(s) || PROF_TUNER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
                 || PROF_ARCANIST.equals(s.profession) || PROF_WEAVER.equals(s.profession)
-                || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession))) {
+                || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
+                || PROF_CHRONOMANCER.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -4141,7 +4242,9 @@ public final class GameCore {
                     || "ranger_predator".equals(d.id) || "adjudicator_clause".equals(d.id)
                     || "adjudicator_bond".equals(d.id) || "adjudicator_overrule".equals(d.id)
                     || "adjudicator_final_decree".equals(d.id) || "machinist_turret".equals(d.id)
-                    || "machinist_overdrive".equals(d.id) || "machinist_grand_engine".equals(d.id))) return true;
+                    || "machinist_overdrive".equals(d.id) || "machinist_grand_engine".equals(d.id)
+                    || "chronomancer_tick".equals(d.id) || "chronomancer_anchor".equals(d.id)
+                    || "chronomancer_overloop".equals(d.id) || "chronomancer_time_engine".equals(d.id))) return true;
             if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
@@ -4829,6 +4932,24 @@ public final class GameCore {
                 part.upgraded = true;
                 addToHand(s, part);
                 addProfessionSkillCharge(s, 2);
+            }
+        }
+        if (PROF_CHRONOMANCER.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2;
+            draw(s, 1);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            if (hasTalent(s, "t_chronomancer_anchor")) {
+                gainBlock(s, 4 + s.act);
+                s.energy++;
+            }
+            if (hasTalent(s, "t_chronomancer_grand")) {
+                Card tick = new Card("chronomancer_tick");
+                tick.temp = true;
+                tick.upgraded = true;
+                addToHand(s, tick);
             }
         }
         if (hasRelic(s, "steel_oath") && s.turn == 1) {
@@ -5932,6 +6053,47 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("chronomancer_tick".equals(d.id) && target != null) {
+            damage += Math.min(c.upgraded ? 14 : 9, s.professionCharge * 2 + s.cardsPlayedThisTurn * 2);
+            target.mark += c.upgraded ? 2 : 1;
+        }
+        if ("chronomancer_rewind".equals(d.id)) {
+            block += Math.min(c.upgraded ? 12 : 8, s.professionCharge * 2 + s.cardsPlayedThisTurn);
+            if (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4) {
+                draw += 1;
+            }
+        }
+        if ("chronomancer_loop".equals(d.id)) {
+            block += Math.min(c.upgraded ? 14 : 9, s.professionCharge * 2 + tempOrEchoHandCount(s) * 2);
+            if (s.professionCharge >= 4 || s.cardsPlayedThisTurn >= 4) {
+                draw += 1;
+            }
+        }
+        if ("chronomancer_anchor".equals(d.id)) {
+            block += Math.min(c.upgraded ? 16 : 10, s.professionCharge * 3 + s.turn);
+            if (s.cardsPlayedThisTurn <= 2) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("chronomancer_overloop".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            block += Math.min(c.upgraded ? 20 : 14, s.professionCharge * 2 + overloadNow * 5 + s.cardsPlayedThisTurn * 2);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                damage += Math.min(c.upgraded ? 24 : 16, s.professionCharge * 2 + overloadNow * 5 + s.cardsPlayedThisTurn);
+            }
+        }
+        if ("chronomancer_time_engine".equals(d.id)) {
+            damage += Math.min(c.upgraded ? 44 : 32, s.professionCharge * 4 + s.cardsPlayedThisTurn * 4 + tempOrEchoHandCount(s) * 2);
+            block += Math.min(c.upgraded ? 32 : 22, s.professionCharge * 3 + s.cardsPlayedThisTurn * 2 + tempOrEchoHandCount(s) * 2);
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.vulnerable += 1;
+            }
+            if (s.professionCharge >= 5 || s.cardsPlayedThisTurn >= 4 || c.upgraded) {
+                draw += 1;
+            }
+        }
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -6271,6 +6433,55 @@ public final class GameCore {
                 s.energy++;
                 addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
             }
+        }
+        if ("chronomancer_tick".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            if (target != null && (s.professionCharge >= 4 || s.cardsPlayedThisTurn >= 3)) {
+                damageEnemy(s, target, 4 + s.act * 2 + Math.min(12, target.mark * 2), true);
+            }
+        }
+        if ("chronomancer_rewind".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            if (s.cardsPlayedThisTurn >= 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("chronomancer_loop".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+            if (s.cardsPlayedThisTurn >= 4 || s.professionCharge >= 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("chronomancer_anchor".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            if (target != null) {
+                target.mark += 1;
+            }
+            if (s.block >= 18) {
+                addQuestProgress(s, QUEST_GUARD, 1);
+            }
+        }
+        if ("chronomancer_overloop".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            if (s.professionCharge >= 5 || s.cardsPlayedThisTurn >= 4) {
+                s.energy++;
+            }
+        }
+        if ("chronomancer_time_engine".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            Card loop = new Card("chronomancer_loop");
+            loop.temp = true;
+            loop.upgraded = c.upgraded;
+            addToHand(s, loop);
+            if (s.professionCharge >= 6 || s.cardsPlayedThisTurn >= 4) {
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
+            }
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, 1);
         }
         if ("hybrid_coinwall".equals(d.id)) {
             s.gold += c.upgraded ? 12 : 8;
@@ -7157,6 +7368,80 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn % 4 == 0) {
                 draw(s, 1);
                 addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_CHRONOMANCER.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.skillChargeGain > 0 || d.createEcho || c.temp || "chronomancer_tick".equals(c.id))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            if (e != null && (d.cost == 0 || d.skillChargeGain > 0 || c.temp)) {
+                e.mark += 1;
+            }
+            if (s.professionCharge >= 4) {
+                draw(s, 1);
+                gainBlock(s, 3 + s.act + Math.min(8, s.professionCharge));
+                if (s.cardsPlayedThisTurn >= 3) {
+                    s.energy++;
+                }
+                if (e != null) {
+                    damageEnemy(s, e, 3 + s.act * 2 + Math.min(14, e.mark * 2 + s.cardsPlayedThisTurn), true);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_chronomancer_anchor") && (d.type == 1 || d.block > 0 || s.cardsPlayedThisTurn == 2)) {
+            gainBlock(s, 3 + s.act);
+            if (s.cardsPlayedThisTurn == 2) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_chronomancer_moment") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0)) {
+            if (s.cardsPlayedThisTurn == 3 || s.cardsPlayedThisTurn == 5) {
+                Card tick = new Card("chronomancer_tick");
+                tick.temp = true;
+                tick.upgraded = s.skillSpecLevel >= 2 || s.run.nextBoolean();
+                addToHand(s, tick);
+            }
+        }
+        if (hasTalent(s, "t_chronomancer_clockwork") && (d.skillChargeGain > 0 || d.createEcho || c.temp || hybridFocusCount(d) >= 2)) {
+            if (s.cardsPlayedThisTurn % 3 == 0) {
+                addProfessionSkillCharge(s, 2);
+                draw(s, 1);
+            }
+            Enemy e = firstLiving(s);
+            if (e != null && e.mark >= 3) {
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(16, e.mark * 2), true);
+            }
+        }
+        if (hasTalent(s, "t_chronomancer_grand") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || c.temp)) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4)) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(18, e.mark * 2 + s.professionCharge * 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasRelic(s, "hourglass_charm") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || c.temp)) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2 && s.cardsPlayedThisTurn >= 3) {
+                gainBlock(s, 3 + s.act);
+                s.relicTriggersThisTurn++;
+            }
+        }
+        if (hasRelic(s, "time_engine") && (d.skillChargeGain > 0 || d.createEcho || c.temp || d.energyGain > 0)) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (e.mark >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(18, e.mark * 2 + s.professionCharge), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -8262,6 +8547,9 @@ public final class GameCore {
         if (PROF_MACHINIST.equals(s.profession)) {
             return focus == BUILD_FORGE ? 18 : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_CYCLE || focus == BUILD_GUARD ? 10 : focus == BUILD_ECHO ? 8 : focus == BUILD_STATUS ? 6 : 0;
         }
+        if (PROF_CHRONOMANCER.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_ECHO ? 14 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 7 : focus == BUILD_STATUS ? 6 : 0;
+        }
         return 0;
     }
 
@@ -8318,7 +8606,9 @@ public final class GameCore {
                     + ("astrologer_chart".equals(d.id) ? 6 : 0) + ("astrologer_ephemeris".equals(d.id) ? 8 : 0)
                     + ("astrologer_overstar".equals(d.id) ? 12 : 0) + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0)
                     + ("machinist_blueprint".equals(d.id) ? 8 : 0) + ("machinist_cogcall".equals(d.id) ? 8 : 0)
-                    + ("machinist_overdrive".equals(d.id) ? 12 : 0) + ("machinist_grand_engine".equals(d.id) ? 10 : 0);
+                    + ("machinist_overdrive".equals(d.id) ? 12 : 0) + ("machinist_grand_engine".equals(d.id) ? 10 : 0)
+                    + ("chronomancer_tick".equals(d.id) ? 6 : 0) + ("chronomancer_loop".equals(d.id) ? 8 : 0)
+                    + ("chronomancer_overloop".equals(d.id) ? 12 : 0) + ("chronomancer_time_engine".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_ECHO) {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
@@ -8329,7 +8619,9 @@ public final class GameCore {
                     + ("tuner_loop".equals(d.id) ? 8 : 0) + ("adjudicator_audit".equals(d.id) ? 4 : 0)
                     + ("astrologer_orbit".equals(d.id) ? 10 : 0) + ("astrologer_ephemeris".equals(d.id) ? 6 : 0)
                     + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0)
-                    + ("machinist_cogcall".equals(d.id) ? 10 : 0) + ("machinist_grand_engine".equals(d.id) ? 8 : 0);
+                    + ("machinist_cogcall".equals(d.id) ? 10 : 0) + ("machinist_grand_engine".equals(d.id) ? 8 : 0)
+                    + ("chronomancer_rewind".equals(d.id) ? 6 : 0) + ("chronomancer_loop".equals(d.id) ? 12 : 0)
+                    + ("chronomancer_overloop".equals(d.id) ? 8 : 0) + ("chronomancer_time_engine".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 5 : 0)
@@ -8368,7 +8660,9 @@ public final class GameCore {
                     + ("astrologer_orbit".equals(d.id) ? 6 : 0) + ("astrologer_comet".equals(d.id) ? 8 : 0)
                     + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0)
                     + ("machinist_turret".equals(d.id) ? 8 : 0) + ("machinist_overdrive".equals(d.id) ? 6 : 0)
-                    + ("machinist_grand_engine".equals(d.id) ? 8 : 0);
+                    + ("machinist_grand_engine".equals(d.id) ? 8 : 0)
+                    + ("chronomancer_tick".equals(d.id) ? 6 : 0) + ("chronomancer_anchor".equals(d.id) ? 5 : 0)
+                    + ("chronomancer_overloop".equals(d.id) ? 6 : 0) + ("chronomancer_time_engine".equals(d.id) ? 8 : 0);
         }
         if (focus == BUILD_CYCLE) {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
@@ -8385,7 +8679,10 @@ public final class GameCore {
                     + ("astrologer_grand_orrery".equals(d.id) ? 8 : 0)
                     + ("machinist_spanner".equals(d.id) ? 10 : 0) + ("machinist_blueprint".equals(d.id) ? 8 : 0)
                     + ("machinist_cogcall".equals(d.id) ? 12 : 0) + ("machinist_overdrive".equals(d.id) ? 8 : 0)
-                    + ("machinist_grand_engine".equals(d.id) ? 8 : 0);
+                    + ("machinist_grand_engine".equals(d.id) ? 8 : 0)
+                    + ("chronomancer_tick".equals(d.id) ? 12 : 0) + ("chronomancer_rewind".equals(d.id) ? 10 : 0)
+                    + ("chronomancer_loop".equals(d.id) ? 14 : 0) + ("chronomancer_overloop".equals(d.id) ? 10 : 0)
+                    + ("chronomancer_time_engine".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
@@ -8396,7 +8693,9 @@ public final class GameCore {
                     + ("adjudicator_bond".equals(d.id) ? 8 : 0) + ("adjudicator_final_decree".equals(d.id) ? 8 : 0)
                     + ("machinist_spanner".equals(d.id) ? 6 : 0) + ("machinist_blueprint".equals(d.id) ? 8 : 0)
                     + ("machinist_cogcall".equals(d.id) ? 8 : 0) + ("machinist_overdrive".equals(d.id) ? 12 : 0)
-                    + ("machinist_grand_engine".equals(d.id) ? 10 : 0);
+                    + ("machinist_grand_engine".equals(d.id) ? 10 : 0)
+                    + ("chronomancer_rewind".equals(d.id) ? 8 : 0) + ("chronomancer_anchor".equals(d.id) ? 12 : 0)
+                    + ("chronomancer_overloop".equals(d.id) ? 8 : 0) + ("chronomancer_time_engine".equals(d.id) ? 10 : 0);
         }
         return 0;
     }
@@ -8606,6 +8905,10 @@ public final class GameCore {
         else if ("t_machinist_turret".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
         else if ("t_machinist_foundry".equals(id)) bonus += buildFocusDeckCards(s, BUILD_FORGE) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_ECHO);
         else if ("t_machinist_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_FORGE) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_chronomancer_anchor".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + (s.hp < s.maxHp * 0.8f ? 7 : 3);
+        else if ("t_chronomancer_moment".equals(id)) bonus += zeroCost * 3 + buildFocusDeckCards(s, BUILD_CYCLE) * 2;
+        else if ("t_chronomancer_clockwork".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_ECHO) * 2 + tempOrEchoDeckCards(s);
+        else if ("t_chronomancer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -8615,14 +8918,16 @@ public final class GameCore {
                     "t_arcanist_singularity", "t_merchant_monopoly", "t_weaver_grandpattern",
                     "t_inscriber_grandcodex", "t_tuner_resonance", "t_tuner_grand", "t_adjudicator_docket",
                     "t_adjudicator_grand", "t_astrologer_ephemeris", "t_astrologer_grand",
-                    "t_machinist_turret", "t_machinist_foundry", "t_machinist_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_machinist_turret", "t_machinist_foundry", "t_machinist_grand",
+                    "t_chronomancer_clockwork", "t_chronomancer_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
                     "t_arcanist_singularity", "t_summoner_court", "t_summoner_swarm",
                     "t_summoner_overflow", "t_weaver_quicksilver", "t_tuner_resonance",
                     "t_astrologer_constellation", "t_astrologer_ephemeris", "t_astrologer_grand",
-                    "t_machinist_foundry", "t_machinist_grand") ? 3 : 0;
+                    "t_machinist_foundry", "t_machinist_grand", "t_chronomancer_clockwork",
+                    "t_chronomancer_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -8659,13 +8964,14 @@ public final class GameCore {
                     "t_inscriber_archive", "t_tuner_meter", "t_tuner_resonance", "t_tuner_grand",
                     "t_adjudicator_docket", "t_astrologer_chart", "t_astrologer_ephemeris",
                     "t_astrologer_grand", "t_machinist_blueprint", "t_machinist_foundry",
-                    "t_machinist_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_machinist_grand", "t_chronomancer_anchor", "t_chronomancer_moment",
+                    "t_chronomancer_clockwork", "t_chronomancer_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
                     "t_warden_vanguard", "t_ranger_net", "t_bloodbound_scar",
                     "t_summoner_bond", "t_weaver_grandpattern", "t_adjudicator_oath",
-                    "t_machinist_blueprint", "t_machinist_foundry") ? 3 : 0;
+                    "t_machinist_blueprint", "t_machinist_foundry", "t_chronomancer_anchor") ? 3 : 0;
         }
         return 0;
     }
@@ -8736,6 +9042,22 @@ public final class GameCore {
         if (isAny(id, "t_machinist_foundry", "t_machinist_grand")
                 && tempOrEchoDeckCards(s) >= 2) {
             return "临时构件";
+        }
+        if (isAny(id, "t_chronomancer_moment", "t_chronomancer_grand")
+                && zeroCostDeckCards(s) >= 2) {
+            return "低费回溯";
+        }
+        if (isAny(id, "t_chronomancer_clockwork", "t_chronomancer_grand")
+                && tempOrEchoDeckCards(s) >= 2) {
+            return "临时刻秒";
+        }
+        if (isAny(id, "t_chronomancer_clockwork", "t_chronomancer_grand")
+                && buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2) {
+            return "时砂充能";
+        }
+        if (isAny(id, "t_chronomancer_anchor")
+                && buildFocusDeckCards(s, BUILD_GUARD) >= 2) {
+            return "定格防线";
         }
         return "";
     }
@@ -8930,12 +9252,12 @@ public final class GameCore {
                     "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
                     "warden_brand", "assembly_frame", "discipline_chart", "overload_etch", "trial_ledger",
                     "tuning_fork", "conductor_baton", "verdict_seal", "judgment_codex", "gyro_wrench",
-                    "clockwork_core", "split_anvil",
+                    "clockwork_core", "hourglass_charm", "time_engine", "split_anvil",
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
-                    "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "gyro_wrench", "clockwork_core", "spirit_bell", "spirit_processional", "void_anchor",
+                    "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "spirit_bell", "spirit_processional", "void_anchor",
                     "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
@@ -8953,24 +9275,24 @@ public final class GameCore {
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
                     "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "pattern_spool", "engraver_stylus", "gyro_wrench", "clockwork_core", "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
-                    "ability_crown") ? 3 : 0;
+                    "ability_crown", "time_engine") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
                     "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
                     "split_anvil", "bloodspark_contract", "tuning_fork", "conductor_baton", "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
-                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "warden_brand", "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger") ? 3 : 0;
+                    "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "warden_brand", "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
                 "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "conductor_baton", "gyro_wrench", "clockwork_core", "assembly_frame", "flash_heel", "pattern_spool",
-                    "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "discipline_chart", "trial_ledger") ? 3 : 0;
+                    "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "discipline_chart", "trial_ledger", "hourglass_charm", "time_engine") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
                     "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach", "mirror_anvil",
                 "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "vigil_bloom", "command_banner", "aegis_throne", "gyro_wrench", "clockwork_core", "assembly_frame",
-                    "verdict_seal", "judgment_codex", "forge_heart", "discipline_chart", "trial_ledger") ? 3 : 0;
+                    "verdict_seal", "judgment_codex", "forge_heart", "discipline_chart", "trial_ledger", "hourglass_charm", "time_engine") ? 3 : 0;
         }
         return 0;
     }
@@ -8990,7 +9312,8 @@ public final class GameCore {
                 || (PROF_TUNER.equals(s.profession) && "tuning_fork".equals(id))
                 || (PROF_ADJUDICATOR.equals(s.profession) && "verdict_seal".equals(id))
                 || (PROF_ASTROLOGER.equals(s.profession) && "star_compass".equals(id))
-                || (PROF_MACHINIST.equals(s.profession) && "gyro_wrench".equals(id));
+                || (PROF_MACHINIST.equals(s.profession) && "gyro_wrench".equals(id))
+                || (PROF_CHRONOMANCER.equals(s.profession) && "hourglass_charm".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -9021,7 +9344,7 @@ public final class GameCore {
                 || hasRelic(s, "crimson_seal") || hasRelic(s, "pattern_spool") || hasRelic(s, "spirit_bell")
                 || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus") || hasRelic(s, "tuning_fork")
                 || hasRelic(s, "verdict_seal") || hasRelic(s, "star_compass") || hasRelic(s, "gyro_wrench")
-                || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
+                || hasRelic(s, "hourglass_charm") || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
 
     private static CardDef randomOverloadCard(State s, boolean allowRare) {
@@ -9130,6 +9453,10 @@ public final class GameCore {
         }
         if (PROF_MACHINIST.equals(s.profession) && (d.upgradeRandom || d.scry > 0 || d.createEcho || d.skillChargeGain > 0
                 || d.energyGain > 0 || d.block > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MACHINIST))) {
+            return 4;
+        }
+        if (PROF_CHRONOMANCER.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.skillChargeGain > 0 || d.createEcho || d.exhaust || d.profession.equals(PROF_CHRONOMANCER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -9266,6 +9593,12 @@ public final class GameCore {
         if (hasRelic(s, "clockwork_core") && (d.upgradeRandom || d.createEcho || d.skillChargeGain > 0 || d.rarity == 2)) {
             bonus += 4;
         }
+        if (hasRelic(s, "hourglass_charm") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || d.createEcho || d.exhaust)) {
+            bonus += 3;
+        }
+        if (hasRelic(s, "time_engine") && (d.skillChargeGain > 0 || d.createEcho || d.energyGain > 0 || d.draw > 0 || d.rarity == 2)) {
+            bonus += 4;
+        }
         return bonus;
     }
 
@@ -9293,7 +9626,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -9309,6 +9642,7 @@ public final class GameCore {
         if (PROF_ADJUDICATOR.equals(s.profession)) return "verdict_seal";
         if (PROF_ASTROLOGER.equals(s.profession)) return "star_compass";
         if (PROF_MACHINIST.equals(s.profession)) return "gyro_wrench";
+        if (PROF_CHRONOMANCER.equals(s.profession)) return "hourglass_charm";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -9410,6 +9744,14 @@ public final class GameCore {
         if (PROF_MACHINIST.equals(s.profession) && "clockwork_core".equals(id)) {
             return 4;
         }
+        if (PROF_CHRONOMANCER.equals(s.profession) && ("hourglass_charm".equals(id) || "tempo_metronome".equals(id)
+                || "echo_ledger".equals(id) || "tuning_fork".equals(id) || "moon_lantern".equals(id)
+                || "confluence_map".equals(id) || "discipline_chart".equals(id) || "overload_etch".equals(id))) {
+            return 2;
+        }
+        if (PROF_CHRONOMANCER.equals(s.profession) && "time_engine".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -9430,7 +9772,7 @@ public final class GameCore {
             return 2;
         }
         if ((PROF_ARCANIST.equals(s.profession) || PROF_SUMMONER.equals(s.profession) || PROF_DUELIST.equals(s.profession)
-                || PROF_MERCHANT.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession))
+                || PROF_MERCHANT.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession))
                 && "echo_ledger".equals(id)) {
             return 2;
         }
@@ -9445,7 +9787,8 @@ public final class GameCore {
             return 2;
         }
         if ((PROF_WEAVER.equals(s.profession) || PROF_SUMMONER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
-                || PROF_TUNER.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession) || PROF_MACHINIST.equals(s.profession))
+                || PROF_TUNER.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
+                || PROF_CHRONOMANCER.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -9683,6 +10026,14 @@ public final class GameCore {
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         } else if ("clockwork_core".equals(id)) {
             addUpgradedDeckCard(s, "machinist_grand_engine");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("hourglass_charm".equals(id)) {
+            addUpgradedDeckCard(s, "chronomancer_rewind");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("time_engine".equals(id)) {
+            addUpgradedDeckCard(s, "chronomancer_time_engine");
             upgradeRandomDeckCard(s);
             s.maxHp += 3;
             s.hp += 3;
@@ -10174,6 +10525,19 @@ public final class GameCore {
         c = addCard("machinist_grand_engine", "终局引擎", "通用", 2, 2, 0, 9, 13, 9, 13, "造成伤害并获得格挡；按装配、汇流和升级牌追加终局收益，制造临时炮台。", "更高伤害、格挡和引擎返还。");
         c.profession = PROF_MACHINIST; c.vulnerable = 1; c.skillChargeGain = 2; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "machinist_turret"; c.targetEnemy = true;
 
+        c = addCard("chronomancer_tick", "刻秒", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张，职业技充能+1；时砂和本回合节奏会追加伤害与印记。", "更高伤害，印记更强，职业技充能+2。");
+        c.profession = PROF_CHRONOMANCER; c.draw = c.drawUp = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("chronomancer_rewind", "回拨", "通用", 0, 0, 1, 0, 0, 3, 5, "获得格挡并抽1张；时砂或连打足够时额外抽牌。", "更多格挡，抽2张。");
+        c.profession = PROF_CHRONOMANCER; c.draw = 1; c.drawUp = 2; c.skillChargeGain = 1;
+        c = addCard("chronomancer_loop", "回环术", "通用", 1, 1, 2, 0, 0, 4, 7, "获得格挡，抽2张，获得1能量，制造临时刻秒，职业技充能+2，消耗。", "更多格挡与抽牌，职业技充能+3。");
+        c.profession = PROF_CHRONOMANCER; c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.createEcho = true; c.echoCardId = "chronomancer_tick"; c.skillChargeGain = 2; c.exhaust = true;
+        c = addCard("chronomancer_anchor", "定格锚", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡，职业技充能+2；回合前段打出时额外充能并加深印记。", "更多格挡，职业技充能+3。");
+        c.profession = PROF_CHRONOMANCER; c.draw = c.drawUp = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("chronomancer_overloop", "过载回环", "通用", 1, 1, 1, 0, 0, 5, 8, "获得格挡，抽1张，获得1能量，职业技充能+3；按时砂和过载追加防线与印记。", "更多格挡，职业技充能+4。");
+        c.profession = PROF_CHRONOMANCER; c.draw = c.drawUp = 1; c.energyGain = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("chronomancer_time_engine", "时轴引擎", "通用", 2, 2, 0, 9, 13, 8, 12, "造成伤害并获得格挡；按时砂、临时牌和连打追加终局收益，制造临时回环。", "更高伤害、格挡和时轴返还。");
+        c.profession = PROF_CHRONOMANCER; c.draw = c.drawUp = 1; c.energyGain = 1; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -10396,6 +10760,7 @@ public final class GameCore {
         addRelicDef("verdict_seal", "裁决印章", "裁定官推进目标或兑现誓约时职业技更快充能；释放后按目标进度获得格挡和追击。");
         addRelicDef("star_compass", "星盘罗盘", "星象师观测、临时和充能牌更快推动职业技；释放后抽牌、标记并按星轨追击。");
         addRelicDef("gyro_wrench", "陀轮扳手", "机巧师升级、检视、充能和混搭牌更快推动职业技；释放后升级手牌、加固并按装配追击。");
+        addRelicDef("hourglass_charm", "沙漏坠", "时术师低费、抽牌、返能和临时牌更快推动职业技；释放后抽牌、追加印记并回收时砂。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -10411,6 +10776,7 @@ public final class GameCore {
         addRelicDef("judgment_codex", "审判法典", "获得升级终局判辞；裁定官目标完成后返还能量，并把印记转为终局追击。");
         addRelicDef("celestial_orrery", "天体仪", "获得升级天体大仪；星象师检视、临时和升级牌会积累印记并定期升级手牌。");
         addRelicDef("clockwork_core", "机巧核心", "获得升级终局引擎；机巧师升级、临时、充能和汇流牌会积累印记并定期升级手牌。");
+        addRelicDef("time_engine", "时轴机芯", "获得升级时轴引擎；时术师临时、返能、充能和循环牌会积累印记并定期续接回环。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -10582,6 +10948,9 @@ public final class GameCore {
         addTalent("t_machinist_blueprint", PROF_MACHINIST, "折叠工坊", "获得升级折叠蓝图并升级牌组；升级、检视和已升级牌提供格挡与充能。");
         addTalent("t_machinist_turret", PROF_MACHINIST, "炮台阵列", "获得升级棱镜炮台；伤害、充能和临时构件追加印记与穿透追击。");
         addTalent("t_machinist_foundry", PROF_MACHINIST, "自动铸间", "获得升级齿轮呼叫；首回合能量提高，充能、汇流和混搭牌定期升级手牌。");
+        addTalent("t_chronomancer_anchor", PROF_CHRONOMANCER, "定格锚点", "获得生命和升级定格锚；首回合加固，技能、防御和第二张牌会追加格挡与充能。");
+        addTalent("t_chronomancer_moment", PROF_CHRONOMANCER, "瞬刻裂隙", "获得升级回拨；低费、抽牌和返能节奏会在第3/5张牌制造临时刻秒。");
+        addTalent("t_chronomancer_clockwork", PROF_CHRONOMANCER, "钟工回环", "获得升级回环术；充能、临时和回声牌每3张续抽，并把印记转为穿透追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -10597,6 +10966,7 @@ public final class GameCore {
         addTalent("t_adjudicator_grand", PROF_ADJUDICATOR, "终审庭", "获得升级终局判辞；目标、誓约和过载牌持续抽牌、充能并把印记转为穿透裁决。");
         addTalent("t_astrologer_grand", PROF_ASTROLOGER, "天穹仪式", "获得升级天体大仪；观测、临时、汇流与过载牌持续抽牌、升级并把印记转为星轨裁切。");
         addTalent("t_machinist_grand", PROF_MACHINIST, "总装核心", "获得升级终局引擎；装配、临时、汇流与过载牌持续抽牌、升级并把印记转为炮台裁切。");
+        addTalent("t_chronomancer_grand", PROF_CHRONOMANCER, "终局回溯", "获得升级时轴引擎；低费、临时、循环与过载牌持续抽牌、充能并把印记转为时轴裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
