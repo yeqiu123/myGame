@@ -14,7 +14,8 @@ public final class SimulationHarness {
                     + " losses=" + result.losses + " stalled=" + result.stalled + " avgFloor=" + (result.floorSum / Math.max(1, result.runs)));
         }
         System.out.println("professions=" + GameCore.PROFESSIONS.length + " cards=" + GameCore.CARD_LIBRARY.size()
-                + " relics=" + GameCore.RELIC_LIBRARY.size() + " potions=" + GameCore.POTION_LIBRARY.size());
+                + " relics=" + GameCore.RELIC_LIBRARY.size() + " potions=" + GameCore.POTION_LIBRARY.size()
+                + " talents=" + GameCore.TALENT_LIBRARY.size());
     }
 
     private static Result runBatch(int depth, int count) {
@@ -129,6 +130,11 @@ public final class SimulationHarness {
                 if (GameCore.PROF_WEAVER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0)) {
                     score += 10;
                 }
+                if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
+                if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
+                if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
+                if (s.talents.contains("t_warden_armory") && d.type == 1) score += 6;
+                if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if (s.relics.contains("loom_shuttle") && d.scry > 0) score += 6;
                 if (s.relics.contains("void_abacus") && d.exhaust) score += 6;
                 if (s.relics.contains("tempo_metronome") && s.cardsPlayedThisTurn == 3) score += 12;

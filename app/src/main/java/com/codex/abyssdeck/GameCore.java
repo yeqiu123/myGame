@@ -425,6 +425,15 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower;
             }
         }
+        if (hasTalent(s, "t_shared_apothecary")) {
+            draw(s, 1);
+            gainBlock(s, 5 + s.act);
+        }
+        if (hasTalent(s, "t_alchemist_distiller") && target != null) {
+            target.vulnerable += 1;
+            target.burn += 1 + s.burnPower;
+            target.bind += 1 + s.bindPower;
+        }
         if (hasTalent(s, "t_alchemist_plague") && target != null) {
             target.burn += 2 + s.burnPower;
             target.bind += 2 + s.bindPower;
@@ -1209,11 +1218,23 @@ public final class GameCore {
         } else if ("t_shared_longnight".equals(id)) {
             s.maxHp += 6;
             s.hp += 6;
+        } else if ("t_shared_wayfarer".equals(id)) {
+            s.gold += 40;
+            s.maxHp += 4;
+            s.hp += 4;
+        } else if ("t_shared_apothecary".equals(id)) {
+            while (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
         } else if ("t_warden_bastion".equals(id)) {
             s.maxHp += 8;
             s.hp += 8;
         } else if ("t_warden_counter".equals(id)) {
             Card c = new Card("warden_slam");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_warden_armory".equals(id)) {
+            Card c = new Card("steel_bulwark");
             c.upgraded = true;
             s.deck.add(c);
         } else if ("t_duelist_tempo".equals(id)) {
@@ -1224,12 +1245,20 @@ public final class GameCore {
             Card c = new Card("duelist_finish");
             c.upgraded = true;
             s.deck.add(c);
+        } else if ("t_duelist_gambit".equals(id)) {
+            Card c = new Card("duelist_feint");
+            c.upgraded = true;
+            s.deck.add(c);
         } else if ("t_alchemist_reserve".equals(id)) {
             while (s.potions.size() < Math.min(potionLimit(s), 3)) {
                 s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
             }
         } else if ("t_alchemist_plague".equals(id)) {
             Card c = new Card("alchemist_cloud");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_alchemist_distiller".equals(id)) {
+            Card c = new Card("alchemist_catalyst");
             c.upgraded = true;
             s.deck.add(c);
         } else if ("t_ranger_quarry".equals(id)) {
@@ -1240,12 +1269,20 @@ public final class GameCore {
             Card c = new Card("ranger_trap");
             c.upgraded = true;
             s.deck.add(c);
+        } else if ("t_ranger_wildpath".equals(id)) {
+            Card c = new Card("ranger_patience");
+            c.upgraded = true;
+            s.deck.add(c);
         } else if ("t_arcanist_rewrite".equals(id)) {
             Card c = new Card("arcanist_glyph");
             c.upgraded = true;
             s.deck.add(c);
         } else if ("t_arcanist_overflow".equals(id)) {
             Card c = new Card("arcanist_loop");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_arcanist_archive".equals(id)) {
+            Card c = new Card("void_paradox");
             c.upgraded = true;
             s.deck.add(c);
         } else if ("t_merchant_interest".equals(id)) {
@@ -1255,6 +1292,9 @@ public final class GameCore {
             Card c = new Card("merchant_liquidate");
             c.upgraded = true;
             s.deck.add(c);
+        } else if ("t_merchant_blackmarket".equals(id)) {
+            s.gold += 70;
+            addRelic(s, randomRelic(s).id);
         } else if ("t_bloodbound_scar".equals(id)) {
             s.maxHp += 10;
             s.hp += 10;
@@ -1265,6 +1305,11 @@ public final class GameCore {
             Card c = new Card("blood_feast");
             c.upgraded = true;
             s.deck.add(c);
+        } else if ("t_bloodbound_crimson".equals(id)) {
+            Card c = new Card("blood_pact");
+            c.upgraded = true;
+            s.deck.add(c);
+            addStatusCard(s, "wound");
         } else if ("t_weaver_setup".equals(id)) {
             Card c = new Card("weaver_lattice");
             c.upgraded = true;
@@ -1273,6 +1318,10 @@ public final class GameCore {
             upgradeRandomDeckCard(s);
             upgradeRandomDeckCard(s);
             Card c = new Card("weaver_pattern");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_weaver_quicksilver".equals(id)) {
+            Card c = new Card("weaver_thread");
             c.upgraded = true;
             s.deck.add(c);
         }
@@ -1728,6 +1777,10 @@ public final class GameCore {
             s.steelEngine++;
             gainBlock(s, 8 + s.act * 2);
         }
+        if (hasTalent(s, "t_warden_armory") && s.turn == 1) {
+            s.steelEngine++;
+            upgradeRandomHandCard(s);
+        }
         if (PROF_RANGER.equals(s.profession) && firstLiving(s) != null) {
             firstLiving(s).bind += 1 + s.bindPower / 2;
         }
@@ -1735,8 +1788,15 @@ public final class GameCore {
             firstLiving(s).bind += 3;
             firstLiving(s).vulnerable += 2;
         }
+        if (hasTalent(s, "t_ranger_wildpath") && firstLiving(s) != null) {
+            firstLiving(s).bind += 1 + s.act / 2;
+        }
         if (PROF_ARCANIST.equals(s.profession) && s.turn == 1) {
             s.voidEngine++;
+        }
+        if (hasTalent(s, "t_arcanist_archive") && s.turn == 1) {
+            s.voidEngine++;
+            draw(s, 1);
         }
         if (PROF_MERCHANT.equals(s.profession) && s.turn == 1) {
             gainBlock(s, Math.min(16, Math.max(3, s.gold / 35)));
@@ -1748,10 +1808,20 @@ public final class GameCore {
                 gainBlock(s, 6 + s.act * 2);
                 log(s, "血契低鸣，压低血线换来资源。");
             }
+            if (hasTalent(s, "t_bloodbound_crimson")) {
+                s.hp = Math.max(1, s.hp - 2);
+                s.energy++;
+                gainBlock(s, 5 + s.act);
+            }
         }
         if (PROF_WEAVER.equals(s.profession) && s.turn == 1) {
             s.professionCharge = 0;
             s.energy += hasTalent(s, "t_weaver_setup") ? 1 : 0;
+            if (hasTalent(s, "t_weaver_quicksilver")) {
+                Card thread = new Card("weaver_thread");
+                thread.temp = true;
+                addToHand(s, thread);
+            }
         }
         if (hasRelic(s, "steel_oath") && s.turn == 1) {
             gainBlock(s, 6);
@@ -2226,6 +2296,10 @@ public final class GameCore {
             draw += s.professionUsedThisTurn == 0 ? 1 : 0;
             s.professionUsedThisTurn++;
         }
+        if (hasTalent(s, "t_weaver_quicksilver") && c.temp) {
+            block += 3;
+            draw += 1;
+        }
         if (hasRelic(s, "polished_cog") && c.upgraded && s.relicTriggersThisTurn < 2) {
             block += 3;
             s.relicTriggersThisTurn++;
@@ -2239,6 +2313,14 @@ public final class GameCore {
         }
         if (hasTalent(s, "t_duelist_execution") && target != null && (target.vulnerable > 0 || target.hp <= target.maxHp / 2)) {
             damage += 6 + s.act * 2;
+        }
+        if (hasTalent(s, "t_duelist_gambit") && s.cardsPlayedThisTurn >= 4) {
+            damage += 5 + s.act * 2;
+            draw += d.type == 0 ? 1 : 0;
+        }
+        if (hasTalent(s, "t_alchemist_distiller") && d.createPotion) {
+            block += 5 + s.act;
+            draw += 1;
         }
         if (d.goldDamage) {
             damage += Math.min(c.upgraded ? 42 : 28, Math.max(0, s.gold / (c.upgraded ? 8 : 11)));
@@ -2492,6 +2574,12 @@ public final class GameCore {
                 s.professionCharge = 0;
             }
         }
+        if (hasTalent(s, "t_warden_armory") && d.type == 1 && s.block >= 18) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                damageEnemy(s, e, 4 + Math.min(12, s.block / 6), true);
+            }
+        }
         if (PROF_DUELIST.equals(s.profession) && d.type == 0) {
             s.professionCharge++;
             if (s.professionCharge >= 3) {
@@ -2524,6 +2612,17 @@ public final class GameCore {
         }
         if (PROF_MERCHANT.equals(s.profession) && d.goldGain > 0) {
             gainBlock(s, 4 + Math.min(8, s.gold / 80));
+        }
+        if (hasTalent(s, "t_merchant_blackmarket") && s.cardsPlayedThisTurn == 2) {
+            s.gold += 4 + s.act * 2;
+        }
+        if (hasTalent(s, "t_alchemist_distiller") && d.createPotion && s.potions.size() < potionLimit(s)) {
+            PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+            s.potions.add(p.id);
+            log(s, "蒸馏追加药剂：" + p.name);
+        }
+        if (hasTalent(s, "t_shared_apothecary") && d.createPotion) {
+            s.energy++;
         }
         if (hasRelic(s, "tithe_box") && d.goldGain > 0) {
             Enemy e = firstLiving(s);
@@ -2849,6 +2948,9 @@ public final class GameCore {
         if (hasRelic(s, "runic_shackle")) {
             rewardCount++;
         }
+        if (hasTalent(s, "t_shared_wayfarer") && s.combatKind == 'C' && s.run.nextInt(100) < 35) {
+            rewardCount++;
+        }
         if (s.encounterModifier == MOD_POLLUTED || s.encounterModifier == MOD_TURBULENT) {
             rewardCount++;
         }
@@ -2872,7 +2974,8 @@ public final class GameCore {
         } else if (s.combatKind == 'E' || s.run.nextInt(100) < (s.encounterModifier == MOD_BOUNTY ? 34 : 18)) {
             s.relicRewards.add(randomRelic(s).id);
         }
-        if (s.potions.size() < potionLimit(s) && s.run.nextInt(100) < 34) {
+        int potionChance = hasTalent(s, "t_shared_apothecary") ? 54 : 34;
+        if (s.potions.size() < potionLimit(s) && s.run.nextInt(100) < potionChance) {
             PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
             s.potions.add(p.id);
             log(s, "发现药剂：" + p.name);
@@ -2927,7 +3030,8 @@ public final class GameCore {
             log(s, "复利账本入账 " + income + " 金币。");
         }
         HashSet<String> offeredCards = new HashSet<>();
-        for (int i = 0; i < 5; i++) {
+        int shopCardCount = hasTalent(s, "t_merchant_blackmarket") ? 6 : 5;
+        for (int i = 0; i < shopCardCount; i++) {
             CardDef d = randomCard(s, s.origin, true, offeredCards);
             offeredCards.add(d.id);
             s.shopCards.add(d.id);
@@ -2952,6 +3056,11 @@ public final class GameCore {
     private static void openEvent(State s) {
         s.mode = MODE_EVENT;
         s.eventId = s.run.nextInt(EVENT_COUNT);
+        if (hasTalent(s, "t_shared_wayfarer")) {
+            s.gold += 12 + s.act * 3;
+            s.hp = Math.min(s.maxHp, s.hp + 3);
+            log(s, "旅人直觉让你在事件前整理资源。");
+        }
     }
 
     private static CardDef randomCard(State s, String origin, boolean allowRare) {
@@ -3596,22 +3705,32 @@ public final class GameCore {
         addTalent("t_shared_masterwork", "", "匠心牌组", "获得时升级2张牌；之后每幕首场战斗首回合抽1张。");
         addTalent("t_shared_hunter", "", "猎取路线", "精英和Boss额外金币；卡牌奖励更偏向当前职业。");
         addTalent("t_shared_longnight", "", "长夜储备", "每场战斗第4回合获得1能量并抽1张。");
+        addTalent("t_shared_wayfarer", "", "旅人本能", "事件前整理资源；普通战斗偶尔多一张卡牌奖励。");
+        addTalent("t_shared_apothecary", "", "随行药师", "获得时装满药剂；药剂与制药牌提供额外资源。");
         addTalent("t_warden_bastion", PROF_WARDEN, "不破壁垒", "每场战斗首回合获得守势与额外格挡。");
         addTalent("t_warden_counter", PROF_WARDEN, "反击纪律", "每两张技能牌的反击更强，并额外抽1张。");
+        addTalent("t_warden_armory", PROF_WARDEN, "移动军械", "首回合获得守势并升级手牌；高格挡技能追加穿透伤害。");
         addTalent("t_duelist_tempo", PROF_DUELIST, "快节奏", "每回合前两张0费牌获得额外伤害。");
         addTalent("t_duelist_execution", PROF_DUELIST, "处决窗口", "连击追击对易伤或低生命敌人更强。");
+        addTalent("t_duelist_gambit", PROF_DUELIST, "第四步赌招", "每回合第4张及之后的牌追加伤害，攻击牌额外抽牌。");
         addTalent("t_alchemist_reserve", PROF_ALCHEMIST, "备用试剂", "战斗开始若药剂未满，补充一瓶随机药剂。");
         addTalent("t_alchemist_plague", PROF_ALCHEMIST, "瘟疫催化", "药剂和异常扩散会额外附加燃灼与束缚。");
+        addTalent("t_alchemist_distiller", PROF_ALCHEMIST, "现场蒸馏", "制药牌提供格挡和抽牌，并有机会追加药剂；用药额外施加异常。");
         addTalent("t_ranger_quarry", PROF_RANGER, "标记猎物", "首个敌人开局获得易伤与束缚，击杀后转移标记。");
         addTalent("t_ranger_net", PROF_RANGER, "复合陷网", "束缚牌同时提供格挡。");
+        addTalent("t_ranger_wildpath", PROF_RANGER, "野径追猎", "每回合给首个敌人追加束缚，获得升级潜伏耐心。");
         addTalent("t_arcanist_rewrite", PROF_ARCANIST, "重写命运", "每场战斗首回合制造临时秘文摹写。");
         addTalent("t_arcanist_overflow", PROF_ARCANIST, "回声溢出", "触发秘术职业回流时额外制造临时疾切。");
+        addTalent("t_arcanist_archive", PROF_ARCANIST, "秘库索引", "首回合回声势+1并抽牌，获得升级悖论。");
         addTalent("t_merchant_interest", PROF_MERCHANT, "复利账本", "进入商店获得金币；金币牌奖励更多金币。");
         addTalent("t_merchant_contract", PROF_MERCHANT, "深渊契据", "Boss后额外获得金币和一张升级的金币牌。");
+        addTalent("t_merchant_blackmarket", PROF_MERCHANT, "黑市通行", "获得金币和遗物；商店多一张牌，每回合第二张牌产生金币。");
         addTalent("t_bloodbound_scar", PROF_BLOODBOUND, "猩红旧疤", "获得最大生命；血契自损牌提供格挡，血契反击施加易伤。");
         addTalent("t_bloodbound_feast", PROF_BLOODBOUND, "饥渴回响", "低血线伤害会少量治疗，血契反击治疗更多。");
+        addTalent("t_bloodbound_crimson", PROF_BLOODBOUND, "猩红起誓", "首回合失去少量生命换取能量和格挡，并获得升级血契刻印。");
         addTalent("t_weaver_setup", PROF_WEAVER, "先手织局", "每场战斗首回合额外能量，并获得升级格纹阵。");
         addTalent("t_weaver_mastery", PROF_WEAVER, "定式大师", "升级技能会额外抽牌；织牌师重织触发抽更多牌。");
+        addTalent("t_weaver_quicksilver", PROF_WEAVER, "流银线", "首回合制造临时织线；临时牌提供格挡并抽牌。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
