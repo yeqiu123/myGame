@@ -463,6 +463,50 @@ public final class GameCore {
             s.hp = Math.min(s.maxHp, s.hp + 3);
         }
         log(s, "完成誓约：" + (p == null ? s.pact : p.name) + " " + s.pactFulfilled + "/3，获得 " + gold + " 金币。");
+        if (s.pactFulfilled == 3) {
+            awardPactCompletion(s);
+        }
+    }
+
+    private static void awardPactCompletion(State s) {
+        if ("pact_guardian".equals(s.pact)) {
+            s.maxHp += 6;
+            s.hp = Math.min(s.maxHp, s.hp + 12);
+            addUpgradedDeckCard(s, "aegis_engine");
+        } else if ("pact_sprinter".equals(s.pact)) {
+            addUpgradedDeckCard(s, "cycle_metronome");
+            upgradeRandomDeckCard(s);
+        } else if ("pact_brewer".equals(s.pact)) {
+            addUpgradedDeckCard(s, "brew_crucible");
+            while (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if ("pact_hunter".equals(s.pact)) {
+            addUpgradedDeckCard(s, "plague_vector");
+            addRelic(s, "hunter_mark");
+        } else if ("pact_void".equals(s.pact)) {
+            addUpgradedDeckCard(s, "echo_matrix");
+            addRelic(s, "hollow_crown");
+        } else if ("pact_blood".equals(s.pact)) {
+            s.maxHp += 8;
+            s.hp = Math.min(s.maxHp, s.hp + 14);
+            addUpgradedDeckCard(s, "crimson_loop");
+        } else if ("pact_summon".equals(s.pact)) {
+            addUpgradedDeckCard(s, "echo_matrix");
+            addUpgradedDeckCard(s, "summoner_wisp");
+        } else if ("pact_hex".equals(s.pact)) {
+            addUpgradedDeckCard(s, "plague_vector");
+            removeStatusCard(s);
+            removeStatusCard(s);
+        } else if ("pact_forge".equals(s.pact)) {
+            addUpgradedDeckCard(s, "forge_blueprint");
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+        } else if ("pact_merchant".equals(s.pact)) {
+            s.gold += 120;
+            addUpgradedDeckCard(s, "golden_engine");
+        }
+        log(s, "誓约圆满：" + pactName(s) + "给予终局馈赠。");
     }
 
     public static void openCodex(State s) {
@@ -7228,16 +7272,16 @@ public final class GameCore {
     }
 
     private static void seedPacts() {
-        addPact("pact_guardian", "护卫誓约", "开局最大生命+4；每场战斗若格挡峰值足够，获得金币并治疗。");
-        addPact("pact_sprinter", "疾行誓约", "开局获得30金币；快速结束战斗或单回合连打6张，获得金币并升级牌。");
-        addPact("pact_brewer", "炼调誓约", "开局补充药剂；用药或积累燃势/束缚势，获得金币并补药剂。");
-        addPact("pact_hunter", "猎杀誓约", "开局获得升级净弧；击败精英/Boss或多目标战，获得额外金币。");
-        addPact("pact_void", "回声誓约", "开局获得升级短暂窥见；消耗/临时牌足够多，获得金币并升级牌。");
-        addPact("pact_blood", "血誓约", "开局最大生命+6并加入裂伤；自损或低血线胜利，获得金币、治疗和最大生命。");
-        addPact("pact_summon", "唤灵誓约", "开局获得升级回声诱饵；临时牌或召唤足够多，获得金币并强化牌组。");
-        addPact("pact_hex", "咒环誓约", "开局带眩光与升级咒币；状态/易伤路线达标，获得金币、净化和咒币。");
-        addPact("pact_forge", "工坊誓约", "开局升级牌并获得升级锻痕信标；升级/检视路线达标，持续锻造牌组。");
-        addPact("pact_merchant", "裂币誓约", "开局获得金币和升级金刃；金币牌或富裕达标，获得额外金币和治疗。");
+        addPact("pact_guardian", "护卫誓约", "格挡峰值足够时兑现金币和治疗；3次圆满获得圣盾引擎与生命。");
+        addPact("pact_sprinter", "疾行誓约", "快速结束战斗或单回合连打6张兑现升级；3次圆满获得循环节拍。");
+        addPact("pact_brewer", "炼调誓约", "用药或积累燃势/束缚势兑现补给；3次圆满获得炼调坩埚并装满药剂。");
+        addPact("pact_hunter", "猎杀誓约", "击败精英/Boss或多目标战兑现额外金币；3次圆满获得疫变向量和猎痕。");
+        addPact("pact_void", "回声誓约", "消耗/临时牌足够多时兑现升级；3次圆满获得回声矩阵和空冠。");
+        addPact("pact_blood", "血誓约", "自损或低血线胜利兑现金币、治疗和生命；3次圆满获得猩红回路。");
+        addPact("pact_summon", "唤灵誓约", "临时牌或召唤足够多时强化牌组；3次圆满获得回声矩阵和游魂引。");
+        addPact("pact_hex", "咒环誓约", "状态/易伤路线达标兑现净化和咒币；3次圆满获得疫变向量并净化。");
+        addPact("pact_forge", "工坊誓约", "升级/检视路线达标持续锻造牌组；3次圆满获得工坊蓝图和额外升级。");
+        addPact("pact_merchant", "裂币誓约", "金币牌或富裕达标兑现金币和治疗；3次圆满获得裂币引擎和大量金币。");
     }
 
     private static void addPact(String id, String name, String text) {

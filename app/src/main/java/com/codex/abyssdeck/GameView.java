@@ -446,7 +446,7 @@ public final class GameView extends View {
             c.drawCircle(dp(58), y + dp(49), dp(24), p);
             drawText(c, "誓", dp(49), y + dp(57), 18, 0xff111923, true);
             drawText(c, pDef == null ? "" : pDef.name, dp(96), y + dp(36), 22, 0xfff5ead2, true);
-            drawWrapped(c, pDef == null ? "" : pDef.text, dp(96), y + dp(58), w - dp(218), 13, 0xffc5d0cf);
+            drawWrappedLines(c, pDef == null ? "" : pDef.text, dp(96), y + dp(58), w - dp(218), 12, 0xffc5d0cf, 2);
             addButton(w - dp(112), y + dp(32), dp(86), dp(38), "立誓", "pact", i);
         }
     }
