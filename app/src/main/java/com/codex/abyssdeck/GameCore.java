@@ -329,6 +329,25 @@ public final class GameCore {
             s.maxHp += 6;
             s.hp += 6;
             s.deck.add(new Card("wound"));
+        } else if ("pact_summon".equals(id)) {
+            Card c = new Card("echo_bait");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("pact_hex".equals(id)) {
+            s.deck.add(new Card("daze"));
+            Card c = new Card("cursed_coin");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("pact_forge".equals(id)) {
+            upgradeRandomDeckCard(s);
+            Card c = new Card("forge_signal");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("pact_merchant".equals(id)) {
+            s.gold += 45;
+            Card c = new Card("coin_edge");
+            c.upgraded = true;
+            s.deck.add(c);
         }
     }
 
@@ -351,6 +370,18 @@ public final class GameCore {
         }
         if ("pact_blood".equals(s.pact)) {
             return s.pactSelfDamage >= 3 || s.hp <= s.maxHp / 2;
+        }
+        if ("pact_summon".equals(s.pact)) {
+            return s.pactTempCards >= 5 || s.runEchoMilestone >= 5;
+        }
+        if ("pact_hex".equals(s.pact)) {
+            return s.pactStatusCards >= 3 || s.runHexMilestone >= 1;
+        }
+        if ("pact_forge".equals(s.pact)) {
+            return s.pactForgeCards >= 3 || s.runForgeMilestone >= 4;
+        }
+        if ("pact_merchant".equals(s.pact)) {
+            return s.pactGoldCards >= 2 || s.gold >= 160 + s.act * 20;
         }
         return false;
     }
@@ -388,6 +419,29 @@ public final class GameCore {
         } else if ("pact_blood".equals(s.pact)) {
             s.maxHp += 2;
             s.hp = Math.min(s.maxHp, s.hp + 6);
+        } else if ("pact_summon".equals(s.pact)) {
+            if (s.pactFulfilled == 1) {
+                Card c = new Card("echo_bait");
+                c.upgraded = true;
+                s.deck.add(c);
+            } else {
+                upgradeRandomDeckCard(s);
+            }
+        } else if ("pact_hex".equals(s.pact)) {
+            removeStatusCard(s);
+            if (s.pactFulfilled >= 2) {
+                Card c = new Card("cursed_coin");
+                c.upgraded = true;
+                s.deck.add(c);
+            }
+        } else if ("pact_forge".equals(s.pact)) {
+            upgradeRandomDeckCard(s);
+            if (s.pactFulfilled >= 2) {
+                upgradeRandomDeckCard(s);
+            }
+        } else if ("pact_merchant".equals(s.pact)) {
+            s.gold += 20 + s.act * 5;
+            s.hp = Math.min(s.maxHp, s.hp + 3);
         }
         log(s, "完成誓约：" + (p == null ? s.pact : p.name) + " " + s.pactFulfilled + "/3，获得 " + gold + " 金币。");
     }
@@ -2253,6 +2307,10 @@ public final class GameCore {
         s.pactKills = 0;
         s.pactExhaustedCards = 0;
         s.pactSelfDamage = 0;
+        s.pactTempCards = 0;
+        s.pactStatusCards = 0;
+        s.pactForgeCards = 0;
+        s.pactGoldCards = 0;
         s.hand.clear();
         s.draw.clear();
         s.discard.clear();
@@ -3798,6 +3856,18 @@ public final class GameCore {
         if (d != null && "wound".equals(d.id)) {
             s.pactSelfDamage++;
         }
+        if (d != null && (c.temp || d.createEcho)) {
+            s.pactTempCards++;
+        }
+        if (d != null && ("wound".equals(c.id) || "daze".equals(c.id) || d.createWound || d.vulnerable > 0 || d.addStatusToEnemy)) {
+            s.pactStatusCards++;
+        }
+        if (d != null && (c.upgraded || d.upgradeRandom || d.scry > 0)) {
+            s.pactForgeCards++;
+        }
+        if (d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) {
+            s.pactGoldCards++;
+        }
     }
 
     private static void trackRunMilestones(State s, Card c, CardDef d, boolean exhausted) {
@@ -5096,6 +5166,10 @@ public final class GameCore {
         addPact("pact_hunter", "猎杀誓约", "开局获得升级净弧；击败精英/Boss或多目标战，获得额外金币。");
         addPact("pact_void", "回声誓约", "开局获得升级短暂窥见；消耗/临时牌足够多，获得金币并升级牌。");
         addPact("pact_blood", "血誓约", "开局最大生命+6并加入裂伤；自损或低血线胜利，获得金币、治疗和最大生命。");
+        addPact("pact_summon", "唤灵誓约", "开局获得升级回声诱饵；临时牌或召唤足够多，获得金币并强化牌组。");
+        addPact("pact_hex", "咒环誓约", "开局带眩光与升级咒币；状态/易伤路线达标，获得金币、净化和咒币。");
+        addPact("pact_forge", "工坊誓约", "开局升级牌并获得升级锻痕信标；升级/检视路线达标，持续锻造牌组。");
+        addPact("pact_merchant", "裂币誓约", "开局获得金币和升级金刃；金币牌或富裕达标，获得额外金币和治疗。");
     }
 
     private static void addPact(String id, String name, String text) {
@@ -5229,6 +5303,10 @@ public final class GameCore {
         public int pactKills;
         public int pactExhaustedCards;
         public int pactSelfDamage;
+        public int pactTempCards;
+        public int pactStatusCards;
+        public int pactForgeCards;
+        public int pactGoldCards;
         public int runGuardMilestone;
         public int runComboMilestone;
         public int runHexMilestone;

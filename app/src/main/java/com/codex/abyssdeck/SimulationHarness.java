@@ -176,8 +176,14 @@ public final class SimulationHarness {
             else if ("pact_hunter".equals(id)) score += GameCore.PROF_RANGER.equals(s.profession) ? 32 : 20;
             else if ("pact_void".equals(id)) score += GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_WEAVER.equals(s.profession) ? 36 : 16;
             else if ("pact_blood".equals(id)) score += GameCore.PROF_BLOODBOUND.equals(s.profession) ? 40 : 10;
+            else if ("pact_summon".equals(id)) score += GameCore.PROF_SUMMONER.equals(s.profession) || GameCore.PROF_ARCANIST.equals(s.profession) ? 38 : 18;
+            else if ("pact_hex".equals(id)) score += GameCore.PROF_HEXER.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession) ? 38 : 14;
+            else if ("pact_forge".equals(id)) score += GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_WARDEN.equals(s.profession) ? 36 : 18;
+            else if ("pact_merchant".equals(id)) score += GameCore.PROF_MERCHANT.equals(s.profession) ? 40 : 16;
             if (GameCore.PROF_SUMMONER.equals(s.profession) && ("pact_void".equals(id) || "pact_hunter".equals(id))) score += 18;
             if (GameCore.PROF_HEXER.equals(s.profession) && ("pact_blood".equals(id) || "pact_void".equals(id))) score += 18;
+            if (GameCore.PROF_SUMMONER.equals(s.profession) && "pact_summon".equals(id)) score += 20;
+            if (GameCore.PROF_HEXER.equals(s.profession) && "pact_hex".equals(id)) score += 20;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
