@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+**/build/
+
+# Android local configuration
+local.properties
+.android-sdk/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Android build artifacts
+*.apk
+*.ap_
+*.aab
+*.dex
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local signing secrets
+*.jks
+*.keystore
+keystore.properties
+
+# Locally downloaded toolchains
+tools/gradle-*/
+tools/*-extract/
+tools/*.zip
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
