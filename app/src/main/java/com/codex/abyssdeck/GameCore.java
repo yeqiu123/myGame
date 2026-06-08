@@ -171,6 +171,44 @@ public final class GameCore {
         } else if ("risk".equals(b.id)) {
             s.gold += 140;
             addStatusCard(s, "wound");
+        } else if ("profession_pack".equals(b.id)) {
+            CardDef d = randomProfessionCard(s, true);
+            Card c = new Card(d.id);
+            c.upgraded = true;
+            s.deck.add(c);
+            s.gold += 25;
+        } else if ("skill_seed".equals(b.id)) {
+            CardDef d = randomProfessionCard(s, true);
+            s.deck.add(new Card(d.id));
+            addRelic(s, randomSkillRelicFor(s));
+        } else if ("route_cache".equals(b.id)) {
+            addRelic(s, "night_map");
+            s.gold += 35;
+        } else if ("thin_start".equals(b.id)) {
+            removeStarterJunk(s);
+            removeStarterJunk(s);
+            s.maxHp = Math.max(40, s.maxHp - 4);
+            s.hp = Math.min(s.hp, s.maxHp);
+        } else if ("brew_start".equals(b.id)) {
+            while (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.deck.add(new Card("alchemist_mix"));
+        } else if ("rare_relic_risk".equals(b.id)) {
+            addRelic(s, randomRelic(s).id);
+            addRelic(s, randomRelic(s).id);
+            addStatusCard(s, "daze");
+        } else if ("forge_start".equals(b.id)) {
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+            s.gold = Math.max(0, s.gold - 30);
+        } else if ("blood_start".equals(b.id)) {
+            s.maxHp += 8;
+            s.hp = Math.max(1, s.hp - 8);
+            Card c = new Card("blood_pact");
+            c.upgraded = true;
+            s.deck.add(c);
         }
         s.boonChoices.clear();
         s.mode = MODE_MAP;
@@ -3612,6 +3650,19 @@ public final class GameCore {
         return pool.get(s.run.nextInt(pool.size()));
     }
 
+    private static String randomSkillRelicFor(State s) {
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool"};
+        if (PROF_WARDEN.equals(s.profession)) return "command_banner";
+        if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
+        if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
+        if (PROF_RANGER.equals(s.profession)) return "hawk_fletching";
+        if (PROF_ARCANIST.equals(s.profession)) return "echo_prism";
+        if (PROF_MERCHANT.equals(s.profession)) return "ledger_stamp";
+        if (PROF_BLOODBOUND.equals(s.profession)) return "crimson_seal";
+        if (PROF_WEAVER.equals(s.profession)) return "pattern_spool";
+        return ids[s.run.nextInt(ids.length)];
+    }
+
     private static int professionRelicBonus(State s, String id) {
         if (PROF_WARDEN.equals(s.profession) && ("warden_plate".equals(id) || "steel_oath".equals(id) || "thorn_ring".equals(id) || "command_banner".equals(id))) {
             return 2;
@@ -4138,6 +4189,14 @@ public final class GameCore {
         addBoon("relic", "遗物低语", "获得一个普通遗物。");
         addBoon("potion", "药剂腰带", "获得2瓶随机药剂。");
         addBoon("risk", "贪婪契印", "获得140金币，并加入1张裂伤。");
+        addBoon("profession_pack", "职业秘匣", "获得一张升级职业牌和少量金币。");
+        addBoon("skill_seed", "技能源印", "获得一张职业牌和对应职业技遗物。");
+        addBoon("route_cache", "路网密函", "获得夜航图和35金币，路线选择更自由。");
+        addBoon("thin_start", "轻装开局", "移除2张基础牌，最大生命-4。");
+        addBoon("brew_start", "随身炼台", "装满药剂，并加入试剂调和。");
+        addBoon("rare_relic_risk", "双遗物赌注", "获得2个普通遗物，并加入1张眩光。");
+        addBoon("forge_start", "开局锻炉", "随机升级3张牌，失去30金币。");
+        addBoon("blood_start", "血色预付款", "最大生命+8，当前生命-8，获得升级血契刻印。");
     }
 
     private static void addBoon(String id, String name, String text) {

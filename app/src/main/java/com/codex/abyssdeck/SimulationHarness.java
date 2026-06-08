@@ -43,7 +43,7 @@ public final class SimulationHarness {
     private static void step(GameCore.State s, Result r) {
         s.ensureRandom();
         if (s.mode == GameCore.MODE_BOON) {
-            GameCore.chooseBoon(s, 0);
+            GameCore.chooseBoon(s, chooseBoon(s));
         } else if (s.mode == GameCore.MODE_MAP) {
             int pick = chooseMapNode(s);
             if (pick >= 0) {
@@ -120,6 +120,40 @@ public final class SimulationHarness {
             boolean reachable = n.available || (s.relics.contains("night_map") && n.floor == s.floor + 1);
             if (!reachable) continue;
             int score = nodeScore(s, n);
+            if (score > bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    private static int chooseBoon(GameCore.State s) {
+        int best = 0;
+        int bestScore = -9999;
+        for (int i = 0; i < s.boonChoices.size(); i++) {
+            String id = s.boonChoices.get(i);
+            int score = 0;
+            if ("skill_seed".equals(id)) score += 42;
+            else if ("profession_pack".equals(id)) score += 36;
+            else if ("relic".equals(id)) score += 30;
+            else if ("rare_relic_risk".equals(id)) score += 34;
+            else if ("thin_start".equals(id)) score += 30;
+            else if ("forge_start".equals(id)) score += 28;
+            else if ("upgrade".equals(id)) score += 24;
+            else if ("remove".equals(id)) score += 22;
+            else if ("rare".equals(id)) score += 24;
+            else if ("route_cache".equals(id)) score += 20;
+            else if ("gold".equals(id)) score += 18;
+            else if ("maxhp".equals(id)) score += 16;
+            else if ("potion".equals(id)) score += 14;
+            else if ("risk".equals(id)) score += 16;
+            else if ("brew_start".equals(id)) score += 16;
+            else if ("blood_start".equals(id)) score += 12;
+            if (GameCore.PROF_ALCHEMIST.equals(s.profession) && ("brew_start".equals(id) || "potion".equals(id))) score += 18;
+            if (GameCore.PROF_BLOODBOUND.equals(s.profession) && "blood_start".equals(id)) score += 28;
+            if (GameCore.PROF_MERCHANT.equals(s.profession) && ("gold".equals(id) || "route_cache".equals(id))) score += 8;
+            if (s.ascension >= 6 && ("risk".equals(id) || "rare_relic_risk".equals(id) || "blood_start".equals(id))) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
