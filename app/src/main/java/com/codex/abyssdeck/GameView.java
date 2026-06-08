@@ -220,6 +220,8 @@ public final class GameView extends View {
             GameCore.shopChoose(s, "shop_upgrade");
         } else if ("shop_transform".equals(action)) {
             GameCore.shopChoose(s, "shop_transform");
+        } else if ("shop_scout".equals(action)) {
+            GameCore.shopScoutBuild(s);
         } else if ("leave_shop".equals(action)) {
             GameCore.leaveShop(s);
         } else if ("rest_heal".equals(action)) {
@@ -681,8 +683,9 @@ public final class GameView extends View {
 
     private void drawReward(Canvas c) {
         int w = getWidth();
-        drawText(c, "战利品", dp(24), dp(88), 30, 0xfff4d580, true);
-        if (s.encounterModifier != GameCore.MOD_NONE) {
+        boolean shopScout = GameCore.shopScoutDraftActive(s);
+        drawText(c, shopScout ? "商栈寻路" : "战利品", dp(24), dp(88), 30, 0xfff4d580, true);
+        if (!shopScout && s.encounterModifier != GameCore.MOD_NONE) {
             drawText(c, "本场词缀：" + GameCore.modifierName(s.encounterModifier), dp(126), dp(88), 14, 0xffc7d4d0, false);
         }
         int rewardCards = Math.max(1, s.cardRewards.size());
@@ -691,6 +694,8 @@ public final class GameView extends View {
         if (s.cardRewards.isEmpty()) {
             String status = s.cardRewardSkipped ? "卡牌奖励已跳过" : "没有卡牌奖励";
             drawText(c, status, dp(24), dp(136), 17, 0xffc9d2d2, true);
+        } else if (shopScout) {
+            drawText(c, "选择一张定向补强牌，拿完返回商店", dp(24), dp(112), 13, 0xffc9d2d2, false);
         } else {
             drawText(c, "选择一张卡牌，或跳过获得金币", dp(24), dp(112), 13, 0xffc9d2d2, false);
         }
@@ -709,7 +714,7 @@ public final class GameView extends View {
             drawRelicRow(c, r, dp(24), y + i * dp(62), w - dp(48));
             addButton(w - dp(104), y + i * dp(62) + dp(10), dp(82), dp(36), "拿取", "reward_relic", i);
         }
-        if (!s.cardRewards.isEmpty() && !s.cardRewardSkipped) {
+        if (!shopScout && !s.cardRewards.isEmpty() && !s.cardRewardSkipped) {
             int gold = s.relics.contains("cracked_compass") ? 14 : 10;
             addButton(dp(24), getHeight() - dp(62), w - dp(48), dp(42), "跳过卡牌奖励 +" + gold + "金", "skip", 0);
         }
@@ -749,6 +754,12 @@ public final class GameView extends View {
         addButton(dp(24), sy, dp(98), dp(40), "删牌" + GameCore.shopServicePrice(s, "shop_remove"), "shop_remove", 0);
         addButton(dp(132), sy, dp(98), dp(40), "升级" + GameCore.shopServicePrice(s, "shop_upgrade"), "shop_upgrade", 0);
         addButton(dp(240), sy, dp(108), dp(40), "转化" + GameCore.shopServicePrice(s, "shop_transform"), "shop_transform", 0);
+        drawText(c, GameCore.shopScoutText(s), dp(24), sy + dp(66), 12, 0xffa9c9c2, false);
+        if (s.shopScoutUsed) {
+            drawText(c, "商栈寻路已使用", dp(24), sy + dp(100), 15, 0xff8faaa5, true);
+        } else {
+            addButton(dp(24), sy + dp(76), w - dp(48), dp(38), "商栈寻路 " + GameCore.shopServicePrice(s, "shop_scout") + "金", "shop_scout", 0);
+        }
         addButton(dp(24), getHeight() - dp(58), w - dp(48), dp(42), "离开商店", "leave_shop", 0);
     }
 

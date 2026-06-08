@@ -69,6 +69,8 @@ public final class SimulationHarness {
         } else if (s.mode == GameCore.MODE_SHOP) {
             if (!s.shopRelics.isEmpty() && s.gold >= GameCore.shopRelicPrice(s)) {
                 GameCore.shopBuyRelic(s, 0);
+            } else if (shouldScoutShop(s)) {
+                GameCore.shopScoutBuild(s);
             } else if (!s.shopCards.isEmpty() && s.gold >= GameCore.shopCardPrice(s, GameCore.card(s.shopCards.get(0)))) {
                 GameCore.shopBuyCard(s, 0);
             } else {
@@ -128,6 +130,11 @@ public final class SimulationHarness {
             }
         }
         return false;
+    }
+
+    private static boolean shouldScoutShop(GameCore.State s) {
+        return !s.shopScoutUsed && s.deck.size() < 36 && s.gold >= GameCore.shopServicePrice(s, "shop_scout")
+                && (s.act >= 2 || s.relics.size() >= 3 || s.shopCards.size() <= 2);
     }
 
     private static int chooseRewardCard(GameCore.State s) {

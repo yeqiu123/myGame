@@ -69,6 +69,16 @@ public final class GameCore {
     public static final int ROUTE_FORGE = 6;
     public static final int PROF_SKILL_MAX = 10;
     public static final int PROF_SKILL_OVERLOAD_MAX = 6;
+    private static final int BUILD_OVERLOAD = 0;
+    private static final int BUILD_ECHO = 1;
+    private static final int BUILD_BREW = 2;
+    private static final int BUILD_GOLD = 3;
+    private static final int BUILD_BLOOD = 4;
+    private static final int BUILD_FORGE = 5;
+    private static final int BUILD_STATUS = 6;
+    private static final int BUILD_CYCLE = 7;
+    private static final int BUILD_GUARD = 8;
+    private static final String[] BUILD_FOCUS_NAMES = {"过载", "回声", "炼调", "金币", "血契", "工坊", "异常", "循环", "守势"};
 
     public static final String ORIGIN_STEEL = "钢律";
     public static final String ORIGIN_ASH = "烬火";
@@ -744,10 +754,18 @@ public final class GameCore {
         if (s.mode != MODE_REWARD || index < 0 || index >= s.cardRewards.size()) {
             return;
         }
-        s.deck.add(new Card(s.cardRewards.get(index).id));
-        s.seenCards.add(s.cardRewards.get(index).id);
-        log(s, "获得卡牌：" + card(s.cardRewards.get(index).id).name);
+        boolean shopScout = shopScoutDraftActive(s);
+        String id = s.cardRewards.get(index).id;
+        s.deck.add(new Card(id));
+        s.seenCards.add(id);
+        log(s, (shopScout ? "商栈寻路获得：" : "获得卡牌：") + card(id).name);
         clearRewards(s);
+        if (shopScout) {
+            s.pendingAction = "";
+            s.cardRewardSkipped = false;
+            s.mode = MODE_SHOP;
+            return;
+        }
         if (s.relicRewards.isEmpty()) {
             afterReward(s);
         }
@@ -933,6 +951,41 @@ public final class GameCore {
         s.potions.add(p.id);
         s.shopPotions.remove(index);
         log(s, "购买药剂：" + p.name);
+    }
+
+    public static void shopScoutBuild(State s) {
+        if (s.mode != MODE_SHOP || s.shopScoutUsed) {
+            return;
+        }
+        int price = shopServicePrice(s, "shop_scout");
+        if (s.gold < price) {
+            return;
+        }
+        s.gold -= price;
+        s.cardRewards.clear();
+        s.relicRewards.clear();
+        s.cardRewardSkipped = false;
+        int focus = buildScoutFocus(s);
+        int choices = s.currentRoute == ROUTE_SECRET || hasTalent(s, "t_merchant_blackmarket") ? 4 : 3;
+        HashSet<String> offered = new HashSet<>();
+        for (int i = 0; i < choices; i++) {
+            CardDef d = randomBuildScoutCard(s, true, offered);
+            if (d == null) {
+                break;
+            }
+            offered.add(d.id);
+            RewardCard rc = new RewardCard();
+            rc.id = d.id;
+            s.cardRewards.add(rc);
+        }
+        if (s.cardRewards.isEmpty()) {
+            s.gold += price;
+            return;
+        }
+        s.shopScoutUsed = true;
+        s.pendingAction = "shop_scout";
+        s.mode = MODE_REWARD;
+        log(s, "商栈寻路锁定：" + BUILD_FOCUS_NAMES[focus] + "。");
     }
 
     public static void shopChoose(State s, String action) {
@@ -1399,7 +1452,16 @@ public final class GameCore {
     }
 
     public static int shopServicePrice(State s, String action) {
-        int price = "shop_remove".equals(action) ? 85 : "shop_upgrade".equals(action) ? 75 : 105;
+        int price = 95;
+        if ("shop_remove".equals(action)) {
+            price = 85;
+        } else if ("shop_upgrade".equals(action)) {
+            price = 75;
+        } else if ("shop_transform".equals(action)) {
+            price = 105;
+        } else if ("shop_scout".equals(action)) {
+            price = 92;
+        }
         price += depthShopSurcharge(s, price);
         if (PROF_MERCHANT.equals(s.profession)) {
             price -= 12;
@@ -1411,6 +1473,18 @@ public final class GameCore {
             price -= 5;
         }
         return Math.max(35, price);
+    }
+
+    public static boolean shopScoutDraftActive(State s) {
+        return s != null && "shop_scout".equals(s.pendingAction);
+    }
+
+    public static String shopScoutText(State s) {
+        if (s != null && s.shopScoutUsed) {
+            return "本商店已完成一次寻路。";
+        }
+        int focus = buildScoutFocus(s);
+        return "寻路偏向：" + BUILD_FOCUS_NAMES[focus] + "，付费后从定向补强牌中三选一。";
     }
 
     private static int depthShopSurcharge(State s, int basePrice) {
@@ -5016,6 +5090,7 @@ public final class GameCore {
         s.shopCards.clear();
         s.shopRelics.clear();
         s.shopPotions.clear();
+        s.shopScoutUsed = false;
         if (hasRelic(s, "golden_throne")) {
             int income = 18 + s.act * 8;
             s.gold += income;
@@ -5183,6 +5258,205 @@ public final class GameCore {
             return CARD_LIBRARY.get(0);
         }
         return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static CardDef randomBuildScoutCard(State s, boolean allowRare, Set<String> excluded) {
+        int focus = buildScoutFocus(s);
+        ArrayList<CardDef> pool = new ArrayList<>();
+        for (CardDef d : CARD_LIBRARY) {
+            if (d.type == 3 || excluded.contains(d.id)) {
+                continue;
+            }
+            if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            if (s.act < 2 && isCapstoneCard(d.id)) {
+                continue;
+            }
+            int focusValue = buildFocusCardValue(d, focus);
+            if (focusValue <= 0) {
+                continue;
+            }
+            boolean offOrigin = !"通用".equals(d.origin) && !d.origin.equals(s.origin);
+            boolean offProfession = d.profession.length() > 0 && !d.profession.equals(s.profession);
+            int weight = 2 + d.rarity + Math.min(22, focusValue);
+            if (d.origin.equals(s.origin) || "通用".equals(d.origin)) {
+                weight += 4;
+            } else if (offOrigin) {
+                weight -= 3;
+            }
+            if (d.profession.equals(s.profession)) {
+                weight += 8;
+            } else if (offProfession) {
+                weight -= 6;
+            }
+            weight += professionCardBonus(s, d);
+            weight += relicCardBonus(s, d);
+            if (weight <= 0) {
+                continue;
+            }
+            for (int i = 0; i < weight; i++) {
+                pool.add(d);
+            }
+        }
+        if (pool.isEmpty()) {
+            return randomCard(s, s.origin, allowRare, excluded);
+        }
+        return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static int buildScoutFocus(State s) {
+        if (s == null) {
+            return BUILD_CYCLE;
+        }
+        int best = BUILD_CYCLE;
+        int bestScore = -9999;
+        for (int focus = 0; focus < BUILD_FOCUS_NAMES.length; focus++) {
+            int score = buildScoutFocusScore(s, focus);
+            if (score > bestScore) {
+                bestScore = score;
+                best = focus;
+            }
+        }
+        return best;
+    }
+
+    private static int buildScoutFocusScore(State s, int focus) {
+        int score = professionFocusBonus(s, focus) + pactFocusBonus(s, focus) + questFocusBonus(s, focus);
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            int value = buildFocusCardValue(d, focus);
+            if (value > 0) {
+                score += Math.min(7, value);
+                if (c.upgraded) {
+                    score++;
+                }
+            }
+        }
+        if (focus == BUILD_OVERLOAD) {
+            score += Math.min(8, s.professionSkillCharge / 2);
+            if (hasSkillRelic(s)) {
+                score += 5;
+            }
+        } else if (focus == BUILD_GOLD) {
+            score += Math.min(12, s.gold / 35);
+            if (hasRelic(s, "tithe_box") || hasRelic(s, "kingmaker_seal")) {
+                score += 5;
+            }
+        } else if (focus == BUILD_FORGE && s.runForgeMilestone > 0) {
+            score += Math.min(8, s.runForgeMilestone);
+        } else if (focus == BUILD_ECHO && s.runEchoMilestone > 0) {
+            score += Math.min(8, s.runEchoMilestone);
+        } else if (focus == BUILD_BLOOD && s.runBloodcoinMilestone > 0) {
+            score += Math.min(8, s.runBloodcoinMilestone);
+        }
+        return score;
+    }
+
+    private static int professionFocusBonus(State s, int focus) {
+        if (PROF_WARDEN.equals(s.profession)) {
+            return focus == BUILD_GUARD ? 18 : focus == BUILD_OVERLOAD || focus == BUILD_FORGE ? 6 : 0;
+        }
+        if (PROF_DUELIST.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_OVERLOAD ? 8 : 0;
+        }
+        if (PROF_ALCHEMIST.equals(s.profession)) {
+            return focus == BUILD_BREW ? 18 : focus == BUILD_STATUS ? 10 : 0;
+        }
+        if (PROF_RANGER.equals(s.profession)) {
+            return focus == BUILD_STATUS ? 18 : focus == BUILD_CYCLE || focus == BUILD_GUARD ? 5 : 0;
+        }
+        if (PROF_ARCANIST.equals(s.profession)) {
+            return focus == BUILD_ECHO ? 18 : focus == BUILD_CYCLE || focus == BUILD_OVERLOAD ? 8 : 0;
+        }
+        if (PROF_MERCHANT.equals(s.profession)) {
+            return focus == BUILD_GOLD ? 20 : focus == BUILD_CYCLE ? 6 : 0;
+        }
+        if (PROF_BLOODBOUND.equals(s.profession)) {
+            return focus == BUILD_BLOOD ? 20 : focus == BUILD_STATUS ? 8 : 0;
+        }
+        if (PROF_WEAVER.equals(s.profession)) {
+            return focus == BUILD_FORGE ? 18 : focus == BUILD_CYCLE || focus == BUILD_ECHO ? 8 : 0;
+        }
+        if (PROF_SUMMONER.equals(s.profession)) {
+            return focus == BUILD_ECHO ? 16 : focus == BUILD_STATUS || focus == BUILD_CYCLE ? 7 : 0;
+        }
+        if (PROF_HEXER.equals(s.profession)) {
+            return focus == BUILD_STATUS ? 20 : focus == BUILD_BLOOD || focus == BUILD_ECHO ? 8 : 0;
+        }
+        return 0;
+    }
+
+    private static int pactFocusBonus(State s, int focus) {
+        if ("pact_guardian".equals(s.pact)) return focus == BUILD_GUARD ? 14 : 0;
+        if ("pact_sprinter".equals(s.pact)) return focus == BUILD_CYCLE ? 14 : 0;
+        if ("pact_brewer".equals(s.pact)) return focus == BUILD_BREW ? 14 : focus == BUILD_STATUS ? 5 : 0;
+        if ("pact_hunter".equals(s.pact)) return focus == BUILD_STATUS ? 12 : 0;
+        if ("pact_void".equals(s.pact)) return focus == BUILD_ECHO ? 14 : focus == BUILD_CYCLE ? 5 : 0;
+        if ("pact_blood".equals(s.pact)) return focus == BUILD_BLOOD ? 15 : 0;
+        if ("pact_summon".equals(s.pact)) return focus == BUILD_ECHO ? 15 : 0;
+        if ("pact_hex".equals(s.pact)) return focus == BUILD_STATUS ? 15 : focus == BUILD_BLOOD ? 5 : 0;
+        if ("pact_forge".equals(s.pact)) return focus == BUILD_FORGE ? 15 : 0;
+        if ("pact_merchant".equals(s.pact)) return focus == BUILD_GOLD ? 15 : 0;
+        return 0;
+    }
+
+    private static int questFocusBonus(State s, int focus) {
+        if (s.combatQuest == QUEST_GUARD) return focus == BUILD_GUARD ? 10 : 0;
+        if (s.combatQuest == QUEST_COMBO || s.combatQuest == QUEST_LEAN || s.combatQuest == QUEST_SWIFT) return focus == BUILD_CYCLE ? 10 : 0;
+        if (s.combatQuest == QUEST_HEX) return focus == BUILD_STATUS ? 10 : 0;
+        if (s.combatQuest == QUEST_BREW) return focus == BUILD_BREW ? 12 : focus == BUILD_STATUS ? 4 : 0;
+        if (s.combatQuest == QUEST_SKILL) return focus == BUILD_OVERLOAD ? 12 : 0;
+        if (s.combatQuest == QUEST_ECHO) return focus == BUILD_ECHO ? 12 : 0;
+        if (s.combatQuest == QUEST_BLOODCOIN) return focus == BUILD_BLOOD || focus == BUILD_GOLD ? 10 : 0;
+        if (s.combatQuest == QUEST_FORGE) return focus == BUILD_FORGE ? 12 : 0;
+        if (s.combatQuest == QUEST_TREASURE) return focus == BUILD_GOLD ? 10 : 0;
+        return 0;
+    }
+
+    private static int buildFocusCardValue(CardDef d, int focus) {
+        if (d == null) {
+            return 0;
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
+                    + (d.exhaustForDamage ? 6 : 0) + ("summoner_sprite".equals(d.echoCardId) ? 3 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 5 : 0)
+                    + (d.gainBurnPower + d.gainBindPower) * 3;
+        }
+        if (focus == BUILD_GOLD) {
+            return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return d.hpLoss * 4 + d.heal * 2 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 2 + d.bind * 2 + d.vulnerable * 5 + (d.addStatusToEnemy ? 7 : 0)
+                    + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2;
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
+                    + (d.burnToBlock ? 4 : 0);
+        }
+        return 0;
+    }
+
+    private static boolean hasSkillRelic(State s) {
+        return hasRelic(s, "command_banner") || hasRelic(s, "flash_heel") || hasRelic(s, "catalyst_pump")
+                || hasRelic(s, "hawk_fletching") || hasRelic(s, "echo_prism") || hasRelic(s, "ledger_stamp")
+                || hasRelic(s, "crimson_seal") || hasRelic(s, "pattern_spool") || hasRelic(s, "spirit_bell")
+                || hasRelic(s, "hex_tablet");
     }
 
     private static CardDef randomOverloadCard(State s, boolean allowRare) {
@@ -6245,6 +6519,7 @@ public final class GameCore {
         public ArrayList<String> newAchievements = new ArrayList<>();
         public MetaProgress meta = new MetaProgress();
         public boolean cardRewardSkipped;
+        public boolean shopScoutUsed;
         public boolean playerTurn;
         public boolean runFinished;
         public boolean questComplete;
