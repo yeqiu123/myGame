@@ -3052,7 +3052,49 @@ public final class GameCore {
         } else if ("spec_mastery".equals(spec.id)) {
             applyMasterySkillSpec(s, target, overload, level);
         }
+        applySkillSpecRelics(s, target, overload, level, spec.id);
         log(s, "专修触发：" + spec.name + "。");
+    }
+
+    private static void applySkillSpecRelics(State s, Enemy target, int overload, int level, String specId) {
+        if ("spec_burst".equals(specId) && hasRelic(s, "razor_pactstone") && target != null) {
+            damageEnemy(s, target, 8 + level * 4 + overload * 2, true);
+            if (target.hp <= 0) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 2);
+            }
+        } else if ("spec_tempo".equals(specId) && hasRelic(s, "tempo_spindle")) {
+            draw(s, 1);
+            s.energy++;
+            addProfessionSkillCharge(s, 1);
+            if (level >= 3) {
+                Card cut = new Card("quick_cut");
+                cut.temp = true;
+                addToHand(s, cut);
+            }
+        } else if ("spec_sustain".equals(specId) && hasRelic(s, "vigil_bloom")) {
+            int low = s.hp <= s.maxHp / 2 ? 2 : 1;
+            gainBlock(s, (5 + level * 3) * low);
+            s.hp = Math.min(s.maxHp, s.hp + (2 + level) * low);
+        } else if ("spec_resonance".equals(specId) && hasRelic(s, "resonance_lens")) {
+            addProfessionSkillCharge(s, 2 + level);
+            if (s.buildResonanceFocus == BUILD_ECHO || s.buildResonanceFocus == BUILD_CYCLE) {
+                draw(s, 1);
+            } else if (s.buildResonanceFocus == BUILD_GUARD || s.buildResonanceFocus == BUILD_FORGE) {
+                gainBlock(s, 5 + level * 2);
+            } else if (target != null) {
+                damageEnemy(s, target, 6 + level * 3 + overload, true);
+            }
+        } else if ("spec_mastery".equals(specId) && hasRelic(s, "mastery_badge")) {
+            CardDef d = randomOverloadCard(s, true);
+            Card c = new Card(d.id);
+            c.temp = true;
+            if (level >= 3) {
+                c.upgraded = true;
+            }
+            addToHand(s, c);
+            addProfessionSkillCharge(s, 2);
+        }
     }
 
     private static void applyMasterySkillSpec(State s, Enemy target, int overload, int level) {
@@ -6602,6 +6644,9 @@ public final class GameCore {
         if (isSkillRelicForProfession(s, id)) {
             hint = appendHint(hint, "职业技");
         }
+        if (skillSpecRelicBonus(s, id) > 0) {
+            hint = appendHint(hint, "专修契合");
+        }
         if (r.boss) {
             hint = appendHint(hint, "Boss");
         }
@@ -6629,6 +6674,7 @@ public final class GameCore {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
                     "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet",
+                    "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
                     "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -6661,12 +6707,12 @@ public final class GameCore {
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
                     "moon_lantern", "tempo_metronome", "void_abacus", "flash_heel", "pattern_spool",
-                    "finale_rapier", "echo_crown") ? 3 : 0;
+                    "tempo_spindle", "finale_rapier", "echo_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
                     "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach", "mirror_anvil",
-                    "command_banner", "aegis_throne", "forge_heart") ? 3 : 0;
+                    "vigil_bloom", "command_banner", "aegis_throne", "forge_heart") ? 3 : 0;
         }
         return 0;
     }
@@ -6884,7 +6930,7 @@ public final class GameCore {
                 if (s.act < 2 && isCapstoneRelic(r.id)) {
                     continue;
                 }
-                int weight = 1 + professionRelicBonus(s, r.id);
+                int weight = 1 + professionRelicBonus(s, r.id) + skillSpecRelicBonus(s, r.id);
                 for (int i = 0; i < weight; i++) {
                     pool.add(r);
                 }
@@ -6996,6 +7042,27 @@ public final class GameCore {
         if ((ORIGIN_STEEL.equals(s.origin) || ORIGIN_VOID.equals(s.origin)) && "stormglass_seal".equals(id)) {
             return 2;
         }
+        return 0;
+    }
+
+    public static int skillSpecRelicBonus(State s, String id) {
+        if (s == null || id == null) {
+            return 0;
+        }
+        SkillSpecDef spec = skillSpec(s.skillSpec);
+        if (spec == null) {
+            return 0;
+        }
+        if ("spec_burst".equals(spec.id) && "razor_pactstone".equals(id)) return 5;
+        if ("spec_tempo".equals(spec.id) && "tempo_spindle".equals(id)) return 5;
+        if ("spec_sustain".equals(spec.id) && "vigil_bloom".equals(id)) return 5;
+        if ("spec_resonance".equals(spec.id) && "resonance_lens".equals(id)) return 5;
+        if ("spec_mastery".equals(spec.id) && "mastery_badge".equals(id)) return 5;
+        if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark")) return 1;
+        if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown")) return 1;
+        if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist")) return 1;
+        if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown")) return 1;
+        if ("spec_mastery".equals(spec.id) && isSkillRelicForProfession(s, id)) return 2;
         return 0;
     }
 
@@ -7617,6 +7684,11 @@ public final class GameCore {
         addRelicDef("bloodcoin_broach", "血金币针", "自损和裂伤牌提供金币与格挡；金币牌少量治疗并给职业技充能。");
         addRelicDef("mirror_anvil", "镜砧", "升级牌按类型追加收益；升级手牌的牌也会推动职业技。");
         addRelicDef("rift_compass", "裂隙罗盘", "打出非本派系或其他职业牌时获得资源，鼓励跨池混搭。");
+        addRelicDef("razor_pactstone", "裂锋誓石", "裂锋专修释放职业技时追加穿透斩击；击杀后抽牌。");
+        addRelicDef("tempo_spindle", "疾调纺锤", "疾调专修释放职业技时抽牌并获得能量；高阶时额外制造疾切。");
+        addRelicDef("vigil_bloom", "续战夜花", "续战专修释放职业技时获得格挡和治疗，低血线翻倍部分收益。");
+        addRelicDef("resonance_lens", "共鸣透镜", "共鸣专修释放职业技时提高职业技充能，并复制当前构筑共鸣收益。");
+        addRelicDef("mastery_badge", "本职徽章", "本职专修释放职业技时追加职业牌、升级或资源，并推动充能。");
         addRelicDef("command_banner", "号令战旗", "守卫职业技更快充能；释放后追加格挡与穿透反击。");
         addRelicDef("flash_heel", "闪击鞋钉", "决斗者连打后职业技更快充能；释放后抽牌，连打足够时获得能量。");
         addRelicDef("catalyst_pump", "催化泵", "炼金师持有药剂时职业技更快充能；释放后追加异常。");

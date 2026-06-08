@@ -201,6 +201,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_WEAVER.equals(s.profession) && ("clockwork_loom".equals(id) || "pattern_spool".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id))) score += 34;
             if (GameCore.PROF_SUMMONER.equals(s.profession) && ("spirit_processional".equals(id) || "spirit_bell".equals(id) || "root_drum".equals(id))) score += 34;
             if (GameCore.PROF_HEXER.equals(s.profession) && ("fallen_crown".equals(id) || "hex_tablet".equals(id) || "curse_censer".equals(id))) score += 34;
+            score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
                 bestScore = score;
