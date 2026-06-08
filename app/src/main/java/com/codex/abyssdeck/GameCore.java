@@ -2647,6 +2647,10 @@ public final class GameCore {
                 e.doom = 3;
             } else if (e.kind == 30 && e.thorns == 0) {
                 e.thorns = 1 + s.act / 2;
+            } else if (e.kind == 31 && e.doom == 0) {
+                e.doom = 3;
+            } else if (e.kind == 33 && e.shieldPulse == 0) {
+                e.shieldPulse = 3;
             }
         }
     }
@@ -2688,6 +2692,16 @@ public final class GameCore {
                     e.vulnerable = Math.max(0, e.vulnerable - 1);
                     e.doom = 3;
                     log(s, e.name + " 裂疫回流，恢复生命。");
+                }
+            }
+            if (e.kind == 31 && e.doom > 0) {
+                e.doom--;
+                if (e.doom <= 0) {
+                    int drained = Math.min(s.professionSkillCharge, 2 + s.act);
+                    s.professionSkillCharge -= drained;
+                    e.block += 6 + drained * 3;
+                    e.doom = 3;
+                    log(s, e.name + " 锁蚀职业技充能，化作护甲。");
                 }
             }
         }
@@ -2768,7 +2782,7 @@ public final class GameCore {
             return;
         }
         if (kind == 'E') {
-            int elite = s.run.nextInt(8);
+            int elite = s.run.nextInt(9);
             if (elite == 0) {
                 s.enemies.add(enemy("铁脊裁决者", 58 + act * 16 + depth * 2, 1));
             } else if (elite == 1) {
@@ -2787,12 +2801,15 @@ public final class GameCore {
             } else if (elite == 6) {
                 s.enemies.add(enemy("回响督军", 62 + act * 17 + depth * 2, 15));
                 s.enemies.add(enemy("雾页抄手", 26 + act * 8 + depth, 28));
-            } else {
+            } else if (elite == 7) {
                 s.enemies.add(enemy("静印审判官", 70 + act * 18 + depth * 2, 16));
+            } else {
+                s.enemies.add(enemy("过载缄默者", 72 + act * 18 + depth * 2, 31));
+                s.enemies.add(enemy("雾页抄手", 24 + act * 8 + depth, 28));
             }
             return;
         }
-        int templateMax = act >= 3 ? 11 : act >= 2 ? 9 : 5;
+        int templateMax = act >= 3 ? 14 : act >= 2 ? 11 : 6;
         int template = s.run.nextInt(templateMax);
         int base = 18 + act * 8 + depth;
         if (template == 0) {
@@ -2826,8 +2843,17 @@ public final class GameCore {
         } else if (template == 9) {
             s.enemies.add(enemy("裂疫汲取者", base + 16 + s.run.nextInt(9), 29));
             s.enemies.add(enemy("藤壳兽", base + 8 + s.run.nextInt(7), 22));
-        } else {
+        } else if (template == 10) {
             s.enemies.add(enemy("镜壳卫", base + 26 + s.run.nextInt(10), 30));
+        } else if (template == 11) {
+            s.enemies.add(enemy("过载缄默者", base + 20 + s.run.nextInt(8), 31));
+            s.enemies.add(enemy("磷火虫", base + 1 + s.run.nextInt(6), 21));
+        } else if (template == 12) {
+            s.enemies.add(enemy("裂币蛀客", base + 14 + s.run.nextInt(8), 32));
+            s.enemies.add(enemy("空面盗", base + 5 + s.run.nextInt(7), 23));
+        } else {
+            s.enemies.add(enemy("铸雾整备师", base + 22 + s.run.nextInt(9), 33));
+            s.enemies.add(enemy("镜壳卫", base + 10 + s.run.nextInt(7), 30));
         }
     }
 
@@ -3366,6 +3392,39 @@ public final class GameCore {
                     e.intent = ENEMY_SPECIAL;
                     e.intentValue = 1;
                 }
+            } else if (e.kind == 31) {
+                if (r < 34) {
+                    e.intent = ENEMY_DEBUFF;
+                    e.intentValue = 1 + s.act / 2;
+                } else if (r < 72) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 2 + s.act;
+                } else {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 8 + s.act * 3;
+                }
+            } else if (e.kind == 32) {
+                if (r < 40) {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 7 + s.act * 2;
+                } else if (r < 78) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_BUFF;
+                    e.intentValue = 2;
+                }
+            } else if (e.kind == 33) {
+                if (r < 42) {
+                    e.intent = ENEMY_GUARD;
+                    e.intentValue = 10 + s.act * 3;
+                } else if (r < 74) {
+                    e.intent = ENEMY_SPECIAL;
+                    e.intentValue = 1;
+                } else {
+                    e.intent = ENEMY_ATTACK;
+                    e.intentValue = 9 + s.act * 3;
+                }
             } else if (r < 68) {
                 e.intent = ENEMY_ATTACK;
                 e.intentValue = 5 + s.act * 2 + s.ascension / 4 + e.strength;
@@ -3542,6 +3601,40 @@ public final class GameCore {
                 s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
             }
             log(s, e.name + " 折射你的护势。");
+        } else if (e.kind == 31) {
+            int drained = Math.min(s.professionSkillCharge, 3 + s.act);
+            s.professionSkillCharge -= drained;
+            e.block += 8 + drained * 3;
+            if (drained >= 3) {
+                s.vulnerable += 1;
+            }
+            log(s, e.name + " 缄默过载，吸走 " + drained + " 点职业技充能。");
+        } else if (e.kind == 32) {
+            int stolen = Math.min(s.gold, 6 + s.act * 3 + s.hand.size());
+            if (stolen > 0) {
+                s.gold -= stolen;
+                e.stolenGold += stolen;
+            }
+            int temps = 0;
+            for (Card h : s.hand) {
+                if (h.temp) {
+                    temps++;
+                }
+            }
+            e.block += 6 + s.act * 2 + temps * 3;
+            if (temps > 0) {
+                addStatusCard(s, "daze");
+            }
+            log(s, e.name + " 啃食裂币与临时牌势，偷走 " + stolen + " 金币。");
+        } else if (e.kind == 33) {
+            int crack = Math.min(s.block, 6 + s.act * 3);
+            int upgrades = upgradedCardCount(s);
+            s.block -= crack;
+            e.block += 10 + s.act * 2 + crack / 2 + upgrades / 3;
+            if (upgrades >= 6) {
+                e.strength += 1;
+            }
+            log(s, e.name + " 整备铸雾，折走护甲并借用你的升级牌势。");
         } else {
             e.strength += 2;
             e.block += 8;
