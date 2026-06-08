@@ -70,9 +70,12 @@ public final class GameCore {
     public static final String PROF_MERCHANT = "行商";
     public static final String PROF_BLOODBOUND = "血契者";
     public static final String PROF_WEAVER = "织牌师";
+    public static final String PROF_SUMMONER = "唤灵师";
+    public static final String PROF_HEXER = "咒术师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
-            PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER
+            PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
+            PROF_SUMMONER, PROF_HEXER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -504,6 +507,8 @@ public final class GameCore {
         if (PROF_MERCHANT.equals(profession)) return "投机";
         if (PROF_BLOODBOUND.equals(profession)) return "血誓";
         if (PROF_WEAVER.equals(profession)) return "织局";
+        if (PROF_SUMMONER.equals(profession)) return "唤潮";
+        if (PROF_HEXER.equals(profession)) return "咒环";
         return "职业技";
     }
 
@@ -521,6 +526,8 @@ public final class GameCore {
         if (PROF_MERCHANT.equals(profession)) return "满充能：花少量金币换格挡并用金币打击目标。";
         if (PROF_BLOODBOUND.equals(profession)) return "满充能：失去少量生命，治疗并穿透打击。";
         if (PROF_WEAVER.equals(profession)) return "满充能：升级手牌、抽牌并获得能量。";
+        if (PROF_SUMMONER.equals(profession)) return "满充能：召来灵潮，制造临时牌并让敌人承受束缚。";
+        if (PROF_HEXER.equals(profession)) return "满充能：施加群体诅咒，污染牌组但抽牌并获得能量。";
         return "选择职业后可用。";
     }
 
@@ -581,6 +588,26 @@ public final class GameCore {
             upgradeRandomHandCard(s);
             upgradeRandomHandCard(s);
             draw(s, 1 + (hasTalent(s, "t_weaver_mastery") ? 1 : 0));
+            s.energy++;
+        } else if (PROF_SUMMONER.equals(s.profession)) {
+            Card spirit = new Card("summoner_sprite");
+            spirit.temp = true;
+            addToHand(s, spirit);
+            Card echo = new Card(hasTalent(s, "t_summoner_court") ? "summoner_wisp" : "quick_cut");
+            echo.temp = true;
+            addToHand(s, echo);
+            for (Enemy e : livingEnemies(s)) {
+                e.bind += 2 + s.bindPower;
+            }
+            gainBlock(s, 7 + s.act * 2 + Math.min(8, s.professionCharge));
+        } else if (PROF_HEXER.equals(s.profession)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 2;
+                e.bind += 2 + s.bindPower;
+                e.mark += 1;
+            }
+            addStatusCard(s, hasTalent(s, "t_hexer_darkdeal") ? "wound" : "daze");
+            draw(s, 2);
             s.energy++;
         }
         applyProfessionSkillRelics(s, target);
@@ -1426,6 +1453,12 @@ public final class GameCore {
         if (PROF_WEAVER.equals(profession)) {
             return "预视牌序并升级手牌，第三张技能牌会重织资源。适合抽牌、临时牌和精密循环。";
         }
+        if (PROF_SUMMONER.equals(profession)) {
+            return "制造临时灵体牌并用束缚保护节奏，召唤越多越能转化为格挡和资源。适合回声、控制和多敌战。";
+        }
+        if (PROF_HEXER.equals(profession)) {
+            return "主动接纳状态牌，把眩光与裂伤转化为诅咒、抽牌和穿透压制。适合高风险控制和消耗构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -1453,6 +1486,12 @@ public final class GameCore {
         }
         if (PROF_WEAVER.equals(profession)) {
             return 0xff7ed1d6;
+        }
+        if (PROF_SUMMONER.equals(profession)) {
+            return 0xff8fd0ff;
+        }
+        if (PROF_HEXER.equals(profession)) {
+            return 0xffc781d9;
         }
         return 0xffd6c07a;
     }
@@ -1584,6 +1623,15 @@ public final class GameCore {
             s.deck.add(new Card("weaver_thread"));
             s.deck.add(new Card("void_glimpse"));
             upgradeRandomDeckCard(s);
+        } else if (PROF_SUMMONER.equals(profession)) {
+            s.maxHp += 3;
+            s.hp += 3;
+            s.deck.add(new Card("summoner_sprite"));
+            s.deck.add(new Card("summoner_wisp"));
+        } else if (PROF_HEXER.equals(profession)) {
+            s.deck.add(new Card("hexer_hexmark"));
+            s.deck.add(new Card("daze"));
+            s.gold += 25;
         }
     }
 
@@ -1702,6 +1750,34 @@ public final class GameCore {
             Card c = new Card("weaver_thread");
             c.upgraded = true;
             s.deck.add(c);
+        } else if ("t_summoner_court".equals(id)) {
+            Card c = new Card("summoner_court");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_summoner_bond".equals(id)) {
+            s.maxHp += 6;
+            s.hp += 6;
+            Card c = new Card("summoner_guardian");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_summoner_swarm".equals(id)) {
+            Card c = new Card("summoner_wisp");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_hexer_darkdeal".equals(id)) {
+            s.gold += 80;
+            Card c = new Card("hexer_pact");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_hexer_malediction".equals(id)) {
+            Card c = new Card("hexer_maledict");
+            c.upgraded = true;
+            s.deck.add(c);
+        } else if ("t_hexer_cleanse".equals(id)) {
+            removeStatusCard(s);
+            Card c = new Card("hexer_purge");
+            c.upgraded = true;
+            s.deck.add(c);
         }
     }
 
@@ -1741,6 +1817,16 @@ public final class GameCore {
         }
         if (!s.deck.isEmpty()) {
             s.deck.remove(0);
+        }
+    }
+
+    private static void removeStatusCard(State s) {
+        for (int i = 0; i < s.deck.size(); i++) {
+            String id = s.deck.get(i).id;
+            if ("wound".equals(id) || "daze".equals(id)) {
+                s.deck.remove(i);
+                return;
+            }
         }
     }
 
@@ -1970,6 +2056,8 @@ public final class GameCore {
         else if (PROF_MERCHANT.equals(s.profession) && d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock)) amount++;
         else if (PROF_BLOODBOUND.equals(s.profession) && d != null && (d.hpLoss > 0 || d.heal > 0 || "wound".equals(d.id))) amount++;
         else if (PROF_WEAVER.equals(s.profession) && d != null && (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.createEcho)) amount++;
+        else if (PROF_SUMMONER.equals(s.profession) && d != null && (d.createEcho || d.bind > 0 || d.aoe || d.type == 1)) amount++;
+        else if (PROF_HEXER.equals(s.profession) && d != null && (d.vulnerable > 0 || d.addStatusToEnemy || d.createWound || "wound".equals(d.id) || "daze".equals(d.id))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -2017,6 +2105,19 @@ public final class GameCore {
             addProfessionSkillCharge(s, 2);
             draw(s, 1);
         }
+        if (hasRelic(s, "spirit_bell") && PROF_SUMMONER.equals(s.profession)) {
+            Card spirit = new Card("summoner_sprite");
+            spirit.temp = true;
+            addToHand(s, spirit);
+            gainBlock(s, 5 + s.act);
+            addProfessionSkillCharge(s, 2);
+        }
+        if (hasRelic(s, "hex_tablet") && PROF_HEXER.equals(s.profession) && target != null) {
+            target.vulnerable += 1;
+            target.bind += 1 + s.bindPower / 2;
+            damageEnemy(s, target, 6 + s.act * 2, true);
+            addProfessionSkillCharge(s, 2);
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -2031,6 +2132,8 @@ public final class GameCore {
         if (hasRelic(s, "ledger_stamp") && PROF_MERCHANT.equals(s.profession) && s.gold >= 120 && amount > 0) amount++;
         if (hasRelic(s, "crimson_seal") && PROF_BLOODBOUND.equals(s.profession) && s.hp <= s.maxHp / 2 && amount > 0) amount++;
         if (hasRelic(s, "pattern_spool") && PROF_WEAVER.equals(s.profession) && s.hand.size() >= 5 && amount > 0) amount++;
+        if (hasRelic(s, "spirit_bell") && PROF_SUMMONER.equals(s.profession) && amount > 0 && s.hand.size() >= 5) amount++;
+        if (hasRelic(s, "hex_tablet") && PROF_HEXER.equals(s.profession) && amount > 0 && firstLiving(s) != null && firstLiving(s).vulnerable > 0) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX, s.professionSkillCharge + amount));
     }
 
@@ -2476,6 +2579,20 @@ public final class GameCore {
                 Card thread = new Card("weaver_thread");
                 thread.temp = true;
                 addToHand(s, thread);
+            }
+        }
+        if (PROF_SUMMONER.equals(s.profession) && s.turn == 1) {
+            Card spirit = new Card("summoner_sprite");
+            spirit.temp = true;
+            addToHand(s, spirit);
+            if (hasTalent(s, "t_summoner_bond")) {
+                gainBlock(s, 7 + s.act);
+            }
+        }
+        if (PROF_HEXER.equals(s.profession) && s.turn == 1 && firstLiving(s) != null) {
+            firstLiving(s).vulnerable += 1;
+            if (hasTalent(s, "t_hexer_malediction")) {
+                firstLiving(s).bind += 2;
             }
         }
         if (hasRelic(s, "steel_oath") && s.turn == 1) {
@@ -3330,6 +3447,36 @@ public final class GameCore {
                 s.professionCharge = 0;
             }
         }
+        if (PROF_SUMMONER.equals(s.profession) && (c.temp || d.createEcho || "summoner_sprite".equals(d.id) || "summoner_wisp".equals(d.id))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            gainBlock(s, 2 + Math.min(6, s.professionCharge));
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.bind += 2 + s.bindPower / 2;
+                    damageEnemy(s, e, 6 + s.act * 2, true);
+                }
+                if (hasTalent(s, "t_summoner_swarm")) {
+                    Card spirit = new Card("summoner_sprite");
+                    spirit.temp = true;
+                    addToHand(s, spirit);
+                }
+                s.professionCharge = 0;
+            }
+        }
+        if (PROF_HEXER.equals(s.profession) && ("wound".equals(c.id) || "daze".equals(c.id) || d.vulnerable > 0 || d.addStatusToEnemy)) {
+            addProfessionSkillCharge(s, 1);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.vulnerable += "wound".equals(c.id) || "daze".equals(c.id) ? 1 : 0;
+                damageEnemy(s, e, 3 + s.act + Math.min(8, e.vulnerable * 2), true);
+            }
+            if (hasTalent(s, "t_hexer_darkdeal") && ("wound".equals(c.id) || "daze".equals(c.id))) {
+                s.gold += 3 + s.act;
+                draw(s, 1);
+            }
+        }
         if (s.steelEngine > 0 && d.type == 1) {
             Enemy e = firstLiving(s);
             if (e != null) {
@@ -3877,6 +4024,12 @@ public final class GameCore {
         if (PROF_WEAVER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.createEcho)) {
             return 4;
         }
+        if (PROF_SUMMONER.equals(s.profession) && (d.createEcho || d.bind > 0 || d.aoe || d.type == 1)) {
+            return 4;
+        }
+        if (PROF_HEXER.equals(s.profession) && (d.vulnerable > 0 || d.addStatusToEnemy || d.createWound || "wound".equals(d.id) || "daze".equals(d.id))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -3907,7 +4060,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -3916,6 +4069,8 @@ public final class GameCore {
         if (PROF_MERCHANT.equals(s.profession)) return "ledger_stamp";
         if (PROF_BLOODBOUND.equals(s.profession)) return "crimson_seal";
         if (PROF_WEAVER.equals(s.profession)) return "pattern_spool";
+        if (PROF_SUMMONER.equals(s.profession)) return "spirit_bell";
+        if (PROF_HEXER.equals(s.profession)) return "hex_tablet";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -3942,6 +4097,12 @@ public final class GameCore {
             return 2;
         }
         if (PROF_WEAVER.equals(s.profession) && ("ink_fountain".equals(id) || "glass_anvil".equals(id) || "amber_quill".equals(id) || "loom_shuttle".equals(id) || "polished_cog".equals(id) || "pattern_spool".equals(id))) {
+            return 2;
+        }
+        if (PROF_SUMMONER.equals(s.profession) && ("spirit_bell".equals(id) || "root_drum".equals(id) || "void_lens".equals(id) || "storm_shell".equals(id) || "loom_shuttle".equals(id))) {
+            return 2;
+        }
+        if (PROF_HEXER.equals(s.profession) && ("hex_tablet".equals(id) || "scar_talisman".equals(id) || "hollow_crown".equals(id) || "arcane_ink".equals(id) || "void_abacus".equals(id))) {
             return 2;
         }
         if (ORIGIN_WILD.equals(s.origin) && "vital_sprout".equals(id)) {
@@ -4203,6 +4364,24 @@ public final class GameCore {
         c = addCard("weaver_overpattern", "超定式", "通用", 2, 1, 1, 0, 0, 7, 10, "获得格挡，升级手牌，职业技充能+2。", "更多格挡，职业技充能+3。");
         c.profession = PROF_WEAVER; c.upgradeRandom = true; c.draw = c.drawUp = 1; c.skillChargeGain = 2;
 
+        c = addCard("summoner_sprite", "灵火", "通用", 0, 0, 0, 4, 6, 3, 5, "造成伤害并获得格挡。唤灵师：推动灵潮。", "更高伤害与格挡。");
+        c.profession = PROF_SUMMONER; c.bind = 1; c.targetEnemy = true;
+        c = addCard("summoner_wisp", "游魂引", "通用", 1, 1, 2, 0, 0, 5, 8, "制造临时灵火，抽1张。", "更多格挡，抽2张。");
+        c.profession = PROF_SUMMONER; c.createEcho = true; c.echoCardId = "summoner_sprite"; c.draw = 1; c.drawUp = 2;
+        c = addCard("summoner_guardian", "守灵", "通用", 1, 1, 1, 0, 0, 10, 14, "获得格挡，施加束缚，制造临时灵火。", "更多格挡与束缚。");
+        c.profession = PROF_SUMMONER; c.bind = 2; c.bindUp = 3; c.targetEnemy = true; c.createEcho = true; c.echoCardId = "summoner_sprite";
+        c = addCard("summoner_court", "灵庭", "通用", 2, 1, 2, 0, 0, 4, 7, "制造临时灵火，职业技充能+3，获得束缚势。", "更多格挡，职业技充能+4。");
+        c.profession = PROF_SUMMONER; c.createEcho = true; c.echoCardId = "summoner_sprite"; c.skillChargeGain = 3; c.gainBindPower = 1; c.draw = c.drawUp = 1;
+
+        c = addCard("hexer_hexmark", "咒印", "通用", 0, 1, 0, 6, 9, 0, 0, "造成伤害，施加易伤与束缚。", "更高伤害，施加更多控制。");
+        c.profession = PROF_HEXER; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.targetEnemy = true;
+        c = addCard("hexer_pact", "暗契", "通用", 1, 0, 2, 0, 0, 0, 0, "加入1张裂伤，抽2张并获得1能量。", "抽3张并获得1能量。");
+        c.profession = PROF_HEXER; c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.createWound = true; c.exhaust = true;
+        c = addCard("hexer_maledict", "恶咒", "通用", 2, 1, 2, 0, 0, 0, 0, "目标获得易伤与束缚，扩散异常，职业技充能+2。", "更多控制，职业技充能+3。");
+        c.profession = PROF_HEXER; c.vulnerable = 1; c.bind = 2; c.bindUp = 4; c.spreadStatus = true; c.targetEnemy = true; c.skillChargeGain = 2;
+        c = addCard("hexer_purge", "以咒净咒", "通用", 2, 1, 2, 0, 0, 6, 9, "消耗弃牌堆顶牌，抽2张。状态牌会推动咒术师。", "更多格挡与抽牌。");
+        c.profession = PROF_HEXER; c.exhaustTopDiscard = true; c.draw = 2; c.drawUp = 3;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -4395,6 +4574,8 @@ public final class GameCore {
         addRelicDef("ledger_stamp", "账本印章", "行商富裕时职业技更快充能；释放后返还金币并获得格挡。");
         addRelicDef("crimson_seal", "猩红封蜡", "血契者低血线时职业技更快充能；释放后治疗、施加易伤并保留少量充能。");
         addRelicDef("pattern_spool", "定式线轴", "织牌师手牌充足时职业技更快充能；释放后升级手牌、抽牌并保留少量充能。");
+        addRelicDef("spirit_bell", "灵铃", "唤灵师手牌充足时职业技更快充能；释放后制造临时灵火并获得格挡。");
+        addRelicDef("hex_tablet", "咒碑", "咒术师面对易伤敌人时职业技更快充能；释放后追加控制与穿透伤害。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -4516,6 +4697,12 @@ public final class GameCore {
         addTalent("t_weaver_setup", PROF_WEAVER, "先手织局", "每场战斗首回合额外能量，并获得升级格纹阵。");
         addTalent("t_weaver_mastery", PROF_WEAVER, "定式大师", "升级技能会额外抽牌；织牌师重织触发抽更多牌。");
         addTalent("t_weaver_quicksilver", PROF_WEAVER, "流银线", "首回合制造临时织线；临时牌提供格挡并抽牌。");
+        addTalent("t_summoner_court", PROF_SUMMONER, "灵庭扩建", "职业技会额外制造游魂引；获得升级灵庭。");
+        addTalent("t_summoner_bond", PROF_SUMMONER, "守灵羁绊", "首回合获得格挡；获得最大生命和升级守灵。");
+        addTalent("t_summoner_swarm", PROF_SUMMONER, "群灵回响", "灵潮触发后制造临时灵火；获得升级游魂引。");
+        addTalent("t_hexer_darkdeal", PROF_HEXER, "暗账交易", "状态牌提供金币和抽牌；职业技加入裂伤，获得升级暗契。");
+        addTalent("t_hexer_malediction", PROF_HEXER, "恶咒连环", "首个敌人额外受束缚；获得升级恶咒。");
+        addTalent("t_hexer_cleanse", PROF_HEXER, "以咒净咒", "移除一张状态牌，并获得升级以咒净咒。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

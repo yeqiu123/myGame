@@ -372,7 +372,6 @@ public final class GameView extends View {
         int cols = 2;
         float gap = dp(10);
         float cardW = (w - dp(48) - gap * (cols - 1)) / cols;
-        float cardH = dp(106);
         String[] desc = {
                 "格挡反击 / 技能充能",
                 "低费连击 / 穿透追击",
@@ -381,13 +380,20 @@ public final class GameView extends View {
                 "消耗回流 / 临时牌循环",
                 "金币运营 / 商店折扣",
                 "自损裂伤 / 压血爆发",
-                "预视升级 / 牌序重织"
+                "预视升级 / 牌序重织",
+                "灵体临牌 / 召唤控场",
+                "状态诅咒 / 易伤压制"
         };
+        int rows = (GameCore.PROFESSIONS.length + cols - 1) / cols;
+        float startY = dp(126);
+        float bottom = getHeight() - dp(70);
+        float rowStep = Math.min(dp(106), Math.max(dp(82), (bottom - startY) / Math.max(1, rows)));
+        float cardH = Math.min(dp(106), rowStep - dp(6));
         for (int i = 0; i < GameCore.PROFESSIONS.length; i++) {
             int row = i / cols;
             int col = i % cols;
             float x = dp(24) + col * (cardW + gap);
-            float y = dp(126) + row * dp(106);
+            float y = startY + row * rowStep;
             String name = GameCore.PROFESSIONS[i];
             p.setColor(0xcc121923);
             c.drawRoundRect(new RectF(x, y, x + cardW, y + cardH), dp(8), dp(8), p);
@@ -395,7 +401,7 @@ public final class GameView extends View {
             c.drawRoundRect(new RectF(x + dp(8), y + dp(10), x + dp(50), y + dp(52)), dp(7), dp(7), p);
             drawProfessionMark(c, name, x + dp(29), y + dp(31), dp(17));
             drawText(c, name, x + dp(60), y + dp(30), 20, 0xfff5ead2, true);
-            drawWrapped(c, desc[i], x + dp(10), y + dp(68), cardW - dp(20), 12, 0xffc5d0cf);
+            drawWrapped(c, desc[i], x + dp(10), y + cardH - dp(28), cardW - dp(20), 11, 0xffc5d0cf);
             addButton(x + cardW - dp(58), y + dp(16), dp(48), dp(30), "选", "profession", i);
             addButton(x, y, cardW, cardH, "", "profession", i);
         }
@@ -1040,6 +1046,16 @@ public final class GameView extends View {
             drop.cubicTo(cx - size * 0.45f, cy + size, cx - size * 0.8f, cy - size * 0.15f, cx, cy - size);
             c.drawPath(drop, p);
             c.drawLine(cx - size * 0.45f, cy + size * 0.15f, cx + size * 0.45f, cy - size * 0.15f, p);
+        } else if (GameCore.PROF_SUMMONER.equals(profession)) {
+            c.drawCircle(cx, cy, size * 0.75f, p);
+            c.drawCircle(cx - size * 0.72f, cy + size * 0.28f, size * 0.32f, p);
+            c.drawCircle(cx + size * 0.72f, cy - size * 0.28f, size * 0.32f, p);
+            c.drawLine(cx - size * 0.45f, cy + size * 0.08f, cx + size * 0.45f, cy - size * 0.08f, p);
+        } else if (GameCore.PROF_HEXER.equals(profession)) {
+            c.drawCircle(cx, cy, size, p);
+            c.drawLine(cx, cy - size, cx, cy + size, p);
+            c.drawLine(cx - size * 0.85f, cy - size * 0.45f, cx + size * 0.85f, cy + size * 0.45f, p);
+            c.drawLine(cx - size * 0.85f, cy + size * 0.45f, cx + size * 0.85f, cy - size * 0.45f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

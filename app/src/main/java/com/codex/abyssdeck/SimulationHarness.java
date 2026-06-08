@@ -176,6 +176,8 @@ public final class SimulationHarness {
             else if ("pact_hunter".equals(id)) score += GameCore.PROF_RANGER.equals(s.profession) ? 32 : 20;
             else if ("pact_void".equals(id)) score += GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_WEAVER.equals(s.profession) ? 36 : 16;
             else if ("pact_blood".equals(id)) score += GameCore.PROF_BLOODBOUND.equals(s.profession) ? 40 : 10;
+            if (GameCore.PROF_SUMMONER.equals(s.profession) && ("pact_void".equals(id) || "pact_hunter".equals(id))) score += 18;
+            if (GameCore.PROF_HEXER.equals(s.profession) && ("pact_blood".equals(id) || "pact_void".equals(id))) score += 18;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -233,6 +235,12 @@ public final class SimulationHarness {
                 if (GameCore.PROF_WEAVER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0)) {
                     score += 10;
                 }
+                if (GameCore.PROF_SUMMONER.equals(s.profession) && (d.createEcho || c.temp || d.bind > 0)) {
+                    score += 12;
+                }
+                if (GameCore.PROF_HEXER.equals(s.profession) && (d.vulnerable > 0 || d.createWound || "wound".equals(c.id) || "daze".equals(c.id))) {
+                    score += 12;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -255,6 +263,8 @@ public final class SimulationHarness {
                 if (s.relics.contains("ledger_stamp") && d.goldGain > 0) score += 6;
                 if (s.relics.contains("crimson_seal") && (d.hpLoss > 0 || "wound".equals(c.id))) score += 6;
                 if (s.relics.contains("pattern_spool") && (d.upgradeRandom || d.draw > 0)) score += 6;
+                if (s.relics.contains("spirit_bell") && (d.createEcho || c.temp || d.bind > 0)) score += 6;
+                if (s.relics.contains("hex_tablet") && (d.vulnerable > 0 || d.createWound)) score += 6;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -287,7 +297,8 @@ public final class SimulationHarness {
         return s.relics.contains("command_banner") || s.relics.contains("flash_heel")
                 || s.relics.contains("catalyst_pump") || s.relics.contains("hawk_fletching")
                 || s.relics.contains("echo_prism") || s.relics.contains("ledger_stamp")
-                || s.relics.contains("crimson_seal") || s.relics.contains("pattern_spool");
+                || s.relics.contains("crimson_seal") || s.relics.contains("pattern_spool")
+                || s.relics.contains("spirit_bell") || s.relics.contains("hex_tablet");
     }
 
     private static int firstEnemy(GameCore.State s) {
