@@ -31,6 +31,10 @@ public final class GameView extends View {
     private final ArrayList<MapHit> mapHits = new ArrayList<>();
     private GameCore.State s;
     private int selectedHand = -1;
+    private GameCore.Card detailCard;
+    private int deckPage;
+    private int codexPage;
+    private int codexTab;
     private long lastFrame;
     private Bitmap[] atlases = new Bitmap[8];
 
@@ -95,6 +99,9 @@ public final class GameView extends View {
         }
         drawLog(c);
         drawButtons(c);
+        if (detailCard != null) {
+            drawCardDetail(c, detailCard);
+        }
         invalidateSoon();
     }
 
@@ -105,6 +112,11 @@ public final class GameView extends View {
         }
         float x = e.getX();
         float y = e.getY();
+        if (detailCard != null) {
+            detailCard = null;
+            invalidate();
+            return true;
+        }
         for (int i = buttons.size() - 1; i >= 0; i--) {
             Button b = buttons.get(i);
             if (b.rect.contains(x, y)) {
@@ -127,8 +139,15 @@ public final class GameView extends View {
         } else if (s.mode == GameCore.MODE_DECK) {
             for (CardHit h : cardHits) {
                 if (h.rect.contains(x, y)) {
-                    GameCore.deckPick(s, h.index);
-                    save();
+                    if (s.deckView == 0 && s.pendingAction != null && s.pendingAction.length() > 0) {
+                        GameCore.deckPick(s, h.index);
+                        save();
+                    } else {
+                        List<GameCore.Card> list = deckList();
+                        if (h.index >= 0 && h.index < list.size()) {
+                            detailCard = list.get(h.index);
+                        }
+                    }
                     break;
                 }
             }
@@ -211,6 +230,15 @@ public final class GameView extends View {
             s.mode = GameCore.MODE_TITLE;
         } else if ("decktab".equals(action)) {
             s.deckView = index;
+            deckPage = 0;
+            detailCard = null;
+        } else if ("deckpage".equals(action)) {
+            deckPage = Math.max(0, deckPage + index);
+        } else if ("codextab".equals(action)) {
+            codexTab = index;
+            codexPage = 0;
+        } else if ("codexpage".equals(action)) {
+            codexPage = Math.max(0, codexPage + index);
         }
         save();
     }
@@ -644,17 +672,25 @@ public final class GameView extends View {
         float cardW = Math.min(dp(104), (w - dp(34)) / 3f - dp(8));
         float cardH = cardW * 1.42f;
         int cols = 3;
-        for (int i = 0; i < list.size(); i++) {
-            int row = i / cols;
-            int col = i % cols;
+        int rows = Math.max(1, (int) ((getHeight() - dp(210)) / Math.max(1, cardH + dp(12))));
+        int perPage = Math.max(3, cols * rows);
+        int maxPage = Math.max(0, (list.size() - 1) / perPage);
+        deckPage = Math.max(0, Math.min(deckPage, maxPage));
+        int startIndex = deckPage * perPage;
+        int end = Math.min(list.size(), startIndex + perPage);
+        drawText(c, "第 " + (deckPage + 1) + "/" + (maxPage + 1) + " 页  共 " + list.size() + " 张", dp(24), dp(144), 13, 0xffc9d2d2, true);
+        for (int i = startIndex; i < end; i++) {
+            int local = i - startIndex;
+            int row = local / cols;
+            int col = local % cols;
             float x = dp(18) + col * (cardW + dp(8));
-            float y = dp(150) + row * (cardH + dp(12));
+            float y = dp(162) + row * (cardH + dp(12));
             RectF r = new RectF(x, y, x + cardW, y + cardH);
             drawCard(c, list.get(i), r, false);
-            if (s.deckView == 0 && s.pendingAction != null && s.pendingAction.length() > 0) {
-                cardHits.add(new CardHit(r, i));
-            }
+            cardHits.add(new CardHit(r, i));
         }
+        addButton(dp(18), getHeight() - dp(52), dp(74), dp(34), "上一页", "deckpage", -1);
+        addButton(dp(102), getHeight() - dp(52), dp(74), dp(34), "下一页", "deckpage", 1);
         addButton(w - dp(94), dp(102), dp(76), dp(34), "返回", "close", 0);
     }
 
@@ -663,20 +699,62 @@ public final class GameView extends View {
         drawText(c, "图鉴", dp(24), dp(86), 30, 0xfff4d580, true);
         drawText(c, "卡牌 " + GameCore.CARD_LIBRARY.size() + "   遗物 " + GameCore.RELIC_LIBRARY.size() + "   药剂 " + GameCore.POTION_LIBRARY.size() + "   专精 " + GameCore.TALENT_LIBRARY.size(), dp(24), dp(118), 16, 0xffc9d2d2, false);
         drawText(c, "记录：旅程 " + s.meta.runs + " / 胜利 " + s.meta.wins + " / 目标 " + s.meta.questCompletions + " / 最大金币 " + s.meta.maxGold, dp(24), dp(142), 13, 0xffd7c994, true);
-        float y = dp(152);
-        for (int i = 0; i < Math.min(10, GameCore.CARD_LIBRARY.size()); i++) {
-            GameCore.CardDef d = GameCore.CARD_LIBRARY.get(i);
-            drawText(c, d.name + " / " + d.origin + " / " + rarity(d.rarity), dp(28), y + dp(24) + i * dp(22), 14, 0xffe8ddc9, false);
+        String[] tabs = {"卡牌", "遗物", "专精", "成就"};
+        for (int i = 0; i < tabs.length; i++) {
+            addButton(dp(18) + i * dp(82), dp(154), dp(74), dp(32), tabs[i] + (codexTab == i ? "*" : ""), "codextab", i);
         }
-        float ay = y + dp(260);
-        drawText(c, "成就", dp(24), ay, 17, 0xfff0d486, true);
-        String[] achievements = {"first_run", "first_win", "all_professions", "collector", "high_depth", "talent_master", "rich", "quest_hunter"};
-        for (int i = 0; i < achievements.length; i++) {
-            String id = achievements[i];
-            String mark = GameCore.hasAchievement(s, id) ? "*" : "-";
-            drawText(c, mark + " " + GameCore.achievementName(id), dp(28), ay + dp(24) + i * dp(20), 13, GameCore.hasAchievement(s, id) ? 0xfff5d276 : 0xff87929a, true);
-        }
+        drawCodexList(c, dp(24), dp(202), w - dp(48));
+        addButton(dp(24), getHeight() - dp(52), dp(74), dp(34), "上一页", "codexpage", -1);
+        addButton(dp(108), getHeight() - dp(52), dp(74), dp(34), "下一页", "codexpage", 1);
         addButton(w - dp(94), dp(102), dp(76), dp(34), "返回", "close", 0);
+    }
+
+    private void drawCodexList(Canvas c, float x, float y, float width) {
+        int lines = Math.max(5, (int) ((getHeight() - y - dp(74)) / dp(34)));
+        int total = codexTotal();
+        int maxPage = Math.max(0, (total - 1) / lines);
+        codexPage = Math.max(0, Math.min(codexPage, maxPage));
+        drawText(c, "第 " + (codexPage + 1) + "/" + (maxPage + 1) + " 页", x, y - dp(10), 13, 0xffc9d2d2, true);
+        int start = codexPage * lines;
+        int end = Math.min(total, start + lines);
+        for (int i = start; i < end; i++) {
+            float rowY = y + (i - start) * dp(34);
+            if (codexTab == 0) {
+                GameCore.CardDef d = GameCore.CARD_LIBRARY.get(i);
+                String prof = d.profession.length() > 0 ? " / " + d.profession : "";
+                drawText(c, d.name + " / " + d.origin + prof + " / " + rarity(d.rarity), x, rowY, 14, 0xfff0e2c8, true);
+                drawText(c, d.text, x, rowY + dp(17), 11, 0xffaebdc0, false);
+            } else if (codexTab == 1) {
+                GameCore.RelicDef r = GameCore.RELIC_LIBRARY.get(i);
+                drawText(c, r.name + (r.boss ? " / Boss" : ""), x, rowY, 14, 0xfff0e2c8, true);
+                drawText(c, r.text, x, rowY + dp(17), 11, 0xffaebdc0, false);
+            } else if (codexTab == 2) {
+                GameCore.TalentDef t = GameCore.TALENT_LIBRARY.get(i);
+                String prof = t.profession.length() == 0 ? "通用" : t.profession;
+                drawText(c, t.name + " / " + prof, x, rowY, 14, 0xfff0e2c8, true);
+                drawText(c, t.text, x, rowY + dp(17), 11, 0xffaebdc0, false);
+            } else {
+                String id = achievementId(i);
+                String mark = GameCore.hasAchievement(s, id) ? "*" : "-";
+                drawText(c, mark + " " + GameCore.achievementName(id), x, rowY, 14, GameCore.hasAchievement(s, id) ? 0xfff5d276 : 0xff87929a, true);
+            }
+        }
+    }
+
+    private int codexTotal() {
+        if (codexTab == 0) return GameCore.CARD_LIBRARY.size();
+        if (codexTab == 1) return GameCore.RELIC_LIBRARY.size();
+        if (codexTab == 2) return GameCore.TALENT_LIBRARY.size();
+        return achievementCount();
+    }
+
+    private int achievementCount() {
+        return 8;
+    }
+
+    private String achievementId(int index) {
+        String[] ids = {"first_run", "first_win", "all_professions", "collector", "high_depth", "talent_master", "rich", "quest_hunter"};
+        return ids[Math.max(0, Math.min(ids.length - 1, index))];
     }
 
     private void drawEnd(Canvas c, boolean victory) {
@@ -720,6 +798,49 @@ public final class GameView extends View {
         drawWrapped(c, GameCore.cardText(card), inner.left + dp(7), inner.top + inner.height() * 0.62f, inner.width() - dp(14), Math.max(9, inner.width() / 10.5f), 0xfff3ead7);
         String tag = d.profession.length() > 0 ? d.profession + " " + rarity(d.rarity) : rarity(d.rarity);
         drawText(c, tag, inner.left + dp(7), inner.bottom - dp(6), 10, 0xffc8d0d0, false);
+    }
+
+    private void drawCardDetail(Canvas c, GameCore.Card card) {
+        GameCore.CardDef d = GameCore.card(card.id);
+        if (d == null) return;
+        int w = getWidth();
+        int h = getHeight();
+        p.setColor(0xdd05080d);
+        c.drawRect(0, 0, w, h, p);
+        float panelW = Math.min(dp(360), w - dp(36));
+        float panelH = Math.min(dp(560), h - dp(60));
+        float left = (w - panelW) / 2f;
+        float top = (h - panelH) / 2f;
+        RectF panel = new RectF(left, top, left + panelW, top + panelH);
+        p.setColor(0xff121923);
+        c.drawRoundRect(panel, dp(8), dp(8), p);
+        p.setColor(d.profession.length() > 0 ? GameCore.professionColor(d.profession) : GameCore.originColor(d.origin));
+        c.drawRoundRect(new RectF(panel.left, panel.top, panel.right, panel.top + dp(42)), dp(8), dp(8), p);
+        drawText(c, d.name + (card.upgraded ? "+" : ""), panel.left + dp(16), panel.top + dp(28), 24, 0xff15120c, true);
+        drawText(c, "费用 " + GameCore.costOf(s, card, d), panel.right - dp(72), panel.top + dp(28), 18, 0xff15120c, true);
+
+        RectF art = new RectF(panel.left + dp(18), panel.top + dp(58), panel.right - dp(18), panel.top + dp(200));
+        drawCardArt(c, d, art);
+        float y = panel.top + dp(226);
+        drawText(c, "类型 " + cardType(d) + "   稀有度 " + rarity(d.rarity), panel.left + dp(18), y, 15, 0xfff0d486, true);
+        y += dp(26);
+        String origin = d.profession.length() > 0 ? d.profession + "职业牌" : d.origin;
+        drawText(c, "派系 " + origin + (card.temp ? "   临时" : ""), panel.left + dp(18), y, 14, 0xffc8d0d0, false);
+        y += dp(32);
+        drawWrapped(c, GameCore.cardText(card), panel.left + dp(18), y, panelW - dp(36), 15, 0xfff3ead7);
+        y += dp(96);
+        if (!card.upgraded && d.upText != null && d.upText.length() > 0 && !d.upText.equals(d.text)) {
+            drawText(c, "升级后", panel.left + dp(18), y, 15, 0xfff0d486, true);
+            drawWrapped(c, d.upText, panel.left + dp(18), y + dp(22), panelW - dp(36), 13, 0xffb8c6c5);
+        }
+        drawCentered(c, "点任意位置关闭", new RectF(panel.left, panel.bottom - dp(42), panel.right, panel.bottom - dp(12)), 13, 0xff9fb0ba, true);
+    }
+
+    private String cardType(GameCore.CardDef d) {
+        if (d.type == 0) return "攻击";
+        if (d.type == 1) return "技能";
+        if (d.type == 2) return "能力";
+        return "状态";
     }
 
     private void drawCardArt(Canvas c, GameCore.CardDef d, RectF r) {
