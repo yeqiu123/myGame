@@ -1218,6 +1218,19 @@ public final class GameView extends View {
             c.drawLine(cx - size * 0.42f, cy + size * 0.35f, cx + size * 0.42f, cy + size * 0.35f, p);
             c.drawCircle(cx + size * 0.46f, cy + size * 0.46f, size * 0.25f, p);
             c.drawLine(cx + size * 0.28f, cy + size * 0.28f, cx + size * 0.62f, cy + size * 0.62f, p);
+        } else if (GameCore.PROF_STORMCALLER.equals(profession)) {
+            c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 215, 250, false, p);
+            Path bolt = new Path();
+            bolt.moveTo(cx + size * 0.18f, cy - size);
+            bolt.lineTo(cx - size * 0.28f, cy - size * 0.08f);
+            bolt.lineTo(cx + size * 0.08f, cy - size * 0.08f);
+            bolt.lineTo(cx - size * 0.18f, cy + size);
+            bolt.lineTo(cx + size * 0.52f, cy - size * 0.25f);
+            bolt.lineTo(cx + size * 0.12f, cy - size * 0.25f);
+            bolt.close();
+            c.drawPath(bolt, p);
+            c.drawLine(cx - size * 0.82f, cy + size * 0.52f, cx - size * 0.24f, cy + size * 0.52f, p);
+            c.drawLine(cx + size * 0.34f, cy + size * 0.52f, cx + size * 0.82f, cy + size * 0.52f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

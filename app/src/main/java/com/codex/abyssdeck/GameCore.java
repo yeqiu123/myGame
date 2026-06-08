@@ -107,12 +107,13 @@ public final class GameCore {
     public static final String PROF_MACHINIST = "机巧师";
     public static final String PROF_CHRONOMANCER = "时术师";
     public static final String PROF_PACTMAKER = "契约师";
+    public static final String PROF_STORMCALLER = "风暴使";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
-            PROF_PACTMAKER
+            PROF_PACTMAKER, PROF_STORMCALLER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -785,6 +786,7 @@ public final class GameCore {
         if (PROF_MACHINIST.equals(profession)) return "总装";
         if (PROF_CHRONOMANCER.equals(profession)) return "回溯";
         if (PROF_PACTMAKER.equals(profession)) return "兑现";
+        if (PROF_STORMCALLER.equals(profession)) return "唤雷";
         return "职业技";
     }
 
@@ -837,6 +839,7 @@ public final class GameCore {
         if (PROF_MACHINIST.equals(profession)) return "满充能：消耗装配，对目标穿透轰击，获得格挡、抽牌并制造临时机巧牌。";
         if (PROF_CHRONOMANCER.equals(profession)) return "满充能：消耗时砂回溯资源，抽牌返能，制造临时刻秒并按节奏标记敌人。";
         if (PROF_PACTMAKER.equals(profession)) return "满充能：兑现战斗目标、誓约与金币，把进度转成格挡、印记、抽牌和返能。";
+        if (PROF_STORMCALLER.equals(profession)) return "满充能：释放连锁雷暴，按雷势、燃灼、印记和过载对敌群造成穿透，并转化为格挡、抽牌和返能。";
         return "选择职业后可用。";
     }
 
@@ -1157,6 +1160,44 @@ public final class GameCore {
                     draw(s, 1);
                 }
             }
+        } else if (PROF_STORMCALLER.equals(s.profession)) {
+            int storm = Math.max(1, s.professionCharge);
+            int pressure = Math.min(24, bestEnemyPressure(s));
+            int played = Math.max(1, s.cardsPlayedThisTurn);
+            int base = 7 + s.act * 3 + Math.min(26, storm * 2 + played * 2 + pressure / 2) + overload * 4;
+            int block = 6 + s.act * 2 + Math.min(22, storm * 2 + pressure / 3) + overload * 3;
+            int marked = 0;
+            for (Enemy e : livingEnemies(s)) {
+                int status = e.burn + e.mark * 2 + e.vulnerable + e.bind;
+                damageEnemy(s, e, base + Math.min(24, status * 2), true);
+                e.burn += 2 + s.burnPower + overload / 2;
+                e.mark += 1 + Math.min(3, storm / 4) + overload / 3;
+                e.vulnerable += 1 + overload / 4;
+                if (storm >= 5 || overload >= 3) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+                marked += e.mark;
+            }
+            gainBlock(s, block);
+            draw(s, 1 + Math.min(2, storm / 5) + overload / 4);
+            if (storm >= 5 || marked >= 6 || overload >= 3 || hasTalent(s, "t_stormcaller_pressure")) {
+                s.energy++;
+            }
+            Card spark = new Card(overload >= 4 || hasTalent(s, "t_stormcaller_grand") ? "stormcaller_chain" : "stormcaller_sparkline");
+            spark.temp = true;
+            spark.upgraded = storm >= 6 || hasTalent(s, "t_stormcaller_rod");
+            addToHand(s, spark);
+            if (hasTalent(s, "t_stormcaller_grand")) {
+                Card gust = new Card("stormcaller_gust");
+                gust.temp = true;
+                gust.upgraded = true;
+                addToHand(s, gust);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_HEX, 1 + overload / 3);
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, storm / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2408,6 +2449,9 @@ public final class GameCore {
         if (PROF_PACTMAKER.equals(profession)) {
             return "围绕战斗目标、誓约、金币与异常证词滚动收益，把兑现进度转成格挡、印记、抽牌、返能和终局合约爆发。";
         }
+        if (PROF_STORMCALLER.equals(profession)) {
+            return "用燃灼、印记、低费节奏和过载积累雷势，定期触发群体雷链。适合异常、循环、守势和多敌爆发构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2462,6 +2506,9 @@ public final class GameCore {
         }
         if (PROF_PACTMAKER.equals(profession)) {
             return 0xffd8b067;
+        }
+        if (PROF_STORMCALLER.equals(profession)) {
+            return 0xff76d9e8;
         }
         return 0xffd6c07a;
     }
@@ -2713,6 +2760,12 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_STORMCALLER.equals(profession)) {
+            s.deck.add(new Card("stormcaller_sparkline"));
+            s.deck.add(new Card("stormcaller_barrier"));
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -2751,6 +2804,7 @@ public final class GameCore {
         else if (PROF_MACHINIST.equals(profession)) upgradeDeckCard(s, "machinist_spanner");
         else if (PROF_CHRONOMANCER.equals(profession)) upgradeDeckCard(s, "chronomancer_tick");
         else if (PROF_PACTMAKER.equals(profession)) upgradeDeckCard(s, "pactmaker_clause");
+        else if (PROF_STORMCALLER.equals(profession)) upgradeDeckCard(s, "stormcaller_sparkline");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -2807,6 +2861,9 @@ public final class GameCore {
             addUpgradedDeckCard(s, "pactmaker_witness");
             s.gold += 35;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_STORMCALLER.equals(profession)) {
+            addUpgradedDeckCard(s, "stormcaller_chain");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -2828,6 +2885,7 @@ public final class GameCore {
         if (PROF_MACHINIST.equals(profession)) return "machinist_overdrive";
         if (PROF_CHRONOMANCER.equals(profession)) return "chronomancer_overloop";
         if (PROF_PACTMAKER.equals(profession)) return "pactmaker_overdeal";
+        if (PROF_STORMCALLER.equals(profession)) return "stormcaller_overstorm";
         return "forge_signal";
     }
 
@@ -3087,6 +3145,18 @@ public final class GameCore {
         } else if ("t_pactmaker_grand".equals(id)) {
             addUpgradedDeckCard(s, "pactmaker_grand_contract");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_stormcaller_rod".equals(id)) {
+            addUpgradedDeckCard(s, "stormcaller_chain");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_stormcaller_pressure".equals(id)) {
+            addUpgradedDeckCard(s, "stormcaller_gust");
+        } else if ("t_stormcaller_front".equals(id)) {
+            addUpgradedDeckCard(s, "stormcaller_overstorm");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_stormcaller_grand".equals(id)) {
+            addUpgradedDeckCard(s, "stormcaller_tempest_crown");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -3105,7 +3175,7 @@ public final class GameCore {
                 || "t_inscriber_grandcodex".equals(id) || "t_tuner_grand".equals(id)
                 || "t_adjudicator_grand".equals(id) || "t_astrologer_grand".equals(id)
                 || "t_machinist_grand".equals(id) || "t_chronomancer_grand".equals(id)
-                || "t_pactmaker_grand".equals(id);
+                || "t_pactmaker_grand".equals(id) || "t_stormcaller_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -3117,7 +3187,7 @@ public final class GameCore {
                 || "inscriber_codex".equals(id) || "tuner_grand_cadence".equals(id)
                 || "adjudicator_final_decree".equals(id) || "astrologer_grand_orrery".equals(id)
                 || "machinist_grand_engine".equals(id) || "chronomancer_time_engine".equals(id)
-                || "pactmaker_grand_contract".equals(id);
+                || "pactmaker_grand_contract".equals(id) || "stormcaller_tempest_crown".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -3129,7 +3199,7 @@ public final class GameCore {
                 || "living_codex".equals(id) || "conductor_baton".equals(id)
                 || "judgment_codex".equals(id) || "celestial_orrery".equals(id)
                 || "clockwork_core".equals(id) || "time_engine".equals(id)
-                || "grand_ledger".equals(id);
+                || "grand_ledger".equals(id) || "tempest_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -3538,6 +3608,8 @@ public final class GameCore {
         else if (PROF_PACTMAKER.equals(s.profession) && d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.createWound || d.draw > 0
                 || d.type == 1 || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_PACTMAKER))) amount++;
+        else if (PROF_STORMCALLER.equals(s.profession) && d != null && (d.burn > 0 || d.vulnerable > 0 || d.aoe
+                || d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0 || d.profession.equals(PROF_STORMCALLER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -4056,6 +4128,23 @@ public final class GameCore {
                 draw(s, 1);
                 s.energy += overload >= 3 ? 1 : 0;
             }
+        } else if (PROF_STORMCALLER.equals(s.profession)) {
+            s.professionCharge += level + 1 + overload / 2;
+            draw(s, 1);
+            gainBlock(s, 4 + level * 3 + Math.min(14, s.professionCharge + bestEnemyPressure(s) / 3));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card spark = new Card(level >= 3 || overload >= 3 ? "stormcaller_chain" : "stormcaller_sparkline");
+            spark.temp = true;
+            spark.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, spark);
+            for (Enemy e : livingEnemies(s)) {
+                e.mark += 1 + level / 2 + overload / 3;
+                e.burn += 1 + s.burnPower / 2;
+                damageEnemy(s, e, 3 + level * 3 + Math.min(18, e.mark * 2 + e.burn + s.professionCharge), true);
+            }
+            if (level >= 3 || s.professionCharge >= 5 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -4230,6 +4319,29 @@ public final class GameCore {
                 s.energy++;
             }
         }
+        if (hasRelic(s, "storm_rod") && PROF_STORMCALLER.equals(s.profession)) {
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3));
+            gainBlock(s, 4 + s.act + Math.min(10, bestEnemyPressure(s) / 3));
+            for (Enemy e : livingEnemies(s)) {
+                e.burn += 1 + s.burnPower / 2;
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(16, e.mark * 2 + e.burn), true);
+            }
+        }
+        if (hasRelic(s, "tempest_crown") && PROF_STORMCALLER.equals(s.profession)) {
+            draw(s, 1);
+            Card chain = new Card("stormcaller_chain");
+            chain.temp = true;
+            chain.upgraded = true;
+            addToHand(s, chain);
+            if (s.professionCharge >= 5 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.mark += 1;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -4260,6 +4372,8 @@ public final class GameCore {
                 && (s.professionCharge >= 3 || s.cardsPlayedThisTurn >= 3 || s.hand.size() >= 5)) amount++;
         if (hasRelic(s, "contract_stamp") && PROF_PACTMAKER.equals(s.profession) && amount > 0
                 && (s.questComplete || s.pactFulfilled > 0 || s.gold >= 120)) amount++;
+        if (hasRelic(s, "storm_rod") && PROF_STORMCALLER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || firstLiving(s) != null && (firstLiving(s).burn > 0 || firstLiving(s).mark > 0))) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -5219,6 +5333,32 @@ public final class GameCore {
                 clause.temp = true;
                 clause.upgraded = true;
                 addToHand(s, clause);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_STORMCALLER.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2;
+            gainBlock(s, 3 + s.act);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+                firstLiving(s).burn += 1 + s.burnPower / 2;
+            }
+            if (hasTalent(s, "t_stormcaller_pressure")) {
+                draw(s, 1);
+                s.energy++;
+            }
+            if (hasTalent(s, "t_stormcaller_front")) {
+                for (Enemy e : livingEnemies(s)) {
+                    e.burn += 1 + s.burnPower / 2;
+                    e.vulnerable += 1;
+                }
+            }
+            if (hasTalent(s, "t_stormcaller_grand")) {
+                Card spark = new Card("stormcaller_sparkline");
+                spark.temp = true;
+                spark.upgraded = true;
+                addToHand(s, spark);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -6413,6 +6553,55 @@ public final class GameCore {
                 target.vulnerable += 1 + (fulfilled >= 2 ? 1 : 0);
             }
             if (s.questComplete || fulfilled >= 2 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("stormcaller_sparkline".equals(d.id) && target != null) {
+            damage += Math.min(c.upgraded ? 14 : 9, s.professionCharge + target.burn + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            if (target.burn > 0 || s.cardsPlayedThisTurn >= 2) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("stormcaller_barrier".equals(d.id)) {
+            block += Math.min(c.upgraded ? 18 : 12, s.professionCharge * 2 + bestEnemyPressure(s) / 3);
+            if (s.professionCharge >= 3 || bestEnemyPressure(s) >= 12) {
+                draw += 1;
+            }
+        }
+        if ("stormcaller_gust".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            if (s.cardsPlayedThisTurn <= 2 || s.professionCharge >= 4) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("stormcaller_chain".equals(d.id) && target != null) {
+            damage += Math.min(c.upgraded ? 34 : 24, s.professionCharge * 3 + target.burn * 2 + target.mark * 3 + bestEnemyPressure(s) / 3);
+            target.mark += c.upgraded ? 2 : 1;
+            if (target.mark >= 4 || target.burn >= 4 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("stormcaller_overstorm".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            block += Math.min(c.upgraded ? 26 : 18, s.professionCharge * 2 + overloadNow * 5 + bestEnemyPressure(s) / 3);
+            for (Enemy e : livingEnemies(s)) {
+                e.mark += c.upgraded ? 2 : 1;
+                e.burn += 1 + s.burnPower / 2;
+                damageEnemy(s, e, 3 + s.act * 2 + overloadNow * 2 + Math.min(14, e.mark * 2 + e.burn), true);
+            }
+            if (overloadNow >= 2 || s.professionCharge >= 5) {
+                draw += 1;
+            }
+        }
+        if ("stormcaller_tempest_crown".equals(d.id)) {
+            damage += Math.min(c.upgraded ? 48 : 36, s.professionCharge * 4 + bestEnemyPressure(s) + professionSkillOverload(s) * 6);
+            block += Math.min(c.upgraded ? 34 : 24, s.professionCharge * 3 + bestEnemyPressure(s) / 2);
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.vulnerable += 1;
+            }
+            if (s.professionCharge >= 5 || c.upgraded) {
                 draw += 1;
             }
         }
@@ -7880,6 +8069,70 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_STORMCALLER.equals(s.profession) && (d.burn > 0 || d.vulnerable > 0 || d.aoe || d.draw > 0
+                || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0 || d.profession.equals(PROF_STORMCALLER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.burn > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_STORMCALLER)) {
+                    e.mark += 1;
+                    e.burn += d.burn > 0 ? 1 + s.burnPower / 2 : 0;
+                }
+                if (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(16, e.mark * 2 + e.burn + s.professionCharge * 2), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                int pressure = bestEnemyPressure(s);
+                for (Enemy chain : livingEnemies(s)) {
+                    chain.mark += 1;
+                    chain.burn += 1 + s.burnPower / 2;
+                    damageEnemy(s, chain, 3 + s.act * 2 + Math.min(18, chain.mark * 2 + chain.burn + pressure / 4), true);
+                    if (hasTalent(s, "t_stormcaller_front")) {
+                        chain.vulnerable += 1;
+                    }
+                }
+                gainBlock(s, 3 + s.act + Math.min(10, pressure / 4 + s.professionCharge));
+                if (hasTalent(s, "t_stormcaller_pressure") || s.cardsPlayedThisTurn >= 4) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_stormcaller_rod") && (d.burn > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_STORMCALLER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(14, e.mark * 2 + e.burn), true);
+            }
+        }
+        if (hasTalent(s, "t_stormcaller_pressure") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0)) {
+            gainBlock(s, 2 + s.act + Math.min(6, s.professionCharge));
+            if (s.cardsPlayedThisTurn == 3 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_stormcaller_front") && (d.aoe || d.burn > 0 || d.vulnerable > 0)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.burn += 1 + s.burnPower / 2;
+                if (s.cardsPlayedThisTurn >= 3) {
+                    e.vulnerable += 1;
+                }
+            }
+            gainBlock(s, 2 + s.act);
+        }
+        if (hasTalent(s, "t_stormcaller_grand") && (d.skillChargeGain > 0 || d.burn > 0 || d.draw > 0 || d.energyGain > 0 || c.upgraded)) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4)) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(18, e.mark * 2 + e.burn + s.professionCharge), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -7913,6 +8166,28 @@ public final class GameCore {
                 e.mark += 1;
                 if (e.mark >= 4) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(18, e.mark * 2 + s.professionCharge), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+            }
+        }
+        if (hasRelic(s, "storm_rod") && (d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_STORMCALLER))) {
+            addProfessionSkillCharge(s, 1);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (s.relicTriggersThisTurn < 2) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(16, e.mark * 2 + e.burn), true);
+                    s.relicTriggersThisTurn++;
+                }
+            }
+        }
+        if (hasRelic(s, "tempest_crown") && (d.aoe || d.burn > 0 || d.skillChargeGain > 0 || d.rarity == 2)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.mark += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(18, e.mark * 2 + e.burn), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -9083,6 +9358,10 @@ public final class GameCore {
             return focus == BUILD_GOLD ? 20 : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_STATUS ? 12
                     : focus == BUILD_BLOOD ? 8 : focus == BUILD_CYCLE || focus == BUILD_GUARD ? 6 : 0;
         }
+        if (PROF_STORMCALLER.equals(s.profession)) {
+            return focus == BUILD_OVERLOAD ? 18 : focus == BUILD_STATUS ? 16 : focus == BUILD_CYCLE ? 12
+                    : focus == BUILD_BREW ? 10 : focus == BUILD_GUARD ? 7 : 0;
+        }
         return 0;
     }
 
@@ -9121,6 +9400,9 @@ public final class GameCore {
     private static int buildFocusCardValue(CardDef d, int focus) {
         if (d == null) {
             return 0;
+        }
+        if (PROF_STORMCALLER.equals(d.profession)) {
+            return stormcallerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -9242,6 +9524,37 @@ public final class GameCore {
                     + ("chronomancer_overloop".equals(d.id) ? 8 : 0) + ("chronomancer_time_engine".equals(d.id) ? 10 : 0)
                     + ("pactmaker_collection".equals(d.id) ? 12 : 0) + ("pactmaker_overdeal".equals(d.id) ? 12 : 0)
                     + ("pactmaker_grand_contract".equals(d.id) ? 10 : 0);
+        }
+        return 0;
+    }
+
+    private static int stormcallerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + (d.energyGain > 0 ? 4 : 0) + (d.draw > 0 ? 3 : 0)
+                    + ("stormcaller_gust".equals(d.id) ? 8 : 0) + ("stormcaller_overstorm".equals(d.id) ? 14 : 0)
+                    + ("stormcaller_tempest_crown".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return d.burn * 3 + (d.aoe ? 4 : 0) + ("stormcaller_sparkline".equals(d.id) ? 8 : 0)
+                    + ("stormcaller_chain".equals(d.id) ? 8 : 0) + ("stormcaller_overstorm".equals(d.id) ? 10 : 0)
+                    + ("stormcaller_tempest_crown".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 3 + d.vulnerable * 6 + (d.aoe ? 6 : 0) + d.skillChargeGain * 2
+                    + ("stormcaller_sparkline".equals(d.id) ? 10 : 0) + ("stormcaller_chain".equals(d.id) ? 14 : 0)
+                    + ("stormcaller_overstorm".equals(d.id) ? 14 : 0) + ("stormcaller_tempest_crown".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.skillChargeGain * 2
+                    + ("stormcaller_sparkline".equals(d.id) ? 10 : 0) + ("stormcaller_barrier".equals(d.id) ? 8 : 0)
+                    + ("stormcaller_gust".equals(d.id) ? 16 : 0) + ("stormcaller_overstorm".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + ("stormcaller_barrier".equals(d.id) ? 14 : 0)
+                    + ("stormcaller_overstorm".equals(d.id) ? 14 : 0) + ("stormcaller_tempest_crown".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return ("stormcaller_gust".equals(d.id) ? 4 : 0) + ("stormcaller_sparkline".equals(d.id) ? 3 : 0);
         }
         return 0;
     }
@@ -9459,6 +9772,10 @@ public final class GameCore {
         else if ("t_pactmaker_collector".equals(id)) bonus += Math.min(16, s.gold / 25) + buildFocusDeckCards(s, BUILD_GOLD) * 2;
         else if ("t_pactmaker_bloodseal".equals(id)) bonus += status * 3 + buildFocusDeckCards(s, BUILD_BLOOD) * 2 + (s.hp < s.maxHp * 0.75f ? 5 : 2);
         else if ("t_pactmaker_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GOLD) + buildFocusDeckCards(s, BUILD_OVERLOAD) * 2 + buildFocusDeckCards(s, BUILD_STATUS);
+        else if ("t_stormcaller_rod".equals(id)) bonus += buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_STATUS) * 2 + professionCards;
+        else if ("t_stormcaller_pressure".equals(id)) bonus += zeroCost * 3 + buildFocusDeckCards(s, BUILD_CYCLE) * 2;
+        else if ("t_stormcaller_front".equals(id)) bonus += buildFocusDeckCards(s, BUILD_BREW) + buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_GUARD);
+        else if ("t_stormcaller_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_OVERLOAD) * 2 + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_CYCLE);
         return Math.min(36, bonus);
     }
 
@@ -9470,7 +9787,8 @@ public final class GameCore {
                     "t_adjudicator_grand", "t_astrologer_ephemeris", "t_astrologer_grand",
                     "t_machinist_turret", "t_machinist_foundry", "t_machinist_grand",
                     "t_chronomancer_clockwork", "t_chronomancer_grand", "t_pactmaker_notary",
-                    "t_pactmaker_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_pactmaker_grand", "t_stormcaller_rod", "t_stormcaller_front",
+                    "t_stormcaller_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -9482,7 +9800,7 @@ public final class GameCore {
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
-                    "t_alchemist_distiller", "t_alchemist_grandbrew") ? 3 : 0;
+                    "t_alchemist_distiller", "t_alchemist_grandbrew", "t_stormcaller_front") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "t_shared_hunter", "t_shared_wayfarer", "t_merchant_interest",
@@ -9509,7 +9827,8 @@ public final class GameCore {
                     "t_inscriber_grandcodex", "t_tuner_counterpoint", "t_tuner_grand", "t_adjudicator_clause",
                     "t_adjudicator_grand", "t_astrologer_constellation", "t_astrologer_grand",
                     "t_machinist_turret", "t_machinist_grand", "t_pactmaker_notary",
-                    "t_pactmaker_bloodseal", "t_pactmaker_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_pactmaker_bloodseal", "t_pactmaker_grand", "t_stormcaller_rod",
+                    "t_stormcaller_front", "t_stormcaller_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -9519,14 +9838,16 @@ public final class GameCore {
                     "t_astrologer_grand", "t_machinist_blueprint", "t_machinist_foundry",
                     "t_machinist_grand", "t_chronomancer_anchor", "t_chronomancer_moment",
                     "t_chronomancer_clockwork", "t_chronomancer_grand", "t_pactmaker_notary",
-                    "t_pactmaker_collector", "t_shared_longnight") ? 3 : 0;
+                    "t_pactmaker_collector", "t_stormcaller_pressure", "t_stormcaller_grand",
+                    "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
                     "t_warden_vanguard", "t_ranger_net", "t_bloodbound_scar",
                     "t_summoner_bond", "t_weaver_grandpattern", "t_adjudicator_oath",
                     "t_machinist_blueprint", "t_machinist_foundry", "t_chronomancer_anchor",
-                    "t_pactmaker_collector", "t_pactmaker_grand") ? 3 : 0;
+                    "t_pactmaker_collector", "t_pactmaker_grand", "t_stormcaller_front",
+                    "t_stormcaller_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -9625,6 +9946,14 @@ public final class GameCore {
         if (isAny(id, "t_chronomancer_anchor")
                 && buildFocusDeckCards(s, BUILD_GUARD) >= 2) {
             return "定格防线";
+        }
+        if (isAny(id, "t_stormcaller_rod", "t_stormcaller_front", "t_stormcaller_grand")
+                && (buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
+            return "雷链异常";
+        }
+        if (isAny(id, "t_stormcaller_pressure", "t_stormcaller_grand")
+                && (zeroCostDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3)) {
+            return "风压循环";
         }
         return "";
     }
@@ -9819,7 +10148,8 @@ public final class GameCore {
                     "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
                     "warden_brand", "assembly_frame", "echoflow_charm", "markchain_seal", "discipline_chart", "overload_etch", "trial_ledger",
                     "tuning_fork", "conductor_baton", "verdict_seal", "judgment_codex", "gyro_wrench",
-                    "clockwork_core", "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "split_anvil",
+                    "clockwork_core", "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger",
+                    "storm_rod", "tempest_crown", "split_anvil",
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -9829,7 +10159,8 @@ public final class GameCore {
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
-                    "glass_vials", "emberroot_charm", "split_anvil", "bloodspark_contract", "mosaic_core", "catalyst_pump", "solar_crucible", "hex_moon") ? 3 : 0;
+                    "glass_vials", "emberroot_charm", "split_anvil", "bloodspark_contract", "mosaic_core",
+                    "catalyst_pump", "solar_crucible", "hex_moon", "storm_rod", "tempest_crown") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
@@ -9851,20 +10182,21 @@ public final class GameCore {
                     "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
                     "split_anvil", "bloodspark_contract", "tuning_fork", "conductor_baton", "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
                     "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine",
-                    "contract_stamp", "grand_ledger", "warden_brand", "markchain_seal", "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger") ? 3 : 0;
+                    "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "warden_brand", "markchain_seal",
+                    "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
                 "moon_lantern", "tempo_metronome", "void_abacus", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "conductor_baton", "gyro_wrench", "clockwork_core", "assembly_frame", "flash_heel", "pattern_spool",
                     "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "echoflow_charm", "discipline_chart", "trial_ledger",
-                    "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger") ? 3 : 0;
+                    "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
                     "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach", "mirror_anvil",
                 "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "vigil_bloom", "command_banner", "aegis_throne", "gyro_wrench", "clockwork_core", "assembly_frame",
                     "verdict_seal", "judgment_codex", "forge_heart", "discipline_chart", "trial_ledger",
-                    "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger") ? 3 : 0;
+                    "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -9886,7 +10218,8 @@ public final class GameCore {
                 || (PROF_ASTROLOGER.equals(s.profession) && "star_compass".equals(id))
                 || (PROF_MACHINIST.equals(s.profession) && "gyro_wrench".equals(id))
                 || (PROF_CHRONOMANCER.equals(s.profession) && "hourglass_charm".equals(id))
-                || (PROF_PACTMAKER.equals(s.profession) && "contract_stamp".equals(id));
+                || (PROF_PACTMAKER.equals(s.profession) && "contract_stamp".equals(id))
+                || (PROF_STORMCALLER.equals(s.profession) && "storm_rod".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -9918,6 +10251,7 @@ public final class GameCore {
                 || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus") || hasRelic(s, "tuning_fork")
                 || hasRelic(s, "verdict_seal") || hasRelic(s, "star_compass") || hasRelic(s, "gyro_wrench")
                 || hasRelic(s, "hourglass_charm") || hasRelic(s, "contract_stamp") || hasRelic(s, "grand_ledger")
+                || hasRelic(s, "storm_rod") || hasRelic(s, "tempest_crown")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
@@ -10040,6 +10374,11 @@ public final class GameCore {
                 || d.profession.equals(PROF_PACTMAKER))) {
             return 4;
         }
+        if (PROF_STORMCALLER.equals(s.profession) && (d.burn > 0 || d.vulnerable > 0 || d.aoe
+                || d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0
+                || d.profession.equals(PROF_STORMCALLER))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -10061,11 +10400,14 @@ public final class GameCore {
         if ("spec_burst".equals(spec.id)) {
             if (d.damage > 0 || d.comboDamage > 0 || d.aoe) bonus += 3;
             if (d.vulnerable > 0 || d.skillChargeGain > 0) bonus += 2;
-            if ("heavy_line".equals(d.id) || "clean_arc".equals(d.id)) bonus += 4;
+            if ("heavy_line".equals(d.id) || "clean_arc".equals(d.id) || "stormcaller_chain".equals(d.id)
+                    || "stormcaller_tempest_crown".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
-            if ("quick_cut".equals(d.id) || "double_step".equals(d.id) || "battle_trance".equals(d.id)) bonus += 4;
+            if ("quick_cut".equals(d.id) || "double_step".equals(d.id) || "battle_trance".equals(d.id)
+                    || "stormcaller_sparkline".equals(d.id) || "stormcaller_gust".equals(d.id)
+                    || "stormcaller_overstorm".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -10084,7 +10426,9 @@ public final class GameCore {
             if (d.aoe || d.comboDamage > 0 || "plague_vector".equals(d.id) || "status_spill".equals(d.id)) bonus += 3;
             if (d.skillChargeGain > 0 || d.draw > 0) bonus += 2;
             if ("pactmaker_clause".equals(d.id) || "pactmaker_witness".equals(d.id)
-                    || "pactmaker_overdeal".equals(d.id) || "pactmaker_grand_contract".equals(d.id)) bonus += 4;
+                    || "pactmaker_overdeal".equals(d.id) || "pactmaker_grand_contract".equals(d.id)
+                    || "stormcaller_sparkline".equals(d.id) || "stormcaller_chain".equals(d.id)
+                    || "stormcaller_overstorm".equals(d.id) || "stormcaller_tempest_crown".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -10103,7 +10447,9 @@ public final class GameCore {
                     || "tuner_harmonic".equals(d.id) || "adjudicator_clause".equals(d.id)
                     || "ranger_overmark".equals(d.id) || "inscriber_codex".equals(d.id)
                     || "pactmaker_clause".equals(d.id) || "pactmaker_witness".equals(d.id)
-                    || "pactmaker_grand_contract".equals(d.id)) bonus += 4;
+                    || "pactmaker_grand_contract".equals(d.id) || "stormcaller_sparkline".equals(d.id)
+                    || "stormcaller_chain".equals(d.id) || "stormcaller_overstorm".equals(d.id)
+                    || "stormcaller_tempest_crown".equals(d.id)) bonus += 4;
         }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
@@ -10117,7 +10463,8 @@ public final class GameCore {
                 || "astrologer_chart".equals(id) || "astrologer_ephemeris".equals(id)
                 || "chronomancer_tick".equals(id) || "chronomancer_loop".equals(id)
                 || "pactmaker_clause".equals(id) || "pactmaker_collection".equals(id)
-                || "pactmaker_overdeal".equals(id);
+                || "pactmaker_overdeal".equals(id) || "stormcaller_sparkline".equals(id)
+                || "stormcaller_gust".equals(id) || "stormcaller_overstorm".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -10214,6 +10561,14 @@ public final class GameCore {
                 || d.createWound || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || d.rarity == 2)) {
             bonus += 5;
         }
+        if (hasRelic(s, "storm_rod") && (d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
+                || d.draw > 0 || d.profession.equals(PROF_STORMCALLER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "tempest_crown") && (d.aoe || d.burn > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_STORMCALLER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -10247,7 +10602,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -10265,6 +10620,7 @@ public final class GameCore {
         if (PROF_MACHINIST.equals(s.profession)) return "gyro_wrench";
         if (PROF_CHRONOMANCER.equals(s.profession)) return "hourglass_charm";
         if (PROF_PACTMAKER.equals(s.profession)) return "contract_stamp";
+        if (PROF_STORMCALLER.equals(s.profession)) return "storm_rod";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -10383,6 +10739,15 @@ public final class GameCore {
         if (PROF_PACTMAKER.equals(s.profession) && "grand_ledger".equals(id)) {
             return 4;
         }
+        if (PROF_STORMCALLER.equals(s.profession) && ("storm_rod".equals(id) || "stormglass_seal".equals(id)
+                || "charcoal_sigil".equals(id) || "cinder_spoon".equals(id) || "emberroot_charm".equals(id)
+                || "tempo_metronome".equals(id) || "markchain_seal".equals(id) || "overload_etch".equals(id)
+                || "confluence_map".equals(id) || "tuning_fork".equals(id))) {
+            return 2;
+        }
+        if (PROF_STORMCALLER.equals(s.profession) && "tempest_crown".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -10419,7 +10784,7 @@ public final class GameCore {
         }
         if ((PROF_WEAVER.equals(s.profession) || PROF_SUMMONER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
                 || PROF_TUNER.equals(s.profession) || PROF_ASTROLOGER.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
-                || PROF_CHRONOMANCER.equals(s.profession))
+                || PROF_CHRONOMANCER.equals(s.profession) || PROF_STORMCALLER.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -10477,15 +10842,15 @@ public final class GameCore {
         if ("spec_echoflow".equals(spec.id) && "echoflow_charm".equals(id)) return 5;
         if ("spec_markchain".equals(spec.id) && "markchain_seal".equals(id)) return 5;
         if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark", "conductor_baton")) return 1;
-        if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork")) return 1;
+        if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork", "storm_rod")) return 1;
         if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist", "bloodspark_contract")) return 1;
         if ("spec_resonance".equals(spec.id) && isAny(id, "cracked_compass", "rift_compass", "ability_crown", "confluence_map", "split_anvil", "conductor_baton", "prism_gear")) return 1;
-        if ("spec_resonance".equals(spec.id) && isAny(id, "mosaic_core", "starforge_lens")) return 1;
+        if ("spec_resonance".equals(spec.id) && isAny(id, "mosaic_core", "starforge_lens", "tempest_crown")) return 1;
         if ("spec_mastery".equals(spec.id) && isSkillRelicForProfession(s, id)) return 2;
-        if ("spec_control".equals(spec.id) && isAny(id, "curse_censer", "stormglass_seal", "apex_compass", "fallen_crown", "judgment_codex", "hex_moon", "contract_stamp", "grand_ledger")) return 1;
+        if ("spec_control".equals(spec.id) && isAny(id, "curse_censer", "stormglass_seal", "apex_compass", "fallen_crown", "judgment_codex", "hex_moon", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown")) return 1;
         if ("spec_assembly".equals(spec.id) && isAny(id, "mirror_anvil", "polished_cog", "confluence_map", "prism_gear", "starforge_lens", "clockwork_core")) return 1;
         if ("spec_echoflow".equals(spec.id) && isAny(id, "void_abacus", "echo_ledger", "echo_crown", "tempo_spindle", "moon_lantern", "tuning_fork", "hourglass_charm", "time_engine")) return 1;
-        if ("spec_markchain".equals(spec.id) && isAny(id, "hunter_mark", "root_drum", "stormglass_seal", "curse_censer", "apex_compass", "hex_moon", "conductor_baton", "judgment_codex", "warden_brand", "contract_stamp", "grand_ledger")) return 1;
+        if ("spec_markchain".equals(spec.id) && isAny(id, "hunter_mark", "root_drum", "stormglass_seal", "curse_censer", "apex_compass", "hex_moon", "conductor_baton", "judgment_codex", "warden_brand", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown")) return 1;
         if (isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
         if ("spec_burst".equals(spec.id) && "overload_etch".equals(id)) return 2;
         if ("spec_tempo".equals(spec.id) && "discipline_chart".equals(id)) return 2;
@@ -10684,6 +11049,15 @@ public final class GameCore {
             addUpgradedDeckCard(s, "pactmaker_grand_contract");
             upgradeRandomDeckCard(s);
             s.gold += 55;
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("storm_rod".equals(id)) {
+            addUpgradedDeckCard(s, "stormcaller_chain");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("tempest_crown".equals(id)) {
+            addUpgradedDeckCard(s, "stormcaller_tempest_crown");
+            upgradeRandomDeckCard(s);
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
@@ -11207,6 +11581,19 @@ public final class GameCore {
         c = addCard("pactmaker_grand_contract", "终局契约", "通用", 2, 2, 0, 10, 15, 10, 14, "造成伤害并获得格挡；按目标、誓约、金币和异常压力追加终局收益，制造临时条款。", "更高伤害、格挡和终局返还。");
         c.profession = PROF_PACTMAKER; c.goldGain = 12; c.goldBlock = true; c.vulnerable = 1; c.bind = 2; c.bindUp = 3; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("stormcaller_sparkline", "引雷线", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张并施加燃灼与印记；雷势和异常会追加伤害。", "更高伤害、燃灼和印记，职业技充能更快。");
+        c.profession = PROF_STORMCALLER; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("stormcaller_barrier", "雷幕", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡，抽1张；雷势和敌方压力会追加防线。", "更多格挡，雷势足够时额外抽牌。");
+        c.profession = PROF_STORMCALLER; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("stormcaller_gust", "风切步", "通用", 1, 0, 2, 0, 0, 2, 4, "抽1张，获得1能量并积累雷势，职业技充能+1，消耗。", "更多格挡，职业技充能+2。");
+        c.profession = PROF_STORMCALLER; c.draw = c.drawUp = 1; c.energyGain = 1; c.skillChargeGain = 1; c.exhaust = true;
+        c = addCard("stormcaller_chain", "连锁雷", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，施加易伤与燃灼；雷势、燃灼和印记越多越强。", "更高伤害、异常和抽牌窗口。");
+        c.profession = PROF_STORMCALLER; c.vulnerable = 1; c.burn = 1; c.burnUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("stormcaller_overstorm", "过载雷暴", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和职业技充能；过载会引发群体雷击。", "更多格挡，职业技充能+4。");
+        c.profession = PROF_STORMCALLER; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.vulnerable = 1; c.skillChargeGain = 3; c.aoe = true;
+        c = addCard("stormcaller_tempest_crown", "风暴冠冕", "通用", 2, 2, 0, 9, 13, 9, 13, "造成伤害并获得格挡；按雷势、敌方异常和过载追加终局收益。", "更高伤害、格挡和雷链返还。");
+        c.profession = PROF_STORMCALLER; c.burn = 2; c.burnUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.aoe = true; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -11433,6 +11820,7 @@ public final class GameCore {
         addRelicDef("gyro_wrench", "陀轮扳手", "机巧师升级、检视、充能和混搭牌更快推动职业技；释放后升级手牌、加固并按装配追击。");
         addRelicDef("hourglass_charm", "沙漏坠", "时术师低费、抽牌、返能和临时牌更快推动职业技；释放后抽牌、追加印记并回收时砂。");
         addRelicDef("contract_stamp", "契印章", "契约师兑现目标、金币和誓约时职业技更快充能；释放后登记印记、格挡并入账金币。");
+        addRelicDef("storm_rod", "风暴引雷针", "风暴使异常、充能和雷系牌更快推动职业技；释放后扩散燃灼、印记与雷链追击。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -11450,6 +11838,7 @@ public final class GameCore {
         addRelicDef("clockwork_core", "机巧核心", "获得升级终局引擎；机巧师升级、临时、充能和汇流牌会积累印记并定期升级手牌。");
         addRelicDef("time_engine", "时轴机芯", "获得升级时轴引擎；时术师临时、返能、充能和循环牌会积累印记并定期续接回环。");
         addRelicDef("grand_ledger", "总契账", "获得升级终局契约；目标、誓约、金币、自损和控制牌会滚动印记、抽牌与职业技资源。");
+        addRelicDef("tempest_crown", "风暴冠冕", "获得升级风暴冠冕；雷系、异常和过载牌会积累印记、抽牌并引发群体雷链。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -11629,6 +12018,9 @@ public final class GameCore {
         addTalent("t_pactmaker_notary", PROF_PACTMAKER, "公证人", "获得升级见证印；抽牌、充能和控制牌会追加印记，并在关键节奏补职业技。");
         addTalent("t_pactmaker_collector", PROF_PACTMAKER, "收账专员", "获得金币和升级收账步；金币牌额外入账并提供格挡。");
         addTalent("t_pactmaker_bloodseal", PROF_PACTMAKER, "血署封蜡", "获得生命和升级血署契；自损、裂伤和状态牌会登记印记、易伤和金币。");
+        addTalent("t_stormcaller_rod", PROF_STORMCALLER, "引雷针", "获得升级连锁雷；燃灼、充能和雷系牌追加印记，并把异常压力转成穿透追击。");
+        addTalent("t_stormcaller_pressure", PROF_STORMCALLER, "气压回流", "获得升级风切步；低费、抽牌和返能牌提供格挡，并在关键节奏补职业技。");
+        addTalent("t_stormcaller_front", PROF_STORMCALLER, "暴雨锋面", "获得生命和升级过载雷暴；群攻、燃灼和易伤牌扩散异常并提供格挡。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -11646,6 +12038,7 @@ public final class GameCore {
         addTalent("t_machinist_grand", PROF_MACHINIST, "总装核心", "获得升级终局引擎；装配、临时、汇流与过载牌持续抽牌、升级并把印记转为炮台裁切。");
         addTalent("t_chronomancer_grand", PROF_CHRONOMANCER, "终局回溯", "获得升级时轴引擎；低费、临时、循环与过载牌持续抽牌、充能并把印记转为时轴裁切。");
         addTalent("t_pactmaker_grand", PROF_PACTMAKER, "总契终局", "获得升级终局契约；目标、誓约、金币与控制牌持续抽牌、返能并把印记转为兑约裁切。");
+        addTalent("t_stormcaller_grand", PROF_STORMCALLER, "风暴之眼", "获得升级风暴冠冕；雷系、循环、异常与过载牌持续抽牌、充能并把印记转为雷暴裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
