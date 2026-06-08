@@ -5802,35 +5802,41 @@ public final class GameCore {
             return 0;
         }
         if (focus == BUILD_OVERLOAD) {
-            return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0);
+            return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
+                    + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0);
         }
         if (focus == BUILD_ECHO) {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
-                    + (d.exhaustForDamage ? 6 : 0) + ("summoner_sprite".equals(d.echoCardId) ? 3 : 0);
+                    + (d.exhaustForDamage ? 6 : 0) + ("summoner_sprite".equals(d.echoCardId) ? 3 : 0)
+                    + ("echo_matrix".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 5 : 0)
-                    + (d.gainBurnPower + d.gainBindPower) * 3;
+                    + (d.gainBurnPower + d.gainBindPower) * 3 + ("brew_crucible".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_GOLD) {
-            return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0);
+            return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0)
+                    + ("golden_engine".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_BLOOD) {
-            return d.hpLoss * 4 + d.heal * 2 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0);
+            return d.hpLoss * 4 + d.heal * 2 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0)
+                    + ("crimson_loop".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_FORGE) {
-            return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0);
+            return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0)
+                    + ("forge_blueprint".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_STATUS) {
             return d.burn * 2 + d.bind * 2 + d.vulnerable * 5 + (d.addStatusToEnemy ? 7 : 0)
-                    + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0);
+                    + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0) + ("plague_vector".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_CYCLE) {
-            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2;
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
+                    + ("cycle_metronome".equals(d.id) ? 10 : 0);
         }
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
-                    + (d.burnToBlock ? 4 : 0);
+                    + (d.burnToBlock ? 4 : 0) + ("aegis_engine".equals(d.id) ? 10 : 0);
         }
         return 0;
     }
@@ -6783,6 +6789,24 @@ public final class GameCore {
         c.hpLoss = 2; c.goldGain = 18; c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.exhaust = true;
         c = addCard("prism_barrage", "棱镜齐射", "通用", 2, 2, 0, 6, 9, 0, 0, "对所有敌人造成伤害，施加燃灼、束缚与易伤。", "更高伤害与异常。");
         c.aoe = true; c.burn = 1; c.burnUp = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1;
+        c = addCard("overload_conduit", "权能导管", "通用", 2, 1, 2, 0, 0, 6, 9, "获得格挡，抽1张，职业技充能+3。", "更多格挡与抽牌，职业技充能+4。");
+        c.draw = 1; c.drawUp = 2; c.skillChargeGain = 3;
+        c = addCard("echo_matrix", "回声矩阵", "通用", 2, 1, 2, 0, 0, 4, 7, "制造临时疾切，回声势+1，消耗。", "更多格挡，回声势+2。");
+        c.createEcho = true; c.echoCardId = "quick_cut"; c.gainVoidEngine = 1; c.exhaust = true;
+        c = addCard("brew_crucible", "炼调坩埚", "通用", 2, 1, 2, 0, 0, 5, 8, "调制药剂，获得燃势与束缚势，消耗。", "更多格挡，调制药剂并获得更多势能。");
+        c.createPotion = true; c.gainBurnPower = 1; c.gainBindPower = 1; c.exhaust = true;
+        c = addCard("golden_engine", "裂币引擎", "通用", 2, 1, 1, 0, 0, 6, 9, "获得金币和格挡；金币越多格挡越高。", "更多金币与格挡。");
+        c.goldGain = 14; c.goldBlock = true; c.draw = c.drawUp = 1;
+        c = addCard("crimson_loop", "猩红回路", "通用", 2, 1, 0, 9, 13, 0, 0, "失去生命造成伤害，加入裂伤并治疗。", "更高伤害，损耗更低，治疗更多。");
+        c.hpLoss = 2; c.heal = 3; c.healUp = 5; c.createWound = true;
+        c = addCard("forge_blueprint", "工坊蓝图", "通用", 2, 1, 1, 0, 0, 8, 12, "获得格挡，升级手牌，检视牌库。", "更多格挡，升级手牌并更深检视。");
+        c.upgradeRandom = true; c.scry = 3; c.draw = c.drawUp = 1;
+        c = addCard("plague_vector", "疫变向量", "通用", 2, 1, 2, 0, 0, 0, 0, "施加燃灼、束缚与易伤，并扩散异常。", "更多异常并扩散。");
+        c.burn = 2; c.burnUp = 4; c.bind = 2; c.bindUp = 4; c.vulnerable = 1; c.spreadStatus = true; c.targetEnemy = true;
+        c = addCard("cycle_metronome", "循环节拍", "通用", 2, 0, 2, 0, 0, 0, 0, "抽2张，获得1能量，职业技充能+1，消耗。", "抽3张，获得1能量，职业技充能+2。");
+        c.draw = 2; c.drawUp = 3; c.energyGain = 1; c.skillChargeGain = 1; c.exhaust = true;
+        c = addCard("aegis_engine", "圣盾引擎", "通用", 2, 1, 1, 0, 0, 11, 16, "获得格挡，守势+1。", "更多格挡，守势+2。");
+        c.gainSteelEngine = 1;
 
         c = addCard("warden_oath", "坚守誓言", "通用", 0, 1, 1, 0, 0, 10, 14, "获得格挡。守卫：推动护卫计数。", "更多格挡。");
         c.profession = PROF_WARDEN;

@@ -342,7 +342,9 @@ public final class SimulationHarness {
                         + d.gainWildEngine * 12 + d.gainVoidEngine * 12 + d.heal * 4 + d.scry * 2
                         + d.skillChargeGain * 7 + d.vulnerable * 5 + d.goldGain * 2 + (d.goldDamage ? 8 : 0)
                         + (d.goldBlock ? 8 : 0) + (d.exhaust ? 2 : 0) + (d.upgradeRandom ? 8 : 0)
-                        + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0) - d.hpLoss * 2;
+                        + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0) + (d.aoe ? 8 : 0)
+                        + (d.spreadStatus ? 10 : 0) + (d.bindToDraw ? 8 : 0) + (d.burnToBlock ? 7 : 0)
+                        - d.hpLoss * 2;
                 if (s.combatQuest == GameCore.QUEST_BREW && d.createPotion) score += 22;
                 if (s.combatQuest == GameCore.QUEST_SKILL && d.skillChargeGain > 0) score += 18;
                 if (s.combatQuest == GameCore.QUEST_ECHO && (d.exhaust || d.createEcho || c.temp)) score += 18;
