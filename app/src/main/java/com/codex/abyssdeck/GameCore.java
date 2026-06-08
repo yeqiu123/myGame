@@ -114,13 +114,14 @@ public final class GameCore {
     public static final String PROF_TACTICIAN = "阵术师";
     public static final String PROF_PRISMIST = "棱镜师";
     public static final String PROF_DREAMWALKER = "梦行者";
+    public static final String PROF_GARDENER = "园艺师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
-            PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER
+            PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -800,6 +801,7 @@ public final class GameCore {
         if (PROF_TACTICIAN.equals(profession)) return "布阵";
         if (PROF_PRISMIST.equals(profession)) return "折光";
         if (PROF_DREAMWALKER.equals(profession)) return "入梦";
+        if (PROF_GARDENER.equals(profession)) return "萌发";
         return "职业技";
     }
 
@@ -859,6 +861,7 @@ public final class GameCore {
         if (PROF_TACTICIAN.equals(profession)) return "满充能：消耗阵势布阵，按格挡、检视、升级牌、印记、汇流和过载造成穿透，获得格挡、抽牌并制造战术牌。";
         if (PROF_PRISMIST.equals(profession)) return "满充能：消耗光谱折光，按混搭标签、汇流链、检视、升级、异常和过载造成穿透，获得格挡、抽牌并制造棱镜牌。";
         if (PROF_DREAMWALKER.equals(profession)) return "满充能：消耗梦痕入梦，按检视、临时牌、消耗、状态牌、束缚、印记和过载造成穿透，抽牌、格挡并制造梦牌。";
+        if (PROF_GARDENER.equals(profession)) return "满充能：消耗种子萌发，按治疗、格挡、束缚、状态转化、再生和过载造成穿透，治疗、抽牌并制造植牌。";
         return "选择职业后可用。";
     }
 
@@ -1450,6 +1453,54 @@ public final class GameCore {
             addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, Math.max(1, statuses)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, dream / 2);
+        } else if (PROF_GARDENER.equals(s.profession)) {
+            int seeds = Math.max(1, s.professionCharge);
+            int statusCards = statusDeckCards(s) + statusHandCards(s);
+            int bindCards = bindDeckCards(s);
+            int healingCards = healingDeckCards(s);
+            int guard = Math.min(24, s.block / 3);
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.bind * 3 + target.mark * 2 + target.vulnerable * 2 + target.burn / 2;
+            int damage = 8 + s.act * 3 + Math.min(48, seeds * 3 + s.wildEngine * 4 + healingCards * 3
+                    + bindCards * 2 + statusCards * 4 + guard + pressure) + overload * 5;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.bind += 2 + Math.min(4, seeds / 3) + s.bindPower / 2 + overload / 2;
+                target.mark += 1 + Math.min(3, healingCards / 2) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, statusCards / 3 + overload / 4);
+                if (target.bind >= 4 || s.block >= 16 + s.act * 3 || target.hp <= 0) {
+                    draw(s, 1);
+                    addProfessionSkillCharge(s, 1 + overload / 2);
+                }
+            }
+            gainBlock(s, 6 + s.act * 2 + Math.min(28, seeds * 2 + s.wildEngine * 4 + healingCards * 3
+                    + statusCards * 3 + s.block / 5) + overload * 3);
+            int heal = 3 + Math.min(12, seeds / 2 + s.wildEngine * 2 + healingCards + statusCards) + overload;
+            s.hp = Math.min(s.maxHp, s.hp + heal);
+            draw(s, 1 + Math.min(2, seeds / 5) + overload / 4);
+            if (seeds >= 5 || s.wildEngine >= 2 || statusCards > 0 || overload >= 3) {
+                s.energy++;
+            }
+            if (statusCards > 0) {
+                removeStatusCard(s);
+                gainBlock(s, 4 + s.act + Math.min(10, statusCards * 3));
+            }
+            Card bloom = new Card(overload >= 4 || hasTalent(s, "t_gardener_grand") ? "gardener_grand_grove" : "gardener_sprout");
+            bloom.temp = true;
+            bloom.upgraded = seeds >= 5 || hasTalent(s, "t_gardener_sprout");
+            addToHand(s, bloom);
+            if (hasTalent(s, "t_gardener_grand")) {
+                Card root = new Card("gardener_rootwall");
+                root.temp = true;
+                root.upgraded = true;
+                addToHand(s, root);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_GUARD, 1 + overload / 3);
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, Math.max(1, statusCards + bindCards / 2)));
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, seeds / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2722,6 +2773,9 @@ public final class GameCore {
         if (PROF_DREAMWALKER.equals(profession)) {
             return "用检视、临时牌、消耗和状态牌积累梦痕，把裂伤与眩光转成抽牌、格挡、束缚和入梦爆发。适合回声、循环、异常、过载和状态转化构筑。";
         }
+        if (PROF_GARDENER.equals(profession)) {
+            return "用治疗、格挡、束缚和状态转化培育种子，把腐殖、扎根和再生转成续航、抽牌与萌发爆发。适合森息、守势、异常、循环和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2797,6 +2851,9 @@ public final class GameCore {
         }
         if (PROF_DREAMWALKER.equals(profession)) {
             return 0xffd7b8ff;
+        }
+        if (PROF_GARDENER.equals(profession)) {
+            return 0xff9edc7f;
         }
         return 0xffd6c07a;
     }
@@ -3092,6 +3149,13 @@ public final class GameCore {
             s.maxHp += 1;
             s.hp += 1;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_GARDENER.equals(profession)) {
+            s.deck.add(new Card("gardener_sprout"));
+            s.deck.add(new Card("gardener_rootwall"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 4;
+            s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3137,6 +3201,7 @@ public final class GameCore {
         else if (PROF_TACTICIAN.equals(profession)) upgradeDeckCard(s, "tactician_probe");
         else if (PROF_PRISMIST.equals(profession)) upgradeDeckCard(s, "prismist_ray");
         else if (PROF_DREAMWALKER.equals(profession)) upgradeDeckCard(s, "dreamwalker_drift");
+        else if (PROF_GARDENER.equals(profession)) upgradeDeckCard(s, "gardener_sprout");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3217,6 +3282,12 @@ public final class GameCore {
             addUpgradedDeckCard(s, "dreamwalker_lucid");
             removeStatusCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_GARDENER.equals(profession)) {
+            addUpgradedDeckCard(s, "gardener_compost");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3245,6 +3316,7 @@ public final class GameCore {
         if (PROF_TACTICIAN.equals(profession)) return "tactician_overplan";
         if (PROF_PRISMIST.equals(profession)) return "prismist_overbeam";
         if (PROF_DREAMWALKER.equals(profession)) return "dreamwalker_overdream";
+        if (PROF_GARDENER.equals(profession)) return "gardener_overgrowth";
         return "forge_signal";
     }
 
@@ -3595,6 +3667,22 @@ public final class GameCore {
         } else if ("t_dreamwalker_grand".equals(id)) {
             addUpgradedDeckCard(s, "dreamwalker_grand_dream");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_gardener_sprout".equals(id)) {
+            addUpgradedDeckCard(s, "gardener_sprout");
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_gardener_rootwall".equals(id)) {
+            addUpgradedDeckCard(s, "gardener_rootwall");
+            s.maxHp += 5;
+            s.hp += 5;
+        } else if ("t_gardener_compost".equals(id)) {
+            addUpgradedDeckCard(s, "gardener_compost");
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_gardener_grand".equals(id)) {
+            addUpgradedDeckCard(s, "gardener_grand_grove");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -3616,7 +3704,8 @@ public final class GameCore {
                 || "t_pactmaker_grand".equals(id) || "t_stormcaller_grand".equals(id)
                 || "t_shadowdancer_grand".equals(id) || "t_runeblade_grand".equals(id)
                 || "t_medium_grand".equals(id) || "t_tactician_grand".equals(id)
-                || "t_prismist_grand".equals(id) || "t_dreamwalker_grand".equals(id);
+                || "t_prismist_grand".equals(id) || "t_dreamwalker_grand".equals(id)
+                || "t_gardener_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -3631,7 +3720,8 @@ public final class GameCore {
                 || "pactmaker_grand_contract".equals(id) || "stormcaller_tempest_crown".equals(id)
                 || "shadowdancer_eclipse".equals(id) || "runeblade_grand_seal".equals(id)
                 || "medium_grand_seance".equals(id) || "tactician_grand_strategy".equals(id)
-                || "prismist_grand_spectrum".equals(id) || "dreamwalker_grand_dream".equals(id);
+                || "prismist_grand_spectrum".equals(id) || "dreamwalker_grand_dream".equals(id)
+                || "gardener_grand_grove".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -3646,7 +3736,8 @@ public final class GameCore {
                 || "grand_ledger".equals(id) || "tempest_crown".equals(id)
                 || "eclipse_mask".equals(id) || "grand_rune_blade".equals(id)
                 || "ancestral_planchette".equals(id) || "grand_war_room".equals(id)
-                || "spectrum_crown".equals(id) || "oneiric_crown".equals(id);
+                || "spectrum_crown".equals(id) || "oneiric_crown".equals(id)
+                || "verdant_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -4073,6 +4164,9 @@ public final class GameCore {
         else if (PROF_DREAMWALKER.equals(s.profession) && d != null && (d.scry > 0 || d.exhaust || d.createEcho
                 || d.draw > 0 || d.bind > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
                 || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_DREAMWALKER))) amount++;
+        else if (PROF_GARDENER.equals(s.profession) && d != null && (d.heal > 0 || d.gainWildEngine > 0
+                || d.bind > 0 || d.block > 0 || d.createWound || d.draw > 0 || d.skillChargeGain > 0
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_GARDENER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -4723,6 +4817,31 @@ public final class GameCore {
             if (level >= 3 || echoes >= 3 || statuses >= 2 || overload >= 3) {
                 s.energy++;
             }
+        } else if (PROF_GARDENER.equals(s.profession)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int healing = healingDeckCards(s);
+            s.professionCharge += level + 1 + healing / 2 + overload / 2;
+            draw(s, 1);
+            if (statuses > 0 || level >= 3) {
+                removeStatusCard(s);
+                upgradeRandomHandCard(s);
+            }
+            s.hp = Math.min(s.maxHp, s.hp + 2 + level * 2 + Math.min(6, s.wildEngine + healing / 2) + overload);
+            gainBlock(s, 5 + level * 3 + Math.min(16, s.professionCharge + s.wildEngine * 3 + healing * 2 + statuses * 3));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card sprout = new Card(level >= 3 || overload >= 3 ? "gardener_overgrowth" : "gardener_sprout");
+            sprout.temp = true;
+            sprout.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, sprout);
+            if (target != null) {
+                target.bind += level + 1 + overload / 2 + s.bindPower / 2;
+                target.mark += level + Math.min(2, healing / 2) + overload / 2;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(22, s.professionCharge * 2 + s.wildEngine * 3
+                        + healing * 3 + statuses * 4 + target.bind * 2), true);
+            }
+            if (level >= 3 || s.wildEngine >= 2 || statuses > 0 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -5088,6 +5207,38 @@ public final class GameCore {
                 target.vulnerable += 1;
             }
         }
+        if (hasRelic(s, "seed_satchel") && PROF_GARDENER.equals(s.profession)) {
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + s.wildEngine));
+            gainBlock(s, 5 + s.act + Math.min(12, s.professionCharge + s.wildEngine * 3 + healingDeckCards(s)));
+            s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(5, s.wildEngine + healingDeckCards(s) / 2));
+            Card sprout = new Card("gardener_sprout");
+            sprout.temp = true;
+            sprout.upgraded = true;
+            addToHand(s, sprout);
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2;
+                target.mark += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(18, target.bind * 2 + s.professionCharge * 2 + s.wildEngine * 3), true);
+            }
+        }
+        if (hasRelic(s, "verdant_crown") && PROF_GARDENER.equals(s.profession)) {
+            Card grove = new Card("gardener_overgrowth");
+            grove.temp = true;
+            grove.upgraded = true;
+            addToHand(s, grove);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(6, s.wildEngine * 2));
+            if (s.professionCharge >= 5 || s.wildEngine >= 2 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -5133,6 +5284,9 @@ public final class GameCore {
                 && (s.confluenceChain >= 2 || focusMaskCount(s.confluenceMask) >= 3 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "dreamcatcher_charm") && PROF_DREAMWALKER.equals(s.profession) && amount > 0
                 && (tempOrEchoHandCount(s) >= 2 || statusDeckCards(s) + statusHandCards(s) > 0
+                || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
+        if (hasRelic(s, "seed_satchel") && PROF_GARDENER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.wildEngine > 0 || statusDeckCards(s) + statusHandCards(s) > 0
                 || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -5316,7 +5470,7 @@ public final class GameCore {
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
                 || PROF_PRISMIST.equals(s.profession)
-                || PROF_DREAMWALKER.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -5339,7 +5493,7 @@ public final class GameCore {
                 || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
-                || PROF_DREAMWALKER.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -5353,7 +5507,7 @@ public final class GameCore {
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
-                || PROF_DREAMWALKER.equals(s.profession))) {
+                || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -5383,7 +5537,10 @@ public final class GameCore {
                     || "prismist_ray".equals(d.id) || "prismist_spill".equals(d.id)
                     || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
                     || "dreamwalker_drift".equals(d.id) || "dreamwalker_bind".equals(d.id)
-                    || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id))) return true;
+                    || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)
+                    || "gardener_sprout".equals(d.id) || "gardener_rootwall".equals(d.id)
+                    || "gardener_thornbloom".equals(d.id) || "gardener_overgrowth".equals(d.id)
+                    || "gardener_grand_grove".equals(d.id))) return true;
             if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
@@ -6271,6 +6428,37 @@ public final class GameCore {
                 dream.temp = true;
                 dream.upgraded = true;
                 addToHand(s, dream);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_GARDENER.equals(s.profession) && s.turn == 1) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int healing = healingDeckCards(s);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(2, healing / 2 + s.wildEngine + statuses);
+            draw(s, 1);
+            s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, s.wildEngine + healing / 2 + statuses));
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+                firstLiving(s).mark += 1;
+                firstLiving(s).vulnerable += hasTalent(s, "t_gardener_compost") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_gardener_sprout")) {
+                Card sprout = new Card("gardener_sprout");
+                sprout.temp = true;
+                sprout.upgraded = true;
+                addToHand(s, sprout);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_gardener_rootwall")) {
+                gainBlock(s, 4 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_gardener_grand")) {
+                Card grove = new Card("gardener_sprout");
+                grove.temp = true;
+                grove.upgraded = true;
+                addToHand(s, grove);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -7863,6 +8051,77 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("gardener_sprout".equals(d.id) && target != null) {
+            int seeds = Math.max(0, s.professionCharge);
+            int growth = healingDeckCards(s) + s.wildEngine * 2 + statusDeckCards(s);
+            damage += Math.min(c.upgraded ? 18 : 12, seeds * 2 + growth * 2 + target.bind * 2);
+            target.bind += c.upgraded ? 2 : 1;
+            target.mark += c.upgraded ? 2 : 1;
+            if (s.hp < s.maxHp || seeds >= 3 || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("gardener_rootwall".equals(d.id)) {
+            int seeds = Math.max(0, s.professionCharge);
+            block += Math.min(c.upgraded ? 22 : 15, seeds * 2 + s.wildEngine * 4 + s.block / 5 + bindDeckCards(s));
+            if (target != null) {
+                target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            }
+            if (s.block >= 12 + s.act * 3 || s.wildEngine >= 1 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("gardener_compost".equals(d.id)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 22 : 15, s.professionCharge * 2 + statuses * 5 + s.exhaust.size());
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+            if (s.exhaust.size() >= 3 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("gardener_thornbloom".equals(d.id) && target != null) {
+            int pressure = target.bind * 3 + target.mark * 2 + target.vulnerable * 2 + target.burn;
+            damage += Math.min(c.upgraded ? 32 : 22, pressure + s.professionCharge * 2 + s.wildEngine * 4 + s.block / 5);
+            target.bind += c.upgraded ? 3 : 2;
+            target.mark += c.upgraded ? 2 : 1;
+            if (target.bind >= 4 || target.vulnerable > 0 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("gardener_overgrowth".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 30 : 20, s.professionCharge * 2 + overloadNow * 6 + s.wildEngine * 4 + statuses * 3);
+            if (target != null) {
+                target.bind += c.upgraded ? 3 : 2;
+                target.mark += c.upgraded ? 2 : 1;
+                damage += Math.min(c.upgraded ? 36 : 25, overloadNow * 7 + target.bind * 3 + statuses * 4 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || statuses > 0 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("gardener_grand_grove".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int healing = healingDeckCards(s);
+            damage += Math.min(c.upgraded ? 60 : 44, s.professionCharge * 4 + s.wildEngine * 7 + healing * 5
+                    + statuses * 6 + overloadNow * 7 + bestEnemyPressure(s));
+            block += Math.min(c.upgraded ? 42 : 30, s.professionCharge * 3 + s.wildEngine * 6 + healing * 4 + statuses * 5);
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            if (statuses > 0 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+            }
+        }
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -8451,6 +8710,62 @@ public final class GameCore {
             dream.upgraded = c.upgraded || s.professionCharge >= 5;
             addToHand(s, dream);
             if (professionSkillOverload(s) >= 2 || statusDeckCards(s) + statusHandCards(s) > 0) {
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
+            }
+        }
+        if ("gardener_sprout".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            if (s.hp < s.maxHp || s.wildEngine > 0 || s.block >= 12) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("gardener_rootwall".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_HEX, 1);
+            if (s.block >= 16 + s.act * 3 || bindDeckCards(s) >= 2) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("gardener_compost".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            if (statusDeckCards(s) + statusHandCards(s) > 0 || s.exhaust.size() >= 3) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("gardener_thornbloom".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 2 : 1);
+            Enemy e = target != null ? target : firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+            }
+        }
+        if ("gardener_overgrowth".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_GUARD, 1);
+            if (professionSkillOverload(s) >= 2 || s.professionCharge >= 5 || s.wildEngine >= 2) {
+                s.energy++;
+            }
+        }
+        if ("gardener_grand_grove".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            upgradeRandomHandCard(s);
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+            Card sprout = new Card(s.run.nextBoolean() ? "gardener_sprout" : "gardener_rootwall");
+            sprout.temp = true;
+            sprout.upgraded = c.upgraded || s.professionCharge >= 5;
+            addToHand(s, sprout);
+            if (professionSkillOverload(s) >= 2 || s.wildEngine >= 2 || statusDeckCards(s) + statusHandCards(s) > 0) {
                 s.energy++;
                 addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
             }
@@ -9917,6 +10232,82 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_GARDENER.equals(s.profession) && (d.heal > 0 || d.gainWildEngine > 0 || d.bind > 0
+                || d.block > 0 || d.createWound || d.draw > 0 || d.skillChargeGain > 0
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_GARDENER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.bind > 0 || d.gainWildEngine > 0 || d.profession.equals(PROF_GARDENER)) {
+                    e.bind += 1 + s.bindPower / 2;
+                    e.mark += 1;
+                }
+                if (d.createWound || statuses > 0 || "wound".equals(c.id) || "daze".equals(c.id)) {
+                    e.vulnerable += 1;
+                }
+                if (s.professionCharge >= 4 || s.block >= 16 + s.act * 3 || s.wildEngine >= 2) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(22, e.mark * 2 + e.bind * 2
+                            + s.professionCharge * 2 + s.wildEngine * 3 + statuses * 3), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 4 + s.act + Math.min(14, s.professionCharge + s.wildEngine * 3 + statuses * 3));
+                s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(6, s.professionCharge / 2 + s.wildEngine + healingDeckCards(s) / 2));
+                if (s.cardsPlayedThisTurn >= 3 || statuses > 0 || hasTalent(s, "t_gardener_rootwall")) {
+                    draw(s, 1);
+                }
+                if (statuses > 0 && hasTalent(s, "t_gardener_compost")) {
+                    removeStatusCard(s);
+                    s.energy++;
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_gardener_sprout") && (d.heal > 0 || d.draw > 0 || d.gainWildEngine > 0
+                || d.profession.equals(PROF_GARDENER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(18, e.mark * 2 + s.professionCharge * 2 + s.wildEngine), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_gardener_rootwall") && (d.block > 0 || d.type == 1 || d.heal > 0 || d.bind > 0)) {
+            gainBlock(s, 3 + s.act + Math.min(9, s.wildEngine * 2 + bindDeckCards(s) + s.professionCharge));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 20 + s.act * 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_gardener_compost") && (d.createWound || d.exhaust || "wound".equals(c.id)
+                || "daze".equals(c.id) || d.profession.equals(PROF_GARDENER))) {
+            if (statusDeckCards(s) + statusHandCards(s) > 0 && s.cardsPlayedThisTurn <= 3) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_gardener_grand") && (d.heal > 0 || d.gainWildEngine > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_GARDENER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4 || s.wildEngine >= 2)) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + s.wildEngine * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -10156,6 +10547,41 @@ public final class GameCore {
                 e.bind += 1 + s.bindPower / 2;
                 if (e.mark >= 4 || e.bind >= 4 || s.cardsPlayedThisTurn >= 4) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(22, e.mark * 2 + e.bind * 2 + s.professionCharge), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "seed_satchel") && (d.heal > 0 || d.gainWildEngine > 0 || d.bind > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.createWound || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_GARDENER))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(7, s.professionCharge + s.wildEngine * 2));
+                if (s.hp < s.maxHp) {
+                    s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, s.wildEngine + healingDeckCards(s) / 3));
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                if (e.bind >= 4 || s.professionCharge >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(20, e.bind * 2 + e.mark * 2 + s.professionCharge * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "verdant_crown") && (d.heal > 0 || d.gainWildEngine > 0 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.bind > 0 || d.profession.equals(PROF_GARDENER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (e.mark >= 4 || e.bind >= 4 || s.cardsPlayedThisTurn >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(22, e.mark * 2 + e.bind * 2 + s.professionCharge + s.wildEngine * 3), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -11355,6 +11781,10 @@ public final class GameCore {
             return focus == BUILD_ECHO ? 18 : focus == BUILD_CYCLE ? 16 : focus == BUILD_STATUS ? 16
                     : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 8 : focus == BUILD_FORGE ? 6 : 0;
         }
+        if (PROF_GARDENER.equals(s.profession)) {
+            return focus == BUILD_GUARD ? 18 : focus == BUILD_STATUS ? 16 : focus == BUILD_CYCLE ? 12
+                    : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_FORGE ? 8 : focus == BUILD_ECHO ? 6 : 0;
+        }
         return 0;
     }
 
@@ -11414,6 +11844,9 @@ public final class GameCore {
         }
         if (PROF_DREAMWALKER.equals(d.profession)) {
             return dreamwalkerFocusCardValue(d, focus);
+        }
+        if (PROF_GARDENER.equals(d.profession)) {
+            return gardenerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -11790,6 +12223,39 @@ public final class GameCore {
         return 0;
     }
 
+    private static int gardenerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.heal * 2 + (d.gainWildEngine > 0 ? 4 : 0)
+                    + ("gardener_sprout".equals(d.id) ? 6 : 0) + ("gardener_compost".equals(d.id) ? 8 : 0)
+                    + ("gardener_overgrowth".equals(d.id) ? 14 : 0) + ("gardener_grand_grove".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 9 : 0) + d.draw * 3 + ("gardener_overgrowth".equals(d.id) ? 8 : 0)
+                    + ("gardener_grand_grove".equals(d.id) ? 6 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 10 : 0) + ("gardener_compost".equals(d.id) ? 12 : 0)
+                    + ("gardener_grand_grove".equals(d.id) ? 8 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 6 + d.skillChargeGain * 2 + d.heal * 2
+                    + ("gardener_sprout".equals(d.id) ? 8 : 0) + ("gardener_compost".equals(d.id) ? 14 : 0)
+                    + ("gardener_thornbloom".equals(d.id) ? 16 : 0) + ("gardener_overgrowth".equals(d.id) ? 14 : 0)
+                    + ("gardener_grand_grove".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 6 : 0) + d.skillChargeGain * 2 + d.heal * 2
+                    + ("gardener_sprout".equals(d.id) ? 12 : 0) + ("gardener_rootwall".equals(d.id) ? 8 : 0)
+                    + ("gardener_compost".equals(d.id) ? 10 : 0) + ("gardener_overgrowth".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + d.heal * 4 + d.bind * 2 + d.gainWildEngine * 6
+                    + ("gardener_rootwall".equals(d.id) ? 16 : 0) + ("gardener_compost".equals(d.id) ? 12 : 0)
+                    + ("gardener_overgrowth".equals(d.id) ? 14 : 0) + ("gardener_grand_grove".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -12033,6 +12499,11 @@ public final class GameCore {
         else if ("t_dreamwalker_lucid".equals(id)) bonus += status * 4 + exhaustDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_FORGE) + professionCards;
         else if ("t_dreamwalker_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_ECHO) * 2 + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_gardener_sprout".equals(id)) bonus += healingDeckCards(s) * 3 + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + professionCards;
+        else if ("t_gardener_rootwall".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2 + bindDeckCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_gardener_compost".equals(id)) bonus += status * 4 + exhaustDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
+        else if ("t_gardener_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GUARD) * 2 + buildFocusDeckCards(s, BUILD_STATUS)
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -12050,7 +12521,7 @@ public final class GameCore {
                     "t_medium_oracle", "t_medium_binding", "t_medium_grand",
                     "t_tactician_map", "t_tactician_flank", "t_tactician_grand",
                     "t_prismist_spill", "t_prismist_grand", "t_dreamwalker_lucid",
-                    "t_dreamwalker_grand",
+                    "t_dreamwalker_grand", "t_gardener_compost", "t_gardener_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -12062,7 +12533,8 @@ public final class GameCore {
                     "t_chronomancer_grand", "t_shadowdancer_vanish", "t_shadowdancer_grand",
                     "t_medium_oracle", "t_medium_veil", "t_medium_grand",
                     "t_prismist_lens", "t_prismist_grand", "t_dreamwalker_drift",
-                    "t_dreamwalker_veil", "t_dreamwalker_lucid", "t_dreamwalker_grand") ? 3 : 0;
+                    "t_dreamwalker_veil", "t_dreamwalker_lucid", "t_dreamwalker_grand",
+                    "t_gardener_sprout", "t_gardener_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -12087,7 +12559,8 @@ public final class GameCore {
                     "t_machinist_grand", "t_runeblade_stylus", "t_runeblade_guard",
                     "t_runeblade_grand", "t_tactician_map", "t_tactician_bulwark",
                     "t_tactician_grand", "t_prismist_lens", "t_prismist_anchor",
-                    "t_prismist_grand", "t_dreamwalker_lucid", "t_dreamwalker_grand") ? 3 : 0;
+                    "t_prismist_grand", "t_dreamwalker_lucid", "t_dreamwalker_grand",
+                    "t_gardener_compost", "t_gardener_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -12104,7 +12577,8 @@ public final class GameCore {
                     "t_medium_binding", "t_medium_grand", "t_tactician_map",
                     "t_tactician_flank", "t_tactician_grand", "t_prismist_spill",
                     "t_prismist_grand", "t_dreamwalker_drift", "t_dreamwalker_lucid",
-                    "t_dreamwalker_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_dreamwalker_grand", "t_gardener_sprout", "t_gardener_compost",
+                    "t_gardener_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -12120,6 +12594,7 @@ public final class GameCore {
                     "t_medium_veil", "t_medium_grand", "t_tactician_map",
                     "t_tactician_grand", "t_prismist_lens", "t_prismist_grand",
                     "t_dreamwalker_drift", "t_dreamwalker_lucid", "t_dreamwalker_grand",
+                    "t_gardener_sprout", "t_gardener_compost", "t_gardener_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -12132,7 +12607,7 @@ public final class GameCore {
                     "t_runeblade_guard", "t_runeblade_grand", "t_medium_veil",
                     "t_medium_grand", "t_tactician_bulwark", "t_tactician_grand",
                     "t_prismist_anchor", "t_prismist_grand", "t_dreamwalker_veil",
-                    "t_dreamwalker_grand") ? 3 : 0;
+                    "t_dreamwalker_grand", "t_gardener_rootwall", "t_gardener_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -12312,6 +12787,18 @@ public final class GameCore {
                 && (statusDeckCards(s) > 0 || exhaustDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
             return "清醒转写";
         }
+        if (isAny(id, "t_gardener_sprout", "t_gardener_grand")
+                && (healingDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3 || s.hp < s.maxHp)) {
+            return "育芽循环";
+        }
+        if (isAny(id, "t_gardener_rootwall", "t_gardener_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || bindDeckCards(s) >= 2)) {
+            return "根墙防线";
+        }
+        if (isAny(id, "t_gardener_compost", "t_gardener_grand")
+                && (statusDeckCards(s) > 0 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
+            return "腐殖转化";
+        }
         return "";
     }
 
@@ -12383,6 +12870,17 @@ public final class GameCore {
         for (Card c : s.deck) {
             CardDef d = card(c.id);
             if (d != null && (d.bind > 0 || d.bindToDraw)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int healingDeckCards(State s) {
+        int count = 0;
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && (d.heal > 0 || d.gainWildEngine > 0)) {
                 count++;
             }
         }
@@ -12519,18 +13017,21 @@ public final class GameCore {
                     "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "split_anvil",
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
-                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
+                    "seed_satchel", "verdant_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
                     "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "spirit_bell", "spirit_processional", "void_anchor",
                     "echoflow_charm", "shadow_sash", "eclipse_mask", "spirit_planchette", "ancestral_planchette", "echo_crown",
-                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
+                    "seed_satchel", "verdant_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
                     "glass_vials", "emberroot_charm", "split_anvil", "bloodspark_contract", "mosaic_core",
-                    "catalyst_pump", "solar_crucible", "hex_moon", "storm_rod", "tempest_crown") ? 3 : 0;
+                    "catalyst_pump", "solar_crucible", "hex_moon", "storm_rod", "tempest_crown",
+                    "seed_satchel", "verdant_crown") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
@@ -12546,7 +13047,8 @@ public final class GameCore {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
                     "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "pattern_spool", "engraver_stylus", "gyro_wrench", "clockwork_core", "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
                     "ability_crown", "time_engine", "war_table", "grand_war_room",
-                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
+                    "seed_satchel", "verdant_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -12555,7 +13057,8 @@ public final class GameCore {
                     "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine",
                     "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "warden_brand", "markchain_seal",
                     "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger", "spirit_planchette", "ancestral_planchette",
-                    "war_table", "grand_war_room", "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
+                    "war_table", "grand_war_room", "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
+                    "seed_satchel", "verdant_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -12563,7 +13066,8 @@ public final class GameCore {
                     "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "echoflow_charm", "discipline_chart", "trial_ledger",
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
-                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
+                    "seed_satchel", "verdant_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -12572,7 +13076,8 @@ public final class GameCore {
                     "verdict_seal", "judgment_codex", "forge_heart", "discipline_chart", "trial_ledger",
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
-                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
+                    "seed_satchel", "verdant_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -12601,7 +13106,8 @@ public final class GameCore {
                 || (PROF_MEDIUM.equals(s.profession) && "spirit_planchette".equals(id))
                 || (PROF_TACTICIAN.equals(s.profession) && "war_table".equals(id))
                 || (PROF_PRISMIST.equals(s.profession) && "refraction_dial".equals(id))
-                || (PROF_DREAMWALKER.equals(s.profession) && "dreamcatcher_charm".equals(id));
+                || (PROF_DREAMWALKER.equals(s.profession) && "dreamcatcher_charm".equals(id))
+                || (PROF_GARDENER.equals(s.profession) && "seed_satchel".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -12639,6 +13145,7 @@ public final class GameCore {
                 || hasRelic(s, "war_table") || hasRelic(s, "grand_war_room")
                 || hasRelic(s, "refraction_dial") || hasRelic(s, "spectrum_crown")
                 || hasRelic(s, "dreamcatcher_charm") || hasRelic(s, "oneiric_crown")
+                || hasRelic(s, "seed_satchel") || hasRelic(s, "verdant_crown")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
@@ -12795,6 +13302,11 @@ public final class GameCore {
                 || d.profession.equals(PROF_DREAMWALKER))) {
             return 4;
         }
+        if (PROF_GARDENER.equals(s.profession) && (d.heal > 0 || d.gainWildEngine > 0 || d.bind > 0
+                || d.block > 0 || d.createWound || d.draw > 0 || d.skillChargeGain > 0
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_GARDENER))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -12824,7 +13336,8 @@ public final class GameCore {
                     || "tactician_grand_strategy".equals(d.id) || "prismist_ray".equals(d.id)
                     || "prismist_spill".equals(d.id) || "prismist_overbeam".equals(d.id)
                     || "prismist_grand_spectrum".equals(d.id) || "dreamwalker_bind".equals(d.id)
-                    || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
+                    || "dreamwalker_grand_dream".equals(d.id) || "gardener_thornbloom".equals(d.id)
+                    || "gardener_grand_grove".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
@@ -12839,7 +13352,8 @@ public final class GameCore {
                     || "prismist_ray".equals(d.id) || "prismist_lens".equals(d.id)
                     || "prismist_overbeam".equals(d.id) || "dreamwalker_drift".equals(d.id)
                     || "dreamwalker_veil".equals(d.id) || "dreamwalker_lucid".equals(d.id)
-                    || "dreamwalker_overdream".equals(d.id)) bonus += 4;
+                    || "dreamwalker_overdream".equals(d.id) || "gardener_sprout".equals(d.id)
+                    || "gardener_compost".equals(d.id) || "gardener_overgrowth".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -12851,7 +13365,8 @@ public final class GameCore {
                     || "prismist_lens".equals(d.id) || "prismist_anchor".equals(d.id)
                     || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
                     || "dreamwalker_veil".equals(d.id) || "dreamwalker_overdream".equals(d.id)
-                    || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
+                    || "dreamwalker_grand_dream".equals(d.id) || "gardener_rootwall".equals(d.id)
+                    || "gardener_overgrowth".equals(d.id) || "gardener_grand_grove".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -12879,7 +13394,9 @@ public final class GameCore {
                     || "prismist_ray".equals(d.id) || "prismist_spill".equals(d.id)
                     || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
                     || "dreamwalker_drift".equals(d.id) || "dreamwalker_bind".equals(d.id)
-                    || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
+                    || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)
+                    || "gardener_sprout".equals(d.id) || "gardener_thornbloom".equals(d.id)
+                    || "gardener_overgrowth".equals(d.id) || "gardener_grand_grove".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -12891,7 +13408,8 @@ public final class GameCore {
                     || "tactician_grand_strategy".equals(d.id) || "prismist_lens".equals(d.id)
                     || "prismist_anchor".equals(d.id) || "prismist_overbeam".equals(d.id)
                     || "prismist_grand_spectrum".equals(d.id) || "dreamwalker_veil".equals(d.id)
-                    || "dreamwalker_lucid".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
+                    || "dreamwalker_lucid".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)
+                    || "gardener_compost".equals(d.id) || "gardener_grand_grove".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -12903,7 +13421,8 @@ public final class GameCore {
                     || "prismist_lens".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
                     || "dreamwalker_drift".equals(d.id) || "dreamwalker_veil".equals(d.id)
                     || "dreamwalker_lucid".equals(d.id) || "dreamwalker_overdream".equals(d.id)
-                    || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
+                    || "dreamwalker_grand_dream".equals(d.id) || "gardener_sprout".equals(d.id)
+                    || "gardener_overgrowth".equals(d.id)) bonus += 4;
         } else if ("spec_markchain".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -12950,7 +13469,9 @@ public final class GameCore {
                 || "tactician_overplan".equals(id) || "prismist_ray".equals(id)
                 || "prismist_lens".equals(id) || "prismist_overbeam".equals(id)
                 || "dreamwalker_drift".equals(id) || "dreamwalker_veil".equals(id)
-                || "dreamwalker_lucid".equals(id) || "dreamwalker_overdream".equals(id);
+                || "dreamwalker_lucid".equals(id) || "dreamwalker_overdream".equals(id)
+                || "gardener_sprout".equals(id) || "gardener_rootwall".equals(id)
+                || "gardener_compost".equals(id) || "gardener_overgrowth".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -13104,6 +13625,15 @@ public final class GameCore {
                 || d.rarity == 2 || d.bind > 0 || d.profession.equals(PROF_DREAMWALKER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "seed_satchel") && (d.heal > 0 || d.gainWildEngine > 0 || d.bind > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.createWound || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_GARDENER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "verdant_crown") && (d.heal > 0 || d.gainWildEngine > 0 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.bind > 0 || d.profession.equals(PROF_GARDENER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -13137,7 +13667,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -13162,6 +13692,7 @@ public final class GameCore {
         if (PROF_TACTICIAN.equals(s.profession)) return "war_table";
         if (PROF_PRISMIST.equals(s.profession)) return "refraction_dial";
         if (PROF_DREAMWALKER.equals(s.profession)) return "dreamcatcher_charm";
+        if (PROF_GARDENER.equals(s.profession)) return "seed_satchel";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -13346,6 +13877,15 @@ public final class GameCore {
         if (PROF_DREAMWALKER.equals(s.profession) && "oneiric_crown".equals(id)) {
             return 4;
         }
+        if (PROF_GARDENER.equals(s.profession) && ("seed_satchel".equals(id) || "vital_sprout".equals(id)
+                || "green_bell".equals(id) || "root_drum".equals(id) || "stormglass_seal".equals(id)
+                || "emberroot_charm".equals(id) || "starforge_lens".equals(id) || "overload_etch".equals(id)
+                || "discipline_chart".equals(id) || "confluence_map".equals(id) || "tempo_metronome".equals(id))) {
+            return 2;
+        }
+        if (PROF_GARDENER.equals(s.profession) && "verdant_crown".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -13385,7 +13925,8 @@ public final class GameCore {
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_STORMCALLER.equals(s.profession)
                 || PROF_SHADOWDANCER.equals(s.profession) || PROF_RUNEBLADE.equals(s.profession)
                 || PROF_MEDIUM.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
-                || PROF_PRISMIST.equals(s.profession) || PROF_DREAMWALKER.equals(s.profession))
+                || PROF_PRISMIST.equals(s.profession) || PROF_DREAMWALKER.equals(s.profession)
+                || PROF_GARDENER.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -13722,6 +14263,19 @@ public final class GameCore {
             upgradeRandomDeckCard(s);
             s.maxHp += 3;
             s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("seed_satchel".equals(id)) {
+            addUpgradedDeckCard(s, "gardener_compost");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("verdant_crown".equals(id)) {
+            addUpgradedDeckCard(s, "gardener_grand_grove");
+            addUpgradedDeckCard(s, "gardener_sprout");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -14334,6 +14888,19 @@ public final class GameCore {
         c = addCard("dreamwalker_grand_dream", "终局梦境", "通用", 2, 2, 0, 9, 13, 9, 13, "造成伤害并获得格挡；按梦痕、临时牌、状态牌、消耗和控制追加终局收益。", "更高伤害、格挡和梦牌返还。");
         c.profession = PROF_DREAMWALKER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.exhaust = true; c.targetEnemy = true;
 
+        c = addCard("gardener_sprout", "育芽", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张并施加束缚；治疗、再生和种子会追加萌发收益。", "更高伤害、更多束缚和种子。");
+        c.profession = PROF_GARDENER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.heal = 1; c.healUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("gardener_rootwall", "根墙", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡并扎根目标；种子、再生和当前格挡会追加防线。", "更多格挡、束缚和抽牌窗口。");
+        c.profession = PROF_GARDENER; c.bind = 1; c.bindUp = 2; c.heal = 1; c.healUp = 2; c.draw = c.drawUp = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("gardener_compost", "腐殖堆", "通用", 1, 1, 1, 0, 0, 5, 8, "获得格挡、抽牌并把状态牌转成能量、升级和种子。", "更多格挡、种子和状态转化。");
+        c.profession = PROF_GARDENER; c.draw = c.drawUp = 1; c.upgradeRandom = true; c.skillChargeGain = 1; c.exhaust = true;
+        c = addCard("gardener_thornbloom", "荆花阵", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，施加束缚与易伤；敌方控制、种子和再生会追加爆发。", "更高伤害、束缚和种子。");
+        c.profession = PROF_GARDENER; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("gardener_overgrowth", "过载疯长", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、治疗和职业技充能；制造临时育芽，过载会放大萌发窗口。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_GARDENER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.createEcho = true; c.echoCardId = "gardener_sprout"; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("gardener_grand_grove", "终局青庭", "通用", 2, 2, 0, 9, 13, 10, 14, "造成伤害并获得格挡；按种子、再生、治疗牌、腐殖和过载追加终局收益。", "更高伤害、格挡和植牌返还。");
+        c.profession = PROF_GARDENER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.heal = 4; c.healUp = 6; c.gainWildEngine = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -14567,6 +15134,7 @@ public final class GameCore {
         addRelicDef("war_table", "战争沙盘", "阵术师格挡、检视、升级、充能和汇流牌更快推动职业技；释放后升级手牌、制造侦察令并追加标记追击。");
         addRelicDef("refraction_dial", "折光仪", "棱镜师混搭、检视、升级、抽牌和汇流牌更快推动职业技；释放后制造折光射线、升级手牌并追加标记追击。");
         addRelicDef("dreamcatcher_charm", "捕梦坠", "梦行者检视、消耗、临时牌和状态牌更快推动职业技；释放后制造梦步漂移并把状态转成格挡与束缚。");
+        addRelicDef("seed_satchel", "种囊", "园艺师治疗、格挡、束缚、再生和腐殖牌更快推动职业技；释放后制造育芽并把种子转为治疗与扎根。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -14591,6 +15159,7 @@ public final class GameCore {
         addRelicDef("grand_war_room", "终局战室", "获得升级终局大阵；阵术师格挡、升级、充能、汇流和稀有牌会滚动印记、升级与战术追击。");
         addRelicDef("spectrum_crown", "光谱冠冕", "获得升级终局光谱；棱镜师混搭、充能、汇流和稀有牌会滚动印记、抽牌、升级与折光追击。");
         addRelicDef("oneiric_crown", "梦王冠", "获得升级终局梦境；梦行者临时、消耗、状态、充能和稀有牌会滚动束缚、印记、抽牌与入梦追击。");
+        addRelicDef("verdant_crown", "青庭冠", "获得升级终局青庭；园艺师治疗、格挡、束缚、再生、充能和稀有牌会滚动扎根、抽牌、升级与萌发追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -14791,6 +15360,9 @@ public final class GameCore {
         addTalent("t_dreamwalker_drift", PROF_DREAMWALKER, "梦步回游", "获得升级梦步漂移；检视、抽牌、临时和梦牌追加印记，并把梦痕转成穿透追击。");
         addTalent("t_dreamwalker_veil", PROF_DREAMWALKER, "梦幕守仪", "获得生命和升级梦幕护身；格挡、临时、回声和状态牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_dreamwalker_lucid", PROF_DREAMWALKER, "清醒转写", "获得升级清醒梦并净化状态；消耗、检视、升级和状态牌会转成抽牌、能量和梦痕。");
+        addTalent("t_gardener_sprout", PROF_GARDENER, "育芽循环", "获得生命和升级育芽；治疗、抽牌、再生和植牌追加印记，并把种子转成穿透追击。");
+        addTalent("t_gardener_rootwall", PROF_GARDENER, "根墙防线", "获得生命和升级根墙；格挡、治疗、技能和束缚牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_gardener_compost", PROF_GARDENER, "腐殖转化", "获得升级腐殖堆并净化状态；状态、消耗、治疗和植牌会转成抽牌、能量和种子。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -14815,6 +15387,7 @@ public final class GameCore {
         addTalent("t_tactician_grand", PROF_TACTICIAN, "终局大阵", "获得升级终局大阵；格挡、检视、升级、汇流与过载牌持续抽牌、升级并把印记转为战术裁切。");
         addTalent("t_prismist_grand", PROF_PRISMIST, "终局光谱", "获得升级终局光谱；混搭、汇流、升级与过载牌持续抽牌、升级并把印记转为折光裁切。");
         addTalent("t_dreamwalker_grand", PROF_DREAMWALKER, "终局梦境", "获得升级终局梦境；临时、回声、消耗、状态与过载牌持续抽牌、升级并把束缚印记转为入梦裁切。");
+        addTalent("t_gardener_grand", PROF_GARDENER, "终局青庭", "获得升级终局青庭；治疗、格挡、束缚、再生与过载牌持续抽牌、升级并把扎根印记转为萌发裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

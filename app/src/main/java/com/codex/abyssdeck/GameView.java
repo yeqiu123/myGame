@@ -1314,6 +1314,26 @@ public final class GameView extends View {
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx + size * 0.48f, cy - size * 0.48f, size * 0.13f, p);
             c.drawCircle(cx - size * 0.16f, cy + size * 0.22f, size * 0.1f, p);
+        } else if (GameCore.PROF_GARDENER.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            c.drawLine(cx, cy + size * 0.82f, cx, cy - size * 0.42f, p);
+            c.drawLine(cx, cy + size * 0.34f, cx - size * 0.46f, cy + size * 0.72f, p);
+            c.drawLine(cx, cy + size * 0.34f, cx + size * 0.46f, cy + size * 0.72f, p);
+            c.drawLine(cx, cy + size * 0.46f, cx - size * 0.22f, cy + size * 0.88f, p);
+            c.drawLine(cx, cy + size * 0.46f, cx + size * 0.22f, cy + size * 0.88f, p);
+            p.setStyle(Paint.Style.FILL);
+            Path leftLeaf = new Path();
+            leftLeaf.moveTo(cx, cy - size * 0.28f);
+            leftLeaf.cubicTo(cx - size * 0.78f, cy - size * 0.72f, cx - size * 0.96f, cy + size * 0.08f, cx - size * 0.18f, cy + size * 0.08f);
+            leftLeaf.cubicTo(cx - size * 0.08f, cy - size * 0.02f, cx, cy - size * 0.16f, cx, cy - size * 0.28f);
+            c.drawPath(leftLeaf, p);
+            Path rightLeaf = new Path();
+            rightLeaf.moveTo(cx + size * 0.04f, cy - size * 0.5f);
+            rightLeaf.cubicTo(cx + size * 0.88f, cy - size * 0.9f, cx + size * 0.98f, cy - size * 0.02f, cx + size * 0.18f, cy - size * 0.06f);
+            rightLeaf.cubicTo(cx + size * 0.1f, cy - size * 0.18f, cx + size * 0.04f, cy - size * 0.36f, cx + size * 0.04f, cy - size * 0.5f);
+            c.drawPath(rightLeaf, p);
+            c.drawCircle(cx, cy + size * 0.28f, size * 0.16f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
