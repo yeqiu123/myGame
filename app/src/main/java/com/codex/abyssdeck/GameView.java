@@ -918,7 +918,11 @@ public final class GameView extends View {
         drawText(c, String.valueOf(cost), inner.left + dp(10), inner.top + dp(37), 14, 0xff1b150b, true);
         drawWrapped(c, GameCore.cardText(card), inner.left + dp(7), inner.top + inner.height() * 0.62f, inner.width() - dp(14), Math.max(9, inner.width() / 10.5f), 0xfff3ead7);
         String tag = d.profession.length() > 0 ? d.profession + " " + rarity(d.rarity) : rarity(d.rarity);
-        drawText(c, tag, inner.left + dp(7), inner.bottom - dp(6), 10, 0xffc8d0d0, false);
+        String compactTags = compactCardBuildTags(card, d);
+        if (compactTags.length() > 0) {
+            tag += " " + compactTags;
+        }
+        drawText(c, shortText(tag, 13), inner.left + dp(7), inner.bottom - dp(6), 10, 0xffc8d0d0, false);
     }
 
     private void drawCardDetail(Canvas c, GameCore.Card card) {
@@ -984,8 +988,25 @@ public final class GameView extends View {
         return tags;
     }
 
+    private String compactCardBuildTags(GameCore.Card card, GameCore.CardDef d) {
+        String tags = "";
+        if (d.skillChargeGain > 0) tags = appendCompactTag(tags, "载");
+        if (d.createEcho || d.exhaust || card.temp) tags = appendCompactTag(tags, "回");
+        if (d.createPotion) tags = appendCompactTag(tags, "炼");
+        if (d.goldGain > 0 || d.goldDamage || d.goldBlock) tags = appendCompactTag(tags, "金");
+        if (d.hpLoss > 0 || d.createWound || "wound".equals(card.id)) tags = appendCompactTag(tags, "血");
+        if (d.upgradeRandom || d.scry > 0) tags = appendCompactTag(tags, "锻");
+        if (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.spreadStatus) tags = appendCompactTag(tags, "异");
+        if (d.draw > 0 || d.energyGain > 0) tags = appendCompactTag(tags, "循");
+        return tags;
+    }
+
     private String appendTag(String tags, String tag) {
         return tags.length() == 0 ? tag : tags + " / " + tag;
+    }
+
+    private String appendCompactTag(String tags, String tag) {
+        return tags.length() == 0 ? tag : tags + "/" + tag;
     }
 
     private void drawCardArt(Canvas c, GameCore.CardDef d, RectF r) {
