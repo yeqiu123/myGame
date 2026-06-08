@@ -1352,6 +1352,17 @@ public final class GameView extends View {
             flame.cubicTo(cx - size * 0.35f, cy + size * 0.18f, cx - size * 0.12f, cy - size * 0.1f, cx, cy - size * 0.36f);
             flame.cubicTo(cx + size * 0.38f, cy - size * 0.02f, cx + size * 0.25f, cy + size * 0.3f, cx, cy + size * 0.5f);
             c.drawPath(flame, p);
+        } else if (GameCore.PROF_BARD.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            c.drawArc(new RectF(cx - size * 0.78f, cy - size * 0.92f, cx + size * 0.78f, cy + size * 0.72f), 210, 250, false, p);
+            c.drawLine(cx + size * 0.18f, cy - size * 0.92f, cx + size * 0.18f, cy + size * 0.54f, p);
+            c.drawLine(cx + size * 0.18f, cy - size * 0.92f, cx + size * 0.62f, cy - size * 0.72f, p);
+            c.drawLine(cx - size * 0.46f, cy - size * 0.26f, cx + size * 0.18f, cy - size * 0.08f, p);
+            c.drawLine(cx - size * 0.34f, cy + size * 0.18f, cx + size * 0.18f, cy + size * 0.34f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx - size * 0.58f, cy + size * 0.42f, size * 0.22f, p);
+            c.drawCircle(cx + size * 0.18f, cy + size * 0.66f, size * 0.22f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
