@@ -57,7 +57,7 @@ public final class GameCore {
     public static final int QUEST_CONFLUENCE = 13;
     public static final int QUEST_MARK = 14;
     public static final int QUEST_OVERLOAD = 15;
-    public static final int EVENT_COUNT = 17;
+    public static final int EVENT_COUNT = 19;
     private static final int MILESTONE_GUARD = 1;
     private static final int MILESTONE_COMBO = 1 << 1;
     private static final int MILESTONE_HEX = 1 << 2;
@@ -2309,6 +2309,76 @@ public final class GameCore {
                 addStatusCard(s, "daze");
                 addStatusCard(s, "wound");
                 log(s, "棱庭把构筑碎片压成遗物，也留下裂隙杂质。");
+            }
+        } else if (e == 17) {
+            int focus = buildScoutFocus(s);
+            if (choice == 0) {
+                HashSet<String> offered = new HashSet<>();
+                int gained = 0;
+                for (int i = 0; i < 2; i++) {
+                    CardDef d = randomBuildScoutCard(s, true, offered);
+                    if (d == null) {
+                        break;
+                    }
+                    offered.add(d.id);
+                    Card c = new Card(d.id);
+                    c.upgraded = i == 0 || s.run.nextInt(100) < 45;
+                    s.deck.add(c);
+                    gained++;
+                    log(s, "星盘校准" + BUILD_FOCUS_NAMES[focus] + "牌：" + d.name);
+                }
+                if (gained == 0) {
+                    CardDef d = randomCard(s, s.origin, true);
+                    Card c = new Card(d.id);
+                    c.upgraded = true;
+                    s.deck.add(c);
+                    log(s, "星盘退回一张稳定牌：" + d.name);
+                }
+                s.maxHp = Math.max(30, s.maxHp - 3);
+                s.hp = Math.min(s.hp, s.maxHp);
+            } else {
+                RelicDef r = randomFocusRelic(s, focus);
+                addRelic(s, r.id);
+                CardDef d = randomSkillSpecCard(s, s.act >= 2);
+                if (d != null) {
+                    Card c = new Card(d.id);
+                    c.upgraded = s.run.nextInt(100) < 55;
+                    s.deck.add(c);
+                    log(s, "星盘折出" + r.name + "，并指向适配牌：" + d.name);
+                } else {
+                    log(s, "星盘折出构筑遗物：" + r.name);
+                }
+                addStatusCard(s, "daze");
+            }
+        } else if (e == 18) {
+            if (choice == 0) {
+                CardDef pactCard = randomPactBridgeCard(s, true);
+                Card c = new Card(pactCard.id);
+                c.upgraded = true;
+                s.deck.add(c);
+                int gold = 25 + s.act * 8 + Math.min(30, s.pactFulfilled * 10);
+                s.gold += gold;
+                if (pactSucceeded(s)) {
+                    awardPact(s);
+                } else {
+                    addProfessionSkillCharge(s, 1);
+                }
+                log(s, "黑市替誓约牵线：" + pactCard.name + "，并支付 " + gold + " 金币。");
+            } else {
+                String relicId = skillSpecRelicFor(s);
+                addRelic(s, relicId);
+                CardDef d = randomSkillSpecCard(s, true);
+                if (d != null) {
+                    Card c = new Card(d.id);
+                    c.upgraded = true;
+                    s.deck.add(c);
+                    log(s, "黑市押下专修筹码：" + relic(relicId).name + " / " + d.name);
+                } else {
+                    log(s, "黑市押下专修筹码：" + relic(relicId).name);
+                }
+                addStatusCard(s, "wound");
+                s.hp = Math.max(1, s.hp - Math.max(3, 7 - s.pactFulfilled));
+                s.pactStatusCards++;
             }
         } else {
             SkillSpecDef spec = skillSpec(s.skillSpec);
@@ -13141,7 +13211,7 @@ public final class GameCore {
         s.mode = MODE_EVENT;
         applyRouteArrival(s, '?');
         if (s.currentRoute == ROUTE_SECRET && s.run.nextInt(100) < 45) {
-            int[] rareEvents = {2, 4, 7, 10, 11, 15, 16};
+            int[] rareEvents = {2, 4, 7, 10, 11, 15, 16, 17, 18};
             s.eventId = rareEvents[s.run.nextInt(rareEvents.length)];
         } else {
             s.eventId = s.run.nextInt(EVENT_COUNT);
@@ -13341,6 +13411,83 @@ public final class GameCore {
             return randomCard(s, s.origin, allowRare, excluded);
         }
         return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static RelicDef randomFocusRelic(State s, int focus) {
+        ArrayList<RelicDef> pool = new ArrayList<>();
+        for (RelicDef r : RELIC_LIBRARY) {
+            if (r.boss || s.relics.contains(r.id)) {
+                continue;
+            }
+            if (s.act < 2 && isCapstoneRelic(r.id)) {
+                continue;
+            }
+            int value = relicFocusValue(r.id, focus);
+            int weight = value + professionRelicBonus(s, r.id) + skillSpecRelicBonus(s, r.id);
+            if (weight <= 0) {
+                continue;
+            }
+            for (int i = 0; i < 1 + Math.min(10, weight); i++) {
+                pool.add(r);
+            }
+        }
+        if (pool.isEmpty()) {
+            return randomRelic(s);
+        }
+        return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static CardDef randomPactBridgeCard(State s, boolean allowRare) {
+        int focus = buildScoutFocus(s);
+        ArrayList<CardDef> pool = new ArrayList<>();
+        for (CardDef d : CARD_LIBRARY) {
+            if (d.type == 3) {
+                continue;
+            }
+            if (!allowRare && d.rarity == 2) {
+                continue;
+            }
+            if (s.act < 2 && isCapstoneCard(d.id)) {
+                continue;
+            }
+            int value = buildFocusCardValue(d, focus) + skillSpecCardBonus(s, d) + pactBridgeCardBonus(s, d);
+            if (value <= 0) {
+                continue;
+            }
+            int weight = 2 + Math.min(18, value);
+            if (d.profession.equals(s.profession)) {
+                weight += 5;
+            }
+            if (d.origin.equals(s.origin) || "通用".equals(d.origin)) {
+                weight += 3;
+            }
+            if (d.skillChargeGain > 0) {
+                weight += 2;
+            }
+            for (int i = 0; i < weight; i++) {
+                pool.add(d);
+            }
+        }
+        if (pool.isEmpty()) {
+            return randomBuildScoutCard(s, allowRare, Collections.<String>emptySet());
+        }
+        return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static int pactBridgeCardBonus(State s, CardDef d) {
+        if ("pact_guardian".equals(s.pact) && (d.block > 0 || d.type == 1 || d.retainBlock)) return 7;
+        if ("pact_sprinter".equals(s.pact) && (d.cost == 0 || d.draw > 0 || d.energyGain > 0)) return 7;
+        if ("pact_brewer".equals(s.pact) && (d.createPotion || d.burn > 0 || d.bind > 0 || d.spreadStatus)) return 7;
+        if ("pact_hunter".equals(s.pact) && (d.aoe || d.bind > 0 || d.vulnerable > 0 || d.comboDamage > 0)) return 7;
+        if ("pact_void".equals(s.pact) && (d.exhaust || d.createEcho || d.draw > 0 || d.energyGain > 0)) return 7;
+        if ("pact_blood".equals(s.pact) && (d.hpLoss > 0 || d.heal > 0 || d.createWound || "wound".equals(d.id))) return 7;
+        if ("pact_summon".equals(s.pact) && (d.createEcho || d.exhaust || d.bind > 0 || d.type == 1)) return 7;
+        if ("pact_hex".equals(s.pact) && (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.createWound)) return 7;
+        if ("pact_forge".equals(s.pact) && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) return 7;
+        if ("pact_merchant".equals(s.pact) && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.draw > 0)) return 7;
+        if ("pact_suppression".equals(s.pact) && (d.vulnerable > 0 || d.bind > 0 || d.burn > 0 || d.addStatusToEnemy || d.spreadStatus || pressureCardId(d.id))) return 7;
+        if ("pact_confluence".equals(s.pact) && (hybridFocusCount(d) >= 2 || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0)) return 7;
+        return 0;
     }
 
     private static int buildScoutFocus(State s) {
