@@ -1304,6 +1304,16 @@ public final class GameView extends View {
             c.drawLine(cx + size * 0.7f, cy - size * 0.18f, cx - size * 0.36f, cy + size * 0.82f, p);
             c.drawLine(cx - size * 0.92f, cy + size * 0.16f, cx - size * 0.46f, cy + size * 0.52f, p);
             c.drawLine(cx + size * 0.92f, cy + size * 0.16f, cx + size * 0.46f, cy + size * 0.52f, p);
+        } else if (GameCore.PROF_DREAMWALKER.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            c.drawArc(new RectF(cx - size * 0.72f, cy - size * 0.92f, cx + size * 0.72f, cy + size * 0.92f), 105, 250, false, p);
+            c.drawArc(new RectF(cx - size * 0.22f, cy - size * 0.78f, cx + size * 0.98f, cy + size * 0.58f), 118, 215, false, p);
+            c.drawLine(cx - size * 0.78f, cy + size * 0.5f, cx + size * 0.55f, cy - size * 0.22f, p);
+            c.drawLine(cx - size * 0.52f, cy + size * 0.78f, cx + size * 0.78f, cy + size * 0.18f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx + size * 0.48f, cy - size * 0.48f, size * 0.13f, p);
+            c.drawCircle(cx - size * 0.16f, cy + size * 0.22f, size * 0.1f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

@@ -113,13 +113,14 @@ public final class GameCore {
     public static final String PROF_MEDIUM = "灵媒师";
     public static final String PROF_TACTICIAN = "阵术师";
     public static final String PROF_PRISMIST = "棱镜师";
+    public static final String PROF_DREAMWALKER = "梦行者";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
             PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER, PROF_TUNER,
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
-            PROF_TACTICIAN, PROF_PRISMIST
+            PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -798,6 +799,7 @@ public final class GameCore {
         if (PROF_MEDIUM.equals(profession)) return "降灵";
         if (PROF_TACTICIAN.equals(profession)) return "布阵";
         if (PROF_PRISMIST.equals(profession)) return "折光";
+        if (PROF_DREAMWALKER.equals(profession)) return "入梦";
         return "职业技";
     }
 
@@ -856,6 +858,7 @@ public final class GameCore {
         if (PROF_MEDIUM.equals(profession)) return "满充能：消耗灵势降灵，按临时牌、回声、消耗、检视和束缚制造魂牌、格挡、抽牌与穿透魂潮。";
         if (PROF_TACTICIAN.equals(profession)) return "满充能：消耗阵势布阵，按格挡、检视、升级牌、印记、汇流和过载造成穿透，获得格挡、抽牌并制造战术牌。";
         if (PROF_PRISMIST.equals(profession)) return "满充能：消耗光谱折光，按混搭标签、汇流链、检视、升级、异常和过载造成穿透，获得格挡、抽牌并制造棱镜牌。";
+        if (PROF_DREAMWALKER.equals(profession)) return "满充能：消耗梦痕入梦，按检视、临时牌、消耗、状态牌、束缚、印记和过载造成穿透，抽牌、格挡并制造梦牌。";
         return "选择职业后可用。";
     }
 
@@ -1402,6 +1405,51 @@ public final class GameCore {
             addQuestProgress(s, QUEST_FORGE, 1);
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, spectrum / 2);
+        } else if (PROF_DREAMWALKER.equals(s.profession)) {
+            int dream = Math.max(1, s.professionCharge);
+            int echoes = Math.max(0, tempOrEchoHandCount(s) + s.pactTempCards);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int exhausted = Math.min(16, s.exhaust.size());
+            int control = target == null ? bestEnemyPressure(s) / 2
+                    : target.bind * 3 + target.mark * 2 + target.vulnerable * 3 + target.burn / 2;
+            int scryPulse = Math.min(10, buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_CYCLE));
+            int damage = 8 + s.act * 3 + Math.min(48, dream * 3 + echoes * 3 + statuses * 4
+                    + exhausted * 2 + control + scryPulse) + overload * 5;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.bind += 1 + Math.min(4, dream / 3) + Math.min(2, statuses / 2) + overload / 2 + s.bindPower / 2;
+                target.mark += 1 + Math.min(3, echoes / 2) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, statuses / 3 + overload / 4);
+                if (target.bind >= 4 || target.mark >= 4 || statuses >= 2 || target.hp <= 0) {
+                    draw(s, 1);
+                    addProfessionSkillCharge(s, 1 + overload / 2);
+                }
+            }
+            gainBlock(s, 5 + s.act * 2 + Math.min(26, dream * 2 + echoes * 2 + statuses * 3 + exhausted) + overload * 3);
+            draw(s, 1 + Math.min(2, dream / 5) + overload / 4);
+            if (dream >= 5 || echoes >= 3 || statuses >= 2 || overload >= 3) {
+                s.energy++;
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                gainBlock(s, 4 + s.act + Math.min(10, statuses * 3));
+            }
+            Card drift = new Card(overload >= 4 || hasTalent(s, "t_dreamwalker_grand") ? "dreamwalker_grand_dream" : "dreamwalker_drift");
+            drift.temp = true;
+            drift.upgraded = dream >= 5 || hasTalent(s, "t_dreamwalker_drift");
+            addToHand(s, drift);
+            if (hasTalent(s, "t_dreamwalker_grand")) {
+                Card bind = new Card("dreamwalker_bind");
+                bind.temp = true;
+                bind.upgraded = true;
+                addToHand(s, bind);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.max(1, echoes));
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, Math.max(1, statuses)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, dream / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2671,6 +2719,9 @@ public final class GameCore {
         if (PROF_PRISMIST.equals(profession)) {
             return "用混搭牌、汇流链、检视、升级和异常积累光谱，把跨流派标签折射成抽牌、格挡、印记和终局爆发。适合汇流、工坊、异常、循环和过载构筑。";
         }
+        if (PROF_DREAMWALKER.equals(profession)) {
+            return "用检视、临时牌、消耗和状态牌积累梦痕，把裂伤与眩光转成抽牌、格挡、束缚和入梦爆发。适合回声、循环、异常、过载和状态转化构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2743,6 +2794,9 @@ public final class GameCore {
         }
         if (PROF_PRISMIST.equals(profession)) {
             return 0xffbfe6ff;
+        }
+        if (PROF_DREAMWALKER.equals(profession)) {
+            return 0xffd7b8ff;
         }
         return 0xffd6c07a;
     }
@@ -3031,6 +3085,13 @@ public final class GameCore {
             s.hp += 1;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_DREAMWALKER.equals(profession)) {
+            s.deck.add(new Card("dreamwalker_drift"));
+            s.deck.add(new Card("dreamwalker_veil"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 1;
+            s.hp += 1;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3075,6 +3136,7 @@ public final class GameCore {
         else if (PROF_MEDIUM.equals(profession)) upgradeDeckCard(s, "medium_whisper");
         else if (PROF_TACTICIAN.equals(profession)) upgradeDeckCard(s, "tactician_probe");
         else if (PROF_PRISMIST.equals(profession)) upgradeDeckCard(s, "prismist_ray");
+        else if (PROF_DREAMWALKER.equals(profession)) upgradeDeckCard(s, "dreamwalker_drift");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3151,6 +3213,10 @@ public final class GameCore {
             addUpgradedDeckCard(s, "prismist_anchor");
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_DREAMWALKER.equals(profession)) {
+            addUpgradedDeckCard(s, "dreamwalker_lucid");
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3178,6 +3244,7 @@ public final class GameCore {
         if (PROF_MEDIUM.equals(profession)) return "medium_overtrance";
         if (PROF_TACTICIAN.equals(profession)) return "tactician_overplan";
         if (PROF_PRISMIST.equals(profession)) return "prismist_overbeam";
+        if (PROF_DREAMWALKER.equals(profession)) return "dreamwalker_overdream";
         return "forge_signal";
     }
 
@@ -3513,6 +3580,21 @@ public final class GameCore {
         } else if ("t_prismist_grand".equals(id)) {
             addUpgradedDeckCard(s, "prismist_grand_spectrum");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_dreamwalker_drift".equals(id)) {
+            addUpgradedDeckCard(s, "dreamwalker_drift");
+            draw(s, s.mode == MODE_COMBAT ? 1 : 0);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_dreamwalker_veil".equals(id)) {
+            addUpgradedDeckCard(s, "dreamwalker_veil");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_dreamwalker_lucid".equals(id)) {
+            addUpgradedDeckCard(s, "dreamwalker_lucid");
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_dreamwalker_grand".equals(id)) {
+            addUpgradedDeckCard(s, "dreamwalker_grand_dream");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -3534,7 +3616,7 @@ public final class GameCore {
                 || "t_pactmaker_grand".equals(id) || "t_stormcaller_grand".equals(id)
                 || "t_shadowdancer_grand".equals(id) || "t_runeblade_grand".equals(id)
                 || "t_medium_grand".equals(id) || "t_tactician_grand".equals(id)
-                || "t_prismist_grand".equals(id);
+                || "t_prismist_grand".equals(id) || "t_dreamwalker_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -3549,7 +3631,7 @@ public final class GameCore {
                 || "pactmaker_grand_contract".equals(id) || "stormcaller_tempest_crown".equals(id)
                 || "shadowdancer_eclipse".equals(id) || "runeblade_grand_seal".equals(id)
                 || "medium_grand_seance".equals(id) || "tactician_grand_strategy".equals(id)
-                || "prismist_grand_spectrum".equals(id);
+                || "prismist_grand_spectrum".equals(id) || "dreamwalker_grand_dream".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -3564,7 +3646,7 @@ public final class GameCore {
                 || "grand_ledger".equals(id) || "tempest_crown".equals(id)
                 || "eclipse_mask".equals(id) || "grand_rune_blade".equals(id)
                 || "ancestral_planchette".equals(id) || "grand_war_room".equals(id)
-                || "spectrum_crown".equals(id);
+                || "spectrum_crown".equals(id) || "oneiric_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -3988,6 +4070,9 @@ public final class GameCore {
         else if (PROF_PRISMIST.equals(s.profession) && d != null && (hybridFocusCount(d) >= 2 || d.scry > 0
                 || d.upgradeRandom || d.skillChargeGain > 0 || d.draw > 0 || d.vulnerable > 0 || d.bind > 0
                 || d.burn > 0 || d.profession.equals(PROF_PRISMIST))) amount++;
+        else if (PROF_DREAMWALKER.equals(s.profession) && d != null && (d.scry > 0 || d.exhaust || d.createEcho
+                || d.draw > 0 || d.bind > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_DREAMWALKER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -4614,6 +4699,30 @@ public final class GameCore {
             if (level >= 3 || labels >= 4 || s.confluenceChain >= 5 || overload >= 3) {
                 s.energy++;
             }
+        } else if (PROF_DREAMWALKER.equals(s.profession)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            s.professionCharge += level + 1 + statuses / 2 + overload / 2;
+            draw(s, 1);
+            if (statuses > 0 || level >= 3) {
+                removeStatusCard(s);
+                upgradeRandomHandCard(s);
+            }
+            gainBlock(s, 4 + level * 3 + Math.min(16, s.professionCharge + echoes * 3 + statuses * 3));
+            addProfessionSkillCharge(s, level + overload / 2);
+            Card dream = new Card(level >= 3 || overload >= 3 ? "dreamwalker_overdream" : "dreamwalker_drift");
+            dream.temp = true;
+            dream.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, dream);
+            if (target != null) {
+                target.bind += level + 1 + overload / 2 + s.bindPower / 2;
+                target.mark += level + Math.min(2, echoes / 2) + overload / 2;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(22, s.professionCharge * 2 + echoes * 3
+                        + statuses * 4 + target.bind * 2), true);
+            }
+            if (level >= 3 || echoes >= 3 || statuses >= 2 || overload >= 3) {
+                s.energy++;
+            }
         }
     }
 
@@ -4945,6 +5054,40 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "dreamcatcher_charm") && PROF_DREAMWALKER.equals(s.profession)) {
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, tempOrEchoHandCount(s) / 2 + statusDeckCards(s)));
+            gainBlock(s, 4 + s.act + Math.min(12, s.professionCharge + tempOrEchoHandCount(s) * 2 + statusDeckCards(s) * 3));
+            Card drift = new Card("dreamwalker_drift");
+            drift.temp = true;
+            drift.upgraded = true;
+            addToHand(s, drift);
+            if (statusDeckCards(s) + statusHandCards(s) > 0) {
+                removeStatusCard(s);
+                gainBlock(s, 3 + s.act);
+            }
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2;
+                target.mark += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(18, target.bind * 2 + target.mark * 2 + statusDeckCards(s) * 3), true);
+            }
+        }
+        if (hasRelic(s, "oneiric_crown") && PROF_DREAMWALKER.equals(s.profession)) {
+            Card wave = new Card("dreamwalker_overdream");
+            wave.temp = true;
+            wave.upgraded = true;
+            addToHand(s, wave);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || tempOrEchoHandCount(s) >= 3 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -4988,6 +5131,9 @@ public final class GameCore {
                 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "refraction_dial") && PROF_PRISMIST.equals(s.profession) && amount > 0
                 && (s.confluenceChain >= 2 || focusMaskCount(s.confluenceMask) >= 3 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "dreamcatcher_charm") && PROF_DREAMWALKER.equals(s.profession) && amount > 0
+                && (tempOrEchoHandCount(s) >= 2 || statusDeckCards(s) + statusHandCards(s) > 0
+                || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -5151,6 +5297,7 @@ public final class GameCore {
         }
         if (quest == QUEST_ECHO && (PROF_ARCANIST.equals(s.profession) || PROF_SUMMONER.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
                 || hasRelic(s, "echo_prism") || hasRelic(s, "echoflow_charm")
@@ -5160,6 +5307,7 @@ public final class GameCore {
         if (quest == QUEST_BLOODCOIN && (PROF_MERCHANT.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
                 || PROF_HEXER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession) || PROF_ADJUDICATOR.equals(s.profession)
                 || PROF_PACTMAKER.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession)
                 || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
                 || hasTalent(s, "t_hexer_darkdeal") || hasRelic(s, "bloodcoin_broach") || hasRelic(s, "kingmaker_seal"))) {
             return true;
@@ -5168,6 +5316,7 @@ public final class GameCore {
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
                 || PROF_PRISMIST.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -5190,6 +5339,7 @@ public final class GameCore {
                 || PROF_INSCRIBER.equals(s.profession) || PROF_HEXER.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -5202,7 +5352,8 @@ public final class GameCore {
                 || PROF_ADJUDICATOR.equals(s.profession) || PROF_MACHINIST.equals(s.profession)
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_PACTMAKER.equals(s.profession)
                 || PROF_RUNEBLADE.equals(s.profession) || PROF_MEDIUM.equals(s.profession)
-                || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession))) {
+                || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
+                || PROF_DREAMWALKER.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -5230,7 +5381,9 @@ public final class GameCore {
                     || "tactician_probe".equals(d.id) || "tactician_flank".equals(d.id)
                     || "tactician_overplan".equals(d.id) || "tactician_grand_strategy".equals(d.id)
                     || "prismist_ray".equals(d.id) || "prismist_spill".equals(d.id)
-                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id))) return true;
+                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
+                    || "dreamwalker_drift".equals(d.id) || "dreamwalker_bind".equals(d.id)
+                    || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id))) return true;
             if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
@@ -6090,6 +6243,34 @@ public final class GameCore {
                 ray.temp = true;
                 ray.upgraded = true;
                 addToHand(s, ray);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_DREAMWALKER.equals(s.profession) && s.turn == 1) {
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(2, statusDeckCards(s));
+            draw(s, 1);
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+                firstLiving(s).mark += 1;
+                firstLiving(s).vulnerable += hasTalent(s, "t_dreamwalker_lucid") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_dreamwalker_drift")) {
+                Card drift = new Card("dreamwalker_drift");
+                drift.temp = true;
+                drift.upgraded = true;
+                addToHand(s, drift);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_dreamwalker_veil")) {
+                gainBlock(s, 4 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_dreamwalker_grand")) {
+                Card dream = new Card("dreamwalker_drift");
+                dream.temp = true;
+                dream.upgraded = true;
+                addToHand(s, dream);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -7612,6 +7793,76 @@ public final class GameCore {
                 draw += 1;
             }
         }
+        if ("dreamwalker_drift".equals(d.id) && target != null) {
+            int dream = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + (c.temp ? 1 : 0);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            damage += Math.min(c.upgraded ? 20 : 13, dream * 2 + echoes * 3 + statuses * 3 + target.mark * 2 + target.bind);
+            target.mark += c.upgraded ? 2 : 1;
+            if (echoes > 0 || statuses > 0 || c.upgraded) {
+                target.bind += 1 + s.bindPower / 2;
+            }
+            if (statuses >= 2 || dream >= 4) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("dreamwalker_veil".equals(d.id)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 20 : 13, s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + statuses * 4);
+            if (statuses > 0) {
+                draw += 1;
+                gainBlock(s, 2 + s.act);
+            }
+        }
+        if ("dreamwalker_lucid".equals(d.id)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 22 : 15, s.professionCharge * 2 + statuses * 5 + s.exhaust.size());
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+            if (s.exhaust.size() >= 3 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("dreamwalker_bind".equals(d.id) && target != null) {
+            int pressure = target.bind * 3 + target.mark * 2 + target.vulnerable * 3 + target.burn / 2;
+            damage += Math.min(c.upgraded ? 30 : 21, pressure + s.professionCharge * 2 + statusDeckCards(s) * 3);
+            target.mark += c.upgraded ? 2 : 1;
+            if (target.bind >= 3 || target.vulnerable > 0 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("dreamwalker_overdream".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 28 : 19, s.professionCharge * 2 + overloadNow * 6 + tempOrEchoHandCount(s) * 3 + statuses * 3);
+            if (target != null) {
+                target.bind += c.upgraded ? 2 : 1;
+                target.mark += c.upgraded ? 2 : 1;
+                damage += Math.min(c.upgraded ? 34 : 24, overloadNow * 7 + target.bind * 3 + target.mark * 2 + statuses * 4);
+            }
+            if (overloadNow >= 2 || statuses > 0 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("dreamwalker_grand_dream".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int echoes = tempOrEchoHandCount(s) + (c.temp ? 1 : 0);
+            damage += Math.min(c.upgraded ? 58 : 42, s.professionCharge * 4 + echoes * 5 + statuses * 6
+                    + s.exhaust.size() * 2 + overloadNow * 7 + bestEnemyPressure(s));
+            block += Math.min(c.upgraded ? 40 : 28, s.professionCharge * 3 + echoes * 4 + statuses * 5 + s.exhaust.size());
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            if (statuses > 0 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+            }
+        }
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -8146,6 +8397,60 @@ public final class GameCore {
             ray.upgraded = c.upgraded || s.confluenceChain >= 4;
             addToHand(s, ray);
             if (s.confluenceChain >= 5 || focusMaskCount(s.confluenceMask) >= 4) {
+                s.energy++;
+                addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
+            }
+        }
+        if ("dreamwalker_drift".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.temp ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            if (statusDeckCards(s) + statusHandCards(s) > 0 || tempOrEchoHandCount(s) >= 2) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("dreamwalker_veil".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+            if (statusDeckCards(s) + statusHandCards(s) > 0) {
+                gainBlock(s, 3 + s.act);
+            }
+        }
+        if ("dreamwalker_lucid".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_ECHO, 1);
+            if (statusDeckCards(s) + statusHandCards(s) > 0 || s.exhaust.size() >= 3) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("dreamwalker_bind".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            Enemy e = target != null ? target : firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+            }
+        }
+        if ("dreamwalker_overdream".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, 1);
+            if (professionSkillOverload(s) >= 2 || tempOrEchoHandCount(s) >= 3) {
+                s.energy++;
+            }
+        }
+        if ("dreamwalker_grand_dream".equals(d.id)) {
+            s.professionCharge += c.upgraded ? 3 : 2;
+            upgradeRandomHandCard(s);
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+            Card dream = new Card(s.run.nextBoolean() ? "dreamwalker_drift" : "dreamwalker_bind");
+            dream.temp = true;
+            dream.upgraded = c.upgraded || s.professionCharge >= 5;
+            addToHand(s, dream);
+            if (professionSkillOverload(s) >= 2 || statusDeckCards(s) + statusHandCards(s) > 0) {
                 s.energy++;
                 addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
             }
@@ -9538,6 +9843,80 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_DREAMWALKER.equals(s.profession) && (d.scry > 0 || d.exhaust || c.temp || d.createEcho
+                || d.draw > 0 || d.bind > 0 || d.skillChargeGain > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_DREAMWALKER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.scry > 0 || c.temp || d.createEcho || d.profession.equals(PROF_DREAMWALKER)) {
+                    e.mark += 1;
+                }
+                if (d.bind > 0 || statuses > 0 || "wound".equals(c.id) || "daze".equals(c.id)) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+                if (s.professionCharge >= 4 || tempOrEchoHandCount(s) >= 3 || statuses >= 2) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(22, e.mark * 2 + e.bind * 2
+                            + s.professionCharge * 2 + tempOrEchoHandCount(s) * 2 + statuses * 3), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge + tempOrEchoHandCount(s) * 2 + statuses * 3));
+                if (s.cardsPlayedThisTurn >= 3 || statuses > 0 || hasTalent(s, "t_dreamwalker_veil")) {
+                    draw(s, 1);
+                }
+                if (d.scry > 0 || hasTalent(s, "t_dreamwalker_lucid")) {
+                    upgradeRandomHandCard(s);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_dreamwalker_drift") && (d.scry > 0 || d.draw > 0 || c.temp
+                || d.createEcho || d.profession.equals(PROF_DREAMWALKER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(18, e.mark * 2 + tempOrEchoHandCount(s) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_dreamwalker_veil") && (d.block > 0 || d.type == 1 || c.temp
+                || d.createEcho || "wound".equals(c.id) || "daze".equals(c.id))) {
+            gainBlock(s, 3 + s.act + Math.min(9, tempOrEchoHandCount(s) + statusDeckCards(s) * 2));
+            if (s.cardsPlayedThisTurn == 3 || statusDeckCards(s) + statusHandCards(s) > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_dreamwalker_lucid") && (d.exhaust || d.scry > 0 || d.upgradeRandom
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_DREAMWALKER))) {
+            if (statusDeckCards(s) + statusHandCards(s) > 0 && s.cardsPlayedThisTurn <= 3) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_dreamwalker_grand") && (d.createEcho || d.exhaust || c.temp || d.skillChargeGain > 0
+                || d.rarity == 2 || d.scry > 0 || d.profession.equals(PROF_DREAMWALKER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4 || tempOrEchoHandCount(s) >= 3)) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -9741,6 +10120,42 @@ public final class GameCore {
                 e.mark += 1;
                 if (e.mark >= 4 || s.confluenceChain >= 4 || s.cardsPlayedThisTurn >= 4) {
                     damageEnemy(s, e, 4 + s.act * 2 + Math.min(22, e.mark * 2 + s.confluenceChain * 2 + s.professionCharge), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "dreamcatcher_charm") && (d.scry > 0 || d.exhaust || d.createEcho || c.temp
+                || d.draw > 0 || d.bind > 0 || d.skillChargeGain > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_DREAMWALKER))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(6, statusDeckCards(s) * 2 + tempOrEchoHandCount(s)));
+                if (statusDeckCards(s) + statusHandCards(s) > 0 && s.relicTriggersThisTurn == 0) {
+                    removeStatusCard(s);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                if (e.bind >= 4 || tempOrEchoHandCount(s) >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(20, e.bind * 2 + e.mark * 2
+                            + tempOrEchoHandCount(s) * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "oneiric_crown") && (d.createEcho || d.exhaust || c.temp || d.skillChargeGain > 0
+                || d.rarity == 2 || d.bind > 0 || d.profession.equals(PROF_DREAMWALKER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (e.mark >= 4 || e.bind >= 4 || s.cardsPlayedThisTurn >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(22, e.mark * 2 + e.bind * 2 + s.professionCharge), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -10936,6 +11351,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_FORGE ? 16 : focus == BUILD_STATUS ? 14
                     : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_ECHO ? 10 : focus == BUILD_GUARD ? 8 : 0;
         }
+        if (PROF_DREAMWALKER.equals(s.profession)) {
+            return focus == BUILD_ECHO ? 18 : focus == BUILD_CYCLE ? 16 : focus == BUILD_STATUS ? 16
+                    : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 8 : focus == BUILD_FORGE ? 6 : 0;
+        }
         return 0;
     }
 
@@ -10992,6 +11411,9 @@ public final class GameCore {
         }
         if (PROF_PRISMIST.equals(d.profession)) {
             return prismistFocusCardValue(d, focus);
+        }
+        if (PROF_DREAMWALKER.equals(d.profession)) {
+            return dreamwalkerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -11333,6 +11755,41 @@ public final class GameCore {
         return 0;
     }
 
+    private static int dreamwalkerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + (d.exhaust ? 3 : 0)
+                    + ("dreamwalker_drift".equals(d.id) ? 6 : 0) + ("dreamwalker_lucid".equals(d.id) ? 8 : 0)
+                    + ("dreamwalker_overdream".equals(d.id) ? 14 : 0) + ("dreamwalker_grand_dream".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + (d.exhaust ? 5 : 0) + d.scry * 2 + d.skillChargeGain * 2
+                    + ("dreamwalker_drift".equals(d.id) ? 8 : 0) + ("dreamwalker_veil".equals(d.id) ? 14 : 0)
+                    + ("dreamwalker_lucid".equals(d.id) ? 12 : 0) + ("dreamwalker_overdream".equals(d.id) ? 12 : 0)
+                    + ("dreamwalker_grand_dream".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 6 + d.skillChargeGain * 2
+                    + ("dreamwalker_drift".equals(d.id) ? 8 : 0) + ("dreamwalker_bind".equals(d.id) ? 16 : 0)
+                    + ("dreamwalker_overdream".equals(d.id) ? 14 : 0) + ("dreamwalker_grand_dream".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 6 : 0) + d.scry * 2 + d.skillChargeGain * 2 + (d.createEcho ? 4 : 0)
+                    + ("dreamwalker_drift".equals(d.id) ? 14 : 0) + ("dreamwalker_veil".equals(d.id) ? 10 : 0)
+                    + ("dreamwalker_lucid".equals(d.id) ? 12 : 0) + ("dreamwalker_overdream".equals(d.id) ? 10 : 0)
+                    + ("dreamwalker_grand_dream".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + (d.createEcho ? 3 : 0)
+                    + ("dreamwalker_veil".equals(d.id) ? 16 : 0) + ("dreamwalker_overdream".equals(d.id) ? 12 : 0)
+                    + ("dreamwalker_grand_dream".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return d.scry * 3 + (d.upgradeRandom ? 8 : 0) + ("dreamwalker_lucid".equals(d.id) ? 10 : 0)
+                    + ("dreamwalker_grand_dream".equals(d.id) ? 6 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -11571,6 +12028,11 @@ public final class GameCore {
         else if ("t_prismist_spill".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
         else if ("t_prismist_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_FORGE)
                 + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_dreamwalker_drift".equals(id)) bonus += tempOrEchoDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + professionCards;
+        else if ("t_dreamwalker_veil".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2 + tempOrEchoDeckCards(s) + status * 2 + professionCards;
+        else if ("t_dreamwalker_lucid".equals(id)) bonus += status * 4 + exhaustDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_FORGE) + professionCards;
+        else if ("t_dreamwalker_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_ECHO) * 2 + buildFocusDeckCards(s, BUILD_STATUS)
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -11587,7 +12049,8 @@ public final class GameCore {
                     "t_runeblade_stylus", "t_runeblade_execution", "t_runeblade_grand",
                     "t_medium_oracle", "t_medium_binding", "t_medium_grand",
                     "t_tactician_map", "t_tactician_flank", "t_tactician_grand",
-                    "t_prismist_spill", "t_prismist_grand",
+                    "t_prismist_spill", "t_prismist_grand", "t_dreamwalker_lucid",
+                    "t_dreamwalker_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -11598,7 +12061,8 @@ public final class GameCore {
                     "t_machinist_foundry", "t_machinist_grand", "t_chronomancer_clockwork",
                     "t_chronomancer_grand", "t_shadowdancer_vanish", "t_shadowdancer_grand",
                     "t_medium_oracle", "t_medium_veil", "t_medium_grand",
-                    "t_prismist_lens", "t_prismist_grand") ? 3 : 0;
+                    "t_prismist_lens", "t_prismist_grand", "t_dreamwalker_drift",
+                    "t_dreamwalker_veil", "t_dreamwalker_lucid", "t_dreamwalker_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -11623,7 +12087,7 @@ public final class GameCore {
                     "t_machinist_grand", "t_runeblade_stylus", "t_runeblade_guard",
                     "t_runeblade_grand", "t_tactician_map", "t_tactician_bulwark",
                     "t_tactician_grand", "t_prismist_lens", "t_prismist_anchor",
-                    "t_prismist_grand") ? 3 : 0;
+                    "t_prismist_grand", "t_dreamwalker_lucid", "t_dreamwalker_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -11639,7 +12103,8 @@ public final class GameCore {
                     "t_runeblade_execution", "t_runeblade_grand", "t_medium_oracle",
                     "t_medium_binding", "t_medium_grand", "t_tactician_map",
                     "t_tactician_flank", "t_tactician_grand", "t_prismist_spill",
-                    "t_prismist_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_prismist_grand", "t_dreamwalker_drift", "t_dreamwalker_lucid",
+                    "t_dreamwalker_grand", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -11654,6 +12119,7 @@ public final class GameCore {
                     "t_runeblade_stylus", "t_runeblade_grand", "t_medium_oracle",
                     "t_medium_veil", "t_medium_grand", "t_tactician_map",
                     "t_tactician_grand", "t_prismist_lens", "t_prismist_grand",
+                    "t_dreamwalker_drift", "t_dreamwalker_lucid", "t_dreamwalker_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -11665,7 +12131,8 @@ public final class GameCore {
                     "t_stormcaller_grand", "t_shadowdancer_vanish", "t_shadowdancer_execution",
                     "t_runeblade_guard", "t_runeblade_grand", "t_medium_veil",
                     "t_medium_grand", "t_tactician_bulwark", "t_tactician_grand",
-                    "t_prismist_anchor", "t_prismist_grand") ? 3 : 0;
+                    "t_prismist_anchor", "t_prismist_grand", "t_dreamwalker_veil",
+                    "t_dreamwalker_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -11833,6 +12300,18 @@ public final class GameCore {
                 && (buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
             return "色散窗口";
         }
+        if (isAny(id, "t_dreamwalker_drift", "t_dreamwalker_grand")
+                && (tempOrEchoDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_ECHO) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3)) {
+            return "梦步回声";
+        }
+        if (isAny(id, "t_dreamwalker_veil", "t_dreamwalker_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || statusDeckCards(s) > 0)) {
+            return "梦幕防线";
+        }
+        if (isAny(id, "t_dreamwalker_lucid", "t_dreamwalker_grand")
+                && (statusDeckCards(s) > 0 || exhaustDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
+            return "清醒转写";
+        }
         return "";
     }
 
@@ -11849,6 +12328,16 @@ public final class GameCore {
     private static int statusDeckCards(State s) {
         int count = 0;
         for (Card c : s.deck) {
+            if ("wound".equals(c.id) || "daze".equals(c.id)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int statusHandCards(State s) {
+        int count = 0;
+        for (Card c : s.hand) {
             if ("wound".equals(c.id) || "daze".equals(c.id)) {
                 count++;
             }
@@ -12030,13 +12519,13 @@ public final class GameCore {
                     "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "split_anvil",
                     "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "ability_crown",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
-                    "refraction_dial", "spectrum_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
                     "singularity_orb", "rift_compass", "echo_ledger", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "tuning_fork", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine", "spirit_bell", "spirit_processional", "void_anchor",
                     "echoflow_charm", "shadow_sash", "eclipse_mask", "spirit_planchette", "ancestral_planchette", "echo_crown",
-                    "refraction_dial", "spectrum_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
@@ -12057,7 +12546,7 @@ public final class GameCore {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
                     "split_anvil", "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "pattern_spool", "engraver_stylus", "gyro_wrench", "clockwork_core", "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
                     "ability_crown", "time_engine", "war_table", "grand_war_room",
-                    "refraction_dial", "spectrum_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -12066,7 +12555,7 @@ public final class GameCore {
                     "fallen_crown", "engraver_stylus", "living_codex", "verdict_seal", "judgment_codex", "gyro_wrench", "clockwork_core", "hourglass_charm", "time_engine",
                     "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "warden_brand", "markchain_seal",
                     "mosaic_core", "hex_moon", "discipline_chart", "trial_ledger", "spirit_planchette", "ancestral_planchette",
-                    "war_table", "grand_war_room", "refraction_dial", "spectrum_crown") ? 3 : 0;
+                    "war_table", "grand_war_room", "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -12074,7 +12563,7 @@ public final class GameCore {
                     "tempo_spindle", "finale_rapier", "verdict_seal", "echo_crown", "echoflow_charm", "discipline_chart", "trial_ledger",
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
-                    "refraction_dial", "spectrum_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -12083,7 +12572,7 @@ public final class GameCore {
                     "verdict_seal", "judgment_codex", "forge_heart", "discipline_chart", "trial_ledger",
                     "hourglass_charm", "time_engine", "contract_stamp", "grand_ledger", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask",
                     "spirit_planchette", "ancestral_planchette", "war_table", "grand_war_room",
-                    "refraction_dial", "spectrum_crown") ? 3 : 0;
+                    "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -12111,7 +12600,8 @@ public final class GameCore {
                 || (PROF_RUNEBLADE.equals(s.profession) && "rune_stylus".equals(id))
                 || (PROF_MEDIUM.equals(s.profession) && "spirit_planchette".equals(id))
                 || (PROF_TACTICIAN.equals(s.profession) && "war_table".equals(id))
-                || (PROF_PRISMIST.equals(s.profession) && "refraction_dial".equals(id));
+                || (PROF_PRISMIST.equals(s.profession) && "refraction_dial".equals(id))
+                || (PROF_DREAMWALKER.equals(s.profession) && "dreamcatcher_charm".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -12148,6 +12638,7 @@ public final class GameCore {
                 || hasRelic(s, "spirit_planchette") || hasRelic(s, "ancestral_planchette")
                 || hasRelic(s, "war_table") || hasRelic(s, "grand_war_room")
                 || hasRelic(s, "refraction_dial") || hasRelic(s, "spectrum_crown")
+                || hasRelic(s, "dreamcatcher_charm") || hasRelic(s, "oneiric_crown")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
@@ -12299,6 +12790,11 @@ public final class GameCore {
                 || d.profession.equals(PROF_PRISMIST))) {
             return 4;
         }
+        if (PROF_DREAMWALKER.equals(s.profession) && (d.scry > 0 || d.exhaust || d.createEcho || d.draw > 0
+                || d.skillChargeGain > 0 || d.bind > 0 || d.vulnerable > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_DREAMWALKER))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -12327,7 +12823,8 @@ public final class GameCore {
                     || "medium_grand_seance".equals(d.id) || "tactician_flank".equals(d.id)
                     || "tactician_grand_strategy".equals(d.id) || "prismist_ray".equals(d.id)
                     || "prismist_spill".equals(d.id) || "prismist_overbeam".equals(d.id)
-                    || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
+                    || "prismist_grand_spectrum".equals(d.id) || "dreamwalker_bind".equals(d.id)
+                    || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
@@ -12340,7 +12837,9 @@ public final class GameCore {
                     || "medium_overtrance".equals(d.id) || "tactician_probe".equals(d.id)
                     || "tactician_map".equals(d.id) || "tactician_overplan".equals(d.id)
                     || "prismist_ray".equals(d.id) || "prismist_lens".equals(d.id)
-                    || "prismist_overbeam".equals(d.id)) bonus += 4;
+                    || "prismist_overbeam".equals(d.id) || "dreamwalker_drift".equals(d.id)
+                    || "dreamwalker_veil".equals(d.id) || "dreamwalker_lucid".equals(d.id)
+                    || "dreamwalker_overdream".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -12350,7 +12849,9 @@ public final class GameCore {
                     || "medium_veil".equals(d.id) || "medium_grand_seance".equals(d.id)
                     || "tactician_bulwark".equals(d.id) || "tactician_grand_strategy".equals(d.id)
                     || "prismist_lens".equals(d.id) || "prismist_anchor".equals(d.id)
-                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
+                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
+                    || "dreamwalker_veil".equals(d.id) || "dreamwalker_overdream".equals(d.id)
+                    || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -12376,7 +12877,9 @@ public final class GameCore {
                     || "tactician_probe".equals(d.id) || "tactician_flank".equals(d.id)
                     || "tactician_overplan".equals(d.id) || "tactician_grand_strategy".equals(d.id)
                     || "prismist_ray".equals(d.id) || "prismist_spill".equals(d.id)
-                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
+                    || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
+                    || "dreamwalker_drift".equals(d.id) || "dreamwalker_bind".equals(d.id)
+                    || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -12387,7 +12890,8 @@ public final class GameCore {
                     || "tactician_map".equals(d.id) || "tactician_overplan".equals(d.id)
                     || "tactician_grand_strategy".equals(d.id) || "prismist_lens".equals(d.id)
                     || "prismist_anchor".equals(d.id) || "prismist_overbeam".equals(d.id)
-                    || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
+                    || "prismist_grand_spectrum".equals(d.id) || "dreamwalker_veil".equals(d.id)
+                    || "dreamwalker_lucid".equals(d.id) || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -12396,7 +12900,10 @@ public final class GameCore {
                     || "medium_whisper".equals(d.id) || "medium_veil".equals(d.id)
                     || "medium_oracle".equals(d.id) || "medium_overtrance".equals(d.id)
                     || "medium_grand_seance".equals(d.id) || "prismist_ray".equals(d.id)
-                    || "prismist_lens".equals(d.id) || "prismist_grand_spectrum".equals(d.id)) bonus += 4;
+                    || "prismist_lens".equals(d.id) || "prismist_grand_spectrum".equals(d.id)
+                    || "dreamwalker_drift".equals(d.id) || "dreamwalker_veil".equals(d.id)
+                    || "dreamwalker_lucid".equals(d.id) || "dreamwalker_overdream".equals(d.id)
+                    || "dreamwalker_grand_dream".equals(d.id)) bonus += 4;
         } else if ("spec_markchain".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -12441,7 +12948,9 @@ public final class GameCore {
                 || "medium_overtrance".equals(id) || "tactician_probe".equals(id)
                 || "tactician_bulwark".equals(id) || "tactician_map".equals(id)
                 || "tactician_overplan".equals(id) || "prismist_ray".equals(id)
-                || "prismist_lens".equals(id) || "prismist_overbeam".equals(id);
+                || "prismist_lens".equals(id) || "prismist_overbeam".equals(id)
+                || "dreamwalker_drift".equals(id) || "dreamwalker_veil".equals(id)
+                || "dreamwalker_lucid".equals(id) || "dreamwalker_overdream".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -12586,6 +13095,15 @@ public final class GameCore {
                 || d.rarity == 2 || d.vulnerable > 0 || d.profession.equals(PROF_PRISMIST))) {
             bonus += 5;
         }
+        if (hasRelic(s, "dreamcatcher_charm") && (d.scry > 0 || d.exhaust || d.createEcho || d.draw > 0
+                || d.skillChargeGain > 0 || d.bind > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_DREAMWALKER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "oneiric_crown") && (d.createEcho || d.exhaust || d.skillChargeGain > 0
+                || d.rarity == 2 || d.bind > 0 || d.profession.equals(PROF_DREAMWALKER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -12619,7 +13137,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -12643,6 +13161,7 @@ public final class GameCore {
         if (PROF_MEDIUM.equals(s.profession)) return "spirit_planchette";
         if (PROF_TACTICIAN.equals(s.profession)) return "war_table";
         if (PROF_PRISMIST.equals(s.profession)) return "refraction_dial";
+        if (PROF_DREAMWALKER.equals(s.profession)) return "dreamcatcher_charm";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -12817,6 +13336,16 @@ public final class GameCore {
         if (PROF_PRISMIST.equals(s.profession) && "spectrum_crown".equals(id)) {
             return 4;
         }
+        if (PROF_DREAMWALKER.equals(s.profession) && ("dreamcatcher_charm".equals(id) || "void_abacus".equals(id)
+                || "echo_ledger".equals(id) || "echoflow_charm".equals(id) || "markchain_seal".equals(id)
+                || "curse_censer".equals(id) || "hex_moon".equals(id) || "starforge_lens".equals(id)
+                || "overload_etch".equals(id) || "discipline_chart".equals(id) || "stormglass_seal".equals(id)
+                || "tempo_metronome".equals(id))) {
+            return 2;
+        }
+        if (PROF_DREAMWALKER.equals(s.profession) && "oneiric_crown".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
@@ -12856,7 +13385,7 @@ public final class GameCore {
                 || PROF_CHRONOMANCER.equals(s.profession) || PROF_STORMCALLER.equals(s.profession)
                 || PROF_SHADOWDANCER.equals(s.profession) || PROF_RUNEBLADE.equals(s.profession)
                 || PROF_MEDIUM.equals(s.profession) || PROF_TACTICIAN.equals(s.profession)
-                || PROF_PRISMIST.equals(s.profession))
+                || PROF_PRISMIST.equals(s.profession) || PROF_DREAMWALKER.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -13179,6 +13708,17 @@ public final class GameCore {
         } else if ("spectrum_crown".equals(id)) {
             addUpgradedDeckCard(s, "prismist_grand_spectrum");
             addUpgradedDeckCard(s, "prismist_ray");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("dreamcatcher_charm".equals(id)) {
+            addUpgradedDeckCard(s, "dreamwalker_lucid");
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("oneiric_crown".equals(id)) {
+            addUpgradedDeckCard(s, "dreamwalker_grand_dream");
+            addUpgradedDeckCard(s, "dreamwalker_drift");
             upgradeRandomDeckCard(s);
             s.maxHp += 3;
             s.hp += 3;
@@ -13781,6 +14321,19 @@ public final class GameCore {
         c = addCard("prismist_grand_spectrum", "终局光谱", "通用", 2, 2, 0, 9, 13, 9, 13, "造成伤害并获得格挡；按光谱、汇流标签、汇流链、升级和过载追加终局收益。", "更高伤害、格挡和折光射线返还。");
         c.profession = PROF_PRISMIST; c.draw = c.drawUp = 1; c.vulnerable = 1; c.burn = 1; c.bind = 1; c.skillChargeGain = 2; c.upgradeRandom = true; c.targetEnemy = true;
 
+        c = addCard("dreamwalker_drift", "梦步漂移", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张并检视；临时牌、状态牌和梦痕会追加束缚与印记。", "更高伤害、更多检视和梦痕。");
+        c.profession = PROF_DREAMWALKER; c.draw = c.drawUp = 1; c.scry = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("dreamwalker_veil", "梦幕护身", "通用", 0, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌并检视；制造临时梦步漂移，状态牌会转成额外防线。", "更多格挡、检视和梦痕。");
+        c.profession = PROF_DREAMWALKER; c.draw = c.drawUp = 1; c.scry = 2; c.createEcho = true; c.echoCardId = "dreamwalker_drift"; c.skillChargeGain = 1;
+        c = addCard("dreamwalker_lucid", "清醒梦", "通用", 1, 1, 1, 0, 0, 5, 8, "获得格挡、抽牌并深检视；可把状态牌转成升级、能量与梦痕。", "更多格挡、检视和梦痕。");
+        c.profession = PROF_DREAMWALKER; c.draw = c.drawUp = 1; c.scry = 3; c.upgradeRandom = true; c.skillChargeGain = 1; c.exhaust = true;
+        c = addCard("dreamwalker_bind", "梦缚印", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，施加束缚与易伤；目标控制越深，梦痕追击越强。", "更高伤害、束缚和梦痕。");
+        c.profession = PROF_DREAMWALKER; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("dreamwalker_overdream", "过载梦潮", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和职业技充能；制造临时梦缚印，过载会放大入梦窗口。", "更多格挡、抽牌和职业技充能。");
+        c.profession = PROF_DREAMWALKER; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "dreamwalker_bind"; c.skillChargeGain = 3; c.exhaust = true; c.targetEnemy = true;
+        c = addCard("dreamwalker_grand_dream", "终局梦境", "通用", 2, 2, 0, 9, 13, 9, 13, "造成伤害并获得格挡；按梦痕、临时牌、状态牌、消耗和控制追加终局收益。", "更高伤害、格挡和梦牌返还。");
+        c.profession = PROF_DREAMWALKER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.exhaust = true; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -14013,6 +14566,7 @@ public final class GameCore {
         addRelicDef("spirit_planchette", "降灵盘", "灵媒师临时、回声、消耗、检视和束缚牌更快推动职业技；释放后制造魂语、加固并追加束魂印记。");
         addRelicDef("war_table", "战争沙盘", "阵术师格挡、检视、升级、充能和汇流牌更快推动职业技；释放后升级手牌、制造侦察令并追加标记追击。");
         addRelicDef("refraction_dial", "折光仪", "棱镜师混搭、检视、升级、抽牌和汇流牌更快推动职业技；释放后制造折光射线、升级手牌并追加标记追击。");
+        addRelicDef("dreamcatcher_charm", "捕梦坠", "梦行者检视、消耗、临时牌和状态牌更快推动职业技；释放后制造梦步漂移并把状态转成格挡与束缚。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -14036,6 +14590,7 @@ public final class GameCore {
         addRelicDef("ancestral_planchette", "祖灵占板", "获得升级终局降灵；灵媒师临时、回声、消耗、充能和稀有牌会滚动束缚、印记与魂潮追击。");
         addRelicDef("grand_war_room", "终局战室", "获得升级终局大阵；阵术师格挡、升级、充能、汇流和稀有牌会滚动印记、升级与战术追击。");
         addRelicDef("spectrum_crown", "光谱冠冕", "获得升级终局光谱；棱镜师混搭、充能、汇流和稀有牌会滚动印记、抽牌、升级与折光追击。");
+        addRelicDef("oneiric_crown", "梦王冠", "获得升级终局梦境；梦行者临时、消耗、状态、充能和稀有牌会滚动束缚、印记、抽牌与入梦追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -14233,6 +14788,9 @@ public final class GameCore {
         addTalent("t_prismist_lens", PROF_PRISMIST, "透镜校色", "获得升级调焦透镜并升级牌组；检视、抽牌、升级、汇流和棱镜牌追加印记，并把光谱转成穿透追击。");
         addTalent("t_prismist_anchor", PROF_PRISMIST, "棱锚稳像", "获得生命和升级棱锚校准；格挡、升级和混搭牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_prismist_spill", PROF_PRISMIST, "色散裂口", "获得升级过载光束；异常、伤害、充能和棱镜牌会对重标记目标追加色散追击。");
+        addTalent("t_dreamwalker_drift", PROF_DREAMWALKER, "梦步回游", "获得升级梦步漂移；检视、抽牌、临时和梦牌追加印记，并把梦痕转成穿透追击。");
+        addTalent("t_dreamwalker_veil", PROF_DREAMWALKER, "梦幕守仪", "获得生命和升级梦幕护身；格挡、临时、回声和状态牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_dreamwalker_lucid", PROF_DREAMWALKER, "清醒转写", "获得升级清醒梦并净化状态；消耗、检视、升级和状态牌会转成抽牌、能量和梦痕。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -14256,6 +14814,7 @@ public final class GameCore {
         addTalent("t_medium_grand", PROF_MEDIUM, "终局降灵", "获得升级终局降灵；临时、回声、消耗与过载牌持续抽牌、充能并把束缚印记转为魂潮裁切。");
         addTalent("t_tactician_grand", PROF_TACTICIAN, "终局大阵", "获得升级终局大阵；格挡、检视、升级、汇流与过载牌持续抽牌、升级并把印记转为战术裁切。");
         addTalent("t_prismist_grand", PROF_PRISMIST, "终局光谱", "获得升级终局光谱；混搭、汇流、升级与过载牌持续抽牌、升级并把印记转为折光裁切。");
+        addTalent("t_dreamwalker_grand", PROF_DREAMWALKER, "终局梦境", "获得升级终局梦境；临时、回声、消耗、状态与过载牌持续抽牌、升级并把束缚印记转为入梦裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

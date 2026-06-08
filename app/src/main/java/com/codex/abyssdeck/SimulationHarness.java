@@ -194,6 +194,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_MEDIUM.equals(s.profession) && isMediumSignal(d)) score += 14;
             if (GameCore.PROF_TACTICIAN.equals(s.profession) && isTacticianSignal(d)) score += 14;
             if (GameCore.PROF_PRISMIST.equals(s.profession) && isPrismistSignal(d)) score += 14;
+            if (GameCore.PROF_DREAMWALKER.equals(s.profession) && isDreamwalkerSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -214,12 +215,16 @@ public final class SimulationHarness {
             if ("prismist_grand_spectrum".equals(d.id) || "prismist_overbeam".equals(d.id)
                     || "prismist_lens".equals(d.id) || "prismist_anchor".equals(d.id)
                     || "prismist_spill".equals(d.id)) score += 14;
+            if ("dreamwalker_grand_dream".equals(d.id) || "dreamwalker_overdream".equals(d.id)
+                    || "dreamwalker_lucid".equals(d.id) || "dreamwalker_bind".equals(d.id)
+                    || "dreamwalker_veil".equals(d.id)) score += 14;
             if (isStormcallerCard(d)) score += 14;
             if (isShadowdancerCard(d)) score += 14;
             if (isRunebladeCard(d)) score += 14;
             if (isMediumCard(d)) score += 14;
             if (isTacticianCard(d)) score += 14;
             if (isPrismistCard(d)) score += 14;
+            if (isDreamwalkerCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -244,6 +249,10 @@ public final class SimulationHarness {
                     || d.draw > 0)) score += 18;
             if (s.relics.contains("spectrum_crown") && (isPrismistSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.vulnerable > 0 || isHybridCore(d))) score += 20;
+            if (s.relics.contains("dreamcatcher_charm") && (isDreamwalkerSignal(d) || d.scry > 0
+                    || d.exhaust || d.createEcho || d.skillChargeGain > 0 || d.bind > 0)) score += 18;
+            if (s.relics.contains("oneiric_crown") && (isDreamwalkerSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.bind > 0 || d.createEcho)) score += 20;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
@@ -322,6 +331,11 @@ public final class SimulationHarness {
                     || "overload_etch".equals(id) || "markchain_seal".equals(id) || "stormglass_seal".equals(id)
                     || "discipline_chart".equals(id) || "tempo_metronome".equals(id) || "echoflow_charm".equals(id)
                     || "assembly_frame".equals(id))) score += 36;
+            if (GameCore.PROF_DREAMWALKER.equals(s.profession) && ("oneiric_crown".equals(id) || "dreamcatcher_charm".equals(id)
+                    || "void_abacus".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
+                    || "markchain_seal".equals(id) || "curse_censer".equals(id) || "hex_moon".equals(id)
+                    || "starforge_lens".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                    || "stormglass_seal".equals(id) || "tempo_metronome".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
@@ -339,6 +353,7 @@ public final class SimulationHarness {
             if ("spirit_planchette".equals(id) || "ancestral_planchette".equals(id)) score += 20;
             if ("war_table".equals(id) || "grand_war_room".equals(id)) score += 20;
             if ("refraction_dial".equals(id) || "spectrum_crown".equals(id)) score += 20;
+            if ("dreamcatcher_charm".equals(id) || "oneiric_crown".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
@@ -446,6 +461,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_PRISMIST.equals(s.profession) && ("pact_confluence".equals(id) || "pact_forge".equals(id)
                     || "pact_suppression".equals(id) || "pact_hunter".equals(id) || "pact_void".equals(id)
                     || "pact_sprinter".equals(id))) score += 24;
+            if (GameCore.PROF_DREAMWALKER.equals(s.profession) && ("pact_void".equals(id) || "pact_suppression".equals(id)
+                    || "pact_sprinter".equals(id) || "pact_hunter".equals(id) || "pact_hex".equals(id)
+                    || "pact_confluence".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -492,12 +510,13 @@ public final class SimulationHarness {
                     || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)) ? 31 : 24;
             else if ("spec_echoflow".equals(id)) score += (GameCore.PROF_ARCANIST.equals(s.profession) || GameCore.PROF_SUMMONER.equals(s.profession)
                     || GameCore.PROF_CHRONOMANCER.equals(s.profession) || GameCore.PROF_SHADOWDANCER.equals(s.profession)
-                    || GameCore.PROF_MEDIUM.equals(s.profession)) ? 33 : 26;
+                    || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_DREAMWALKER.equals(s.profession)) ? 33 : 26;
             else if ("spec_markchain".equals(id)) score += (GameCore.PROF_RANGER.equals(s.profession) || GameCore.PROF_TUNER.equals(s.profession)
                     || GameCore.PROF_ADJUDICATOR.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_PACTMAKER.equals(s.profession) || GameCore.PROF_STORMCALLER.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession) || GameCore.PROF_MEDIUM.equals(s.profession)
-                    || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)) ? 33 : 25;
+                    || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)
+                    || GameCore.PROF_DREAMWALKER.equals(s.profession)) ? 33 : 25;
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && ("spec_sustain".equals(id) || "spec_resonance".equals(id)
                     || "spec_mastery".equals(id))) score += 6;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
@@ -516,6 +535,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_PRISMIST.equals(s.profession) && ("spec_resonance".equals(id) || "spec_mastery".equals(id)
                     || "spec_assembly".equals(id) || "spec_markchain".equals(id) || "spec_control".equals(id)
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id))) score += 8;
+            if (GameCore.PROF_DREAMWALKER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
+                    || "spec_markchain".equals(id) || "spec_sustain".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id))) score += 4;
@@ -584,7 +606,7 @@ public final class SimulationHarness {
                 if (s.combatQuest == GameCore.QUEST_MARK && (d.bind > 0 || d.vulnerable > 0 || d.comboDamage > 0
                         || "tuner_note".equals(c.id) || "tuner_harmonic".equals(c.id) || "tuner_grand_cadence".equals(c.id)
                         || isStormcallerCard(d) || isShadowdancerCard(d) || isRunebladeCard(d) || isMediumCard(d)
-                        || isTacticianCard(d) || isPrismistCard(d))) score += 20;
+                        || isTacticianCard(d) || isPrismistCard(d) || isDreamwalkerCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -673,6 +695,16 @@ public final class SimulationHarness {
                             || "prismist_overbeam".equals(c.id) || "prismist_grand_spectrum".equals(c.id))) score += 8;
                     if (s.confluenceChain >= 3 && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isPrismistCard(d))) score += 5;
                 }
+                if (GameCore.PROF_DREAMWALKER.equals(s.profession) && (isDreamwalkerSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.scry > 0 || d.exhaust || d.createEcho || d.bind > 0 || "wound".equals(c.id) || "daze".equals(c.id)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isDreamwalkerCard(d) || d.createEcho)) score += 6;
+                    if (dreamwalkerEnemyPressure(s) >= 8 && ("dreamwalker_bind".equals(c.id)
+                            || "dreamwalker_overdream".equals(c.id) || "dreamwalker_grand_dream".equals(c.id))) score += 8;
+                    if (tempOrEchoHandCards(s) >= 2 && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isDreamwalkerCard(d))) score += 5;
+                    if (statusDeckCards(s) >= 2 && ("dreamwalker_lucid".equals(c.id) || "dreamwalker_veil".equals(c.id)
+                            || "dreamwalker_grand_dream".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -723,6 +755,14 @@ public final class SimulationHarness {
                         || d.damage > 0 || d.skillChargeGain > 0 || isPrismistCard(d))) score += 12;
                 if (s.talents.contains("t_prismist_grand") && (d.draw > 0 || d.skillChargeGain > 0 || d.upgradeRandom
                         || d.rarity == 2 || isHybridCore(d) || isConfluenceCore(d) || isPrismistCard(d))) score += 14;
+                if (s.talents.contains("t_dreamwalker_drift") && (d.scry > 0 || d.draw > 0 || c.temp
+                        || d.createEcho || isDreamwalkerCard(d))) score += 12;
+                if (s.talents.contains("t_dreamwalker_veil") && (d.block > 0 || d.type == 1 || c.temp
+                        || d.createEcho || "wound".equals(c.id) || "daze".equals(c.id))) score += 12;
+                if (s.talents.contains("t_dreamwalker_lucid") && (d.exhaust || d.scry > 0 || d.upgradeRandom
+                        || "wound".equals(c.id) || "daze".equals(c.id) || isDreamwalkerCard(d))) score += 12;
+                if (s.talents.contains("t_dreamwalker_grand") && (d.createEcho || d.exhaust || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.scry > 0 || isDreamwalkerCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -765,6 +805,9 @@ public final class SimulationHarness {
                 if ("prismist_grand_spectrum".equals(c.id) || "prismist_overbeam".equals(c.id)) score += 18;
                 if ("prismist_ray".equals(c.id) || "prismist_lens".equals(c.id)
                         || "prismist_anchor".equals(c.id) || "prismist_spill".equals(c.id)) score += 14;
+                if ("dreamwalker_grand_dream".equals(c.id) || "dreamwalker_overdream".equals(c.id)) score += 18;
+                if ("dreamwalker_drift".equals(c.id) || "dreamwalker_veil".equals(c.id)
+                        || "dreamwalker_lucid".equals(c.id) || "dreamwalker_bind".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -844,6 +887,10 @@ public final class SimulationHarness {
                         || isConfluenceCore(d) || d.scry > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.draw > 0)) score += 14;
                 if (s.relics.contains("spectrum_crown") && (isPrismistSignal(d) || c.temp || isHybridCore(d)
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("dreamcatcher_charm") && (isDreamwalkerSignal(d) || c.temp
+                        || d.scry > 0 || d.exhaust || d.createEcho || d.skillChargeGain > 0 || d.bind > 0)) score += 14;
+                if (s.relics.contains("oneiric_crown") && (isDreamwalkerSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.bind > 0 || d.createEcho)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -930,6 +977,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_DREAMWALKER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean dreamWindow = target >= 0 && (s.enemies.get(target).bind >= 2
+                    || s.enemies.get(target).mark >= 2 || s.enemies.get(target).vulnerable > 0);
+            int handSignals = tempOrEchoHandCards(s);
+            if (s.professionCharge >= 4 || overload >= 1 || dreamWindow || handSignals >= 3
+                    || statusDeckCards(s) >= 2 || dreamwalkerEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -962,7 +1020,8 @@ public final class SimulationHarness {
                 || s.relics.contains("rune_stylus") || s.relics.contains("grand_rune_blade")
                 || s.relics.contains("spirit_planchette") || s.relics.contains("ancestral_planchette")
                 || s.relics.contains("war_table") || s.relics.contains("grand_war_room")
-                || s.relics.contains("refraction_dial") || s.relics.contains("spectrum_crown");
+                || s.relics.contains("refraction_dial") || s.relics.contains("spectrum_crown")
+                || s.relics.contains("dreamcatcher_charm") || s.relics.contains("oneiric_crown");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
@@ -1038,6 +1097,19 @@ public final class SimulationHarness {
                 || "prismist_overbeam".equals(d.id) || "prismist_grand_spectrum".equals(d.id));
     }
 
+    private static boolean isDreamwalkerSignal(GameCore.CardDef d) {
+        return d != null && (d.scry > 0 || d.exhaust || d.createEcho || d.draw > 0
+                || d.skillChargeGain > 0 || d.bind > 0 || d.vulnerable > 0
+                || "wound".equals(d.id) || "daze".equals(d.id)
+                || GameCore.PROF_DREAMWALKER.equals(d.profession));
+    }
+
+    private static boolean isDreamwalkerCard(GameCore.CardDef d) {
+        return d != null && ("dreamwalker_drift".equals(d.id) || "dreamwalker_veil".equals(d.id)
+                || "dreamwalker_lucid".equals(d.id) || "dreamwalker_bind".equals(d.id)
+                || "dreamwalker_overdream".equals(d.id) || "dreamwalker_grand_dream".equals(d.id));
+    }
+
     private static int stormcallerEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -1098,6 +1170,16 @@ public final class SimulationHarness {
         return pressure;
     }
 
+    private static int dreamwalkerEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.bind * 2 + e.mark * 2 + e.vulnerable * 2 + e.burn;
+            }
+        }
+        return pressure;
+    }
+
     private static int upgradedDeckCards(GameCore.State s) {
         int count = 0;
         for (GameCore.Card c : s.deck) {
@@ -1120,6 +1202,14 @@ public final class SimulationHarness {
         for (GameCore.Card c : s.hand) {
             GameCore.CardDef d = GameCore.card(c.id);
             if (c.temp || (d != null && d.createEcho)) count++;
+        }
+        return count;
+    }
+
+    private static int statusDeckCards(GameCore.State s) {
+        int count = 0;
+        for (GameCore.Card c : s.deck) {
+            if ("wound".equals(c.id) || "daze".equals(c.id)) count++;
         }
         return count;
     }
