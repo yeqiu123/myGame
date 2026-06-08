@@ -97,10 +97,11 @@ public final class GameCore {
     public static final String PROF_WEAVER = "织牌师";
     public static final String PROF_SUMMONER = "唤灵师";
     public static final String PROF_HEXER = "咒术师";
+    public static final String PROF_INSCRIBER = "刻印师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
-            PROF_SUMMONER, PROF_HEXER
+            PROF_SUMMONER, PROF_HEXER, PROF_INSCRIBER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -702,6 +703,7 @@ public final class GameCore {
         if (PROF_WEAVER.equals(profession)) return "织局";
         if (PROF_SUMMONER.equals(profession)) return "唤潮";
         if (PROF_HEXER.equals(profession)) return "咒环";
+        if (PROF_INSCRIBER.equals(profession)) return "刻痕";
         return "职业技";
     }
 
@@ -747,6 +749,7 @@ public final class GameCore {
         if (PROF_WEAVER.equals(profession)) return "满充能：升级手牌、抽牌并获得能量。";
         if (PROF_SUMMONER.equals(profession)) return "满充能：召来灵潮，制造临时牌并让敌人承受束缚。";
         if (PROF_HEXER.equals(profession)) return "满充能：施加群体诅咒，污染牌组但抽牌并获得能量。";
+        if (PROF_INSCRIBER.equals(profession)) return "满充能：铭刻手牌，施加易伤与束缚，并把状态转为资源。";
         return "选择职业后可用。";
     }
 
@@ -852,6 +855,24 @@ public final class GameCore {
             }
             draw(s, 2 + overload / 4);
             s.energy += 1 + overload / 5;
+        } else if (PROF_INSCRIBER.equals(s.profession)) {
+            int upgrades = 1 + overload / 3;
+            for (int i = 0; i < upgrades; i++) {
+                upgradeRandomHandCard(s);
+            }
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1 + overload / 4;
+                e.bind += 1 + s.bindPower + overload / 3;
+                e.mark += 1 + upgradedCardCount(s) / 12;
+            }
+            if (target != null) {
+                damageEnemy(s, target, 8 + s.act * 2 + Math.min(18, upgradedCardCount(s)) + overload * 3, true);
+            }
+            draw(s, 1 + overload / 4);
+            if (overload >= 3) {
+                s.energy++;
+            }
+            addStatusCard(s, overload >= 4 ? "wound" : "daze");
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -2015,6 +2036,9 @@ public final class GameCore {
         if (PROF_HEXER.equals(profession)) {
             return "主动接纳状态牌，把眩光与裂伤转化为诅咒、抽牌和穿透压制。适合高风险控制和消耗构筑。";
         }
+        if (PROF_INSCRIBER.equals(profession)) {
+            return "用升级牌刻写节奏，把易伤、束缚和状态牌转成充能与资源。适合锻造、异常和过载混合构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -2048,6 +2072,9 @@ public final class GameCore {
         }
         if (PROF_HEXER.equals(profession)) {
             return 0xffc781d9;
+        }
+        if (PROF_INSCRIBER.equals(profession)) {
+            return 0xff72d7b4;
         }
         return 0xffd6c07a;
     }
@@ -2258,6 +2285,10 @@ public final class GameCore {
             s.deck.add(new Card("hexer_hexmark"));
             s.deck.add(new Card("daze"));
             s.gold += 25;
+        } else if (PROF_INSCRIBER.equals(profession)) {
+            s.deck.add(new Card("inscriber_mark"));
+            s.deck.add(new Card("inscriber_tablet"));
+            upgradeRandomDeckCard(s);
         }
     }
 
@@ -2289,6 +2320,7 @@ public final class GameCore {
         else if (PROF_WEAVER.equals(profession)) upgradeDeckCard(s, "weaver_thread");
         else if (PROF_SUMMONER.equals(profession)) upgradeDeckCard(s, "summoner_wisp");
         else if (PROF_HEXER.equals(profession)) upgradeDeckCard(s, "hexer_hexmark");
+        else if (PROF_INSCRIBER.equals(profession)) upgradeDeckCard(s, "inscriber_mark");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -2322,6 +2354,9 @@ public final class GameCore {
         } else if (PROF_HEXER.equals(profession)) {
             addUpgradedDeckCard(s, "hexer_pact");
             removeStatusCard(s);
+        } else if (PROF_INSCRIBER.equals(profession)) {
+            addUpgradedDeckCard(s, "inscriber_tablet");
+            upgradeRandomDeckCard(s);
         }
     }
 
@@ -2336,6 +2371,7 @@ public final class GameCore {
         if (PROF_WEAVER.equals(profession)) return "weaver_overthread";
         if (PROF_SUMMONER.equals(profession)) return "summoner_overcall";
         if (PROF_HEXER.equals(profession)) return "hexer_overcurse";
+        if (PROF_INSCRIBER.equals(profession)) return "inscriber_overseal";
         return "forge_signal";
     }
 
@@ -2482,6 +2518,15 @@ public final class GameCore {
             Card c = new Card("hexer_purge");
             c.upgraded = true;
             s.deck.add(c);
+        } else if ("t_inscriber_rubbing".equals(id)) {
+            addUpgradedDeckCard(s, "inscriber_tablet");
+            upgradeRandomDeckCard(s);
+        } else if ("t_inscriber_etching".equals(id)) {
+            addUpgradedDeckCard(s, "inscriber_glyphstorm");
+            addStatusCard(s, "daze");
+        } else if ("t_inscriber_archive".equals(id)) {
+            addUpgradedDeckCard(s, "inscriber_palimp");
+            removeStatusCard(s);
         } else if ("t_warden_vanguard".equals(id)) {
             s.maxHp += 5;
             s.hp += 5;
@@ -2512,6 +2557,11 @@ public final class GameCore {
         } else if ("t_hexer_abysscurse".equals(id)) {
             addUpgradedDeckCard(s, "hexer_maledict");
             addStatusCard(s, "daze");
+        } else if ("t_inscriber_grandcodex".equals(id)) {
+            s.maxHp += 4;
+            s.hp += 4;
+            addUpgradedDeckCard(s, "inscriber_codex");
+            upgradeRandomDeckCard(s);
         }
     }
 
@@ -2526,7 +2576,8 @@ public final class GameCore {
                 || "t_alchemist_grandbrew".equals(id) || "t_ranger_apex".equals(id)
                 || "t_arcanist_singularity".equals(id) || "t_merchant_monopoly".equals(id)
                 || "t_bloodbound_hemocraft".equals(id) || "t_weaver_grandpattern".equals(id)
-                || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id);
+                || "t_summoner_overflow".equals(id) || "t_hexer_abysscurse".equals(id)
+                || "t_inscriber_grandcodex".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -2534,7 +2585,8 @@ public final class GameCore {
                 || "alchemist_sunsteel".equals(id) || "ranger_predator".equals(id)
                 || "arcanist_eventhorizon".equals(id) || "merchant_kingmaker".equals(id)
                 || "blood_apotheosis".equals(id) || "weaver_clockwork".equals(id)
-                || "summoner_procession".equals(id) || "hexer_crownfall".equals(id);
+                || "summoner_procession".equals(id) || "hexer_crownfall".equals(id)
+                || "inscriber_codex".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -2542,7 +2594,8 @@ public final class GameCore {
                 || "solar_crucible".equals(id) || "apex_compass".equals(id)
                 || "singularity_orb".equals(id) || "kingmaker_seal".equals(id)
                 || "blood_crown".equals(id) || "clockwork_loom".equals(id)
-                || "spirit_processional".equals(id) || "fallen_crown".equals(id);
+                || "spirit_processional".equals(id) || "fallen_crown".equals(id)
+                || "living_codex".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -2903,6 +2956,8 @@ public final class GameCore {
         else if (PROF_WEAVER.equals(s.profession) && d != null && (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.createEcho)) amount++;
         else if (PROF_SUMMONER.equals(s.profession) && d != null && (d.createEcho || d.bind > 0 || d.aoe || d.type == 1)) amount++;
         else if (PROF_HEXER.equals(s.profession) && d != null && (d.vulnerable > 0 || d.addStatusToEnemy || d.createWound || "wound".equals(d.id) || "daze".equals(d.id))) amount++;
+        else if (PROF_INSCRIBER.equals(s.profession) && d != null && (d.upgradeRandom || d.scry > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.addStatusToEnemy || d.createWound || d.skillChargeGain > 0 || "wound".equals(d.id) || "daze".equals(d.id))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -3163,6 +3218,21 @@ public final class GameCore {
                 e.vulnerable++;
                 e.mark += level + overload / 3;
             }
+        } else if (PROF_INSCRIBER.equals(s.profession)) {
+            upgradeRandomHandCard(s);
+            if (level >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            gainBlock(s, 3 + level * 3 + Math.min(10, upgradedCardCount(s)));
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.bind += level + overload / 3;
+                e.mark += 1 + level / 2;
+            }
+            if (level >= 3 || overload >= 3) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
         }
     }
 
@@ -3223,6 +3293,15 @@ public final class GameCore {
             damageEnemy(s, target, 6 + s.act * 2, true);
             addProfessionSkillCharge(s, 2);
         }
+        if (hasRelic(s, "engraver_stylus") && PROF_INSCRIBER.equals(s.profession)) {
+            upgradeRandomHandCard(s);
+            draw(s, 1);
+            if (target != null) {
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+            addProfessionSkillCharge(s, 2);
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -3239,6 +3318,7 @@ public final class GameCore {
         if (hasRelic(s, "pattern_spool") && PROF_WEAVER.equals(s.profession) && s.hand.size() >= 5 && amount > 0) amount++;
         if (hasRelic(s, "spirit_bell") && PROF_SUMMONER.equals(s.profession) && amount > 0 && s.hand.size() >= 5) amount++;
         if (hasRelic(s, "hex_tablet") && PROF_HEXER.equals(s.profession) && amount > 0 && firstLiving(s) != null && firstLiving(s).vulnerable > 0) amount++;
+        if (hasRelic(s, "engraver_stylus") && PROF_INSCRIBER.equals(s.profession) && amount > 0 && upgradedCardCount(s) >= 3) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -3387,11 +3467,13 @@ public final class GameCore {
             return true;
         }
         if (quest == QUEST_BLOODCOIN && (PROF_MERCHANT.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
-                || PROF_HEXER.equals(s.profession) || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
+                || PROF_HEXER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
+                || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
                 || hasTalent(s, "t_hexer_darkdeal") || hasRelic(s, "bloodcoin_broach") || hasRelic(s, "kingmaker_seal"))) {
             return true;
         }
-        if (quest == QUEST_FORGE && (PROF_WEAVER.equals(s.profession) || hasTalent(s, "t_weaver_grandpattern")
+        if (quest == QUEST_FORGE && (PROF_WEAVER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession)
+                || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
         }
@@ -3873,6 +3955,21 @@ public final class GameCore {
                     e.vulnerable += 1;
                     e.bind += 1 + s.bindPower / 2;
                 }
+            }
+        }
+        if (PROF_INSCRIBER.equals(s.profession) && s.turn == 1) {
+            if (hasTalent(s, "t_inscriber_rubbing")) {
+                upgradeRandomHandCard(s);
+            }
+            if (firstLiving(s) != null && hasTalent(s, "t_inscriber_etching")) {
+                firstLiving(s).vulnerable += 1;
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+            if (hasTalent(s, "t_inscriber_archive")) {
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_inscriber_grandcodex")) {
+                addProfessionSkillCharge(s, 2);
             }
         }
         if (hasRelic(s, "steel_oath") && s.turn == 1) {
@@ -4642,6 +4739,23 @@ public final class GameCore {
             block += 3 + s.act;
             addProfessionSkillCharge(s, 1);
         }
+        if (PROF_INSCRIBER.equals(s.profession) && (c.upgraded || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy)) {
+            block += 1 + Math.min(6, upgradedCardCount(s) / 2);
+        }
+        if (hasTalent(s, "t_inscriber_rubbing") && (c.upgraded || d.upgradeRandom)) {
+            block += 2 + s.act;
+            if (s.professionUsedThisTurn == 0) {
+                addProfessionSkillCharge(s, 1);
+                s.professionUsedThisTurn++;
+            }
+        }
+        if (hasTalent(s, "t_inscriber_etching") && target != null && (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy)) {
+            damage += 3 + s.act * 2 + Math.min(10, target.vulnerable + target.bind);
+        }
+        if (hasTalent(s, "t_inscriber_grandcodex") && (c.upgraded || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy)) {
+            block += 3 + s.act;
+            addProfessionSkillCharge(s, 1);
+        }
         if (hasRelic(s, "polished_cog") && c.upgraded && s.relicTriggersThisTurn < 2) {
             block += 3;
             s.relicTriggersThisTurn++;
@@ -4807,7 +4921,19 @@ public final class GameCore {
             }
         }
         if (d.exhaustTopDiscard && !s.discard.isEmpty()) {
-            s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+            Card ex = s.discard.remove(s.discard.size() - 1);
+            s.exhaust.add(ex);
+            if ("inscriber_palimp".equals(d.id) && ("wound".equals(ex.id) || "daze".equals(ex.id))) {
+                addProfessionSkillCharge(s, 1);
+                if (c.upgraded) {
+                    draw(s, 1);
+                }
+            }
+            if (hasTalent(s, "t_inscriber_archive") && ("wound".equals(ex.id) || "daze".equals(ex.id))) {
+                s.energy++;
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
         }
         if (d.createEcho) {
             Card echo = new Card(d.echoCardId.length() > 0 ? d.echoCardId : c.id);
@@ -4876,6 +5002,20 @@ public final class GameCore {
                 e.bind += 1 + s.bindPower / 2;
             }
             addStatusCard(s, c.upgraded ? "wound" : "daze");
+        }
+        if ("inscriber_glyphstorm".equals(d.id)) {
+            addStatusCard(s, "daze");
+        }
+        if ("inscriber_codex".equals(d.id)) {
+            upgradeRandomHandCard(s);
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += c.upgraded ? 2 : 1;
+            }
+            if (c.upgraded) {
+                draw(s, 1);
+            }
         }
         if (d.retainBlock) {
             s.block += s.turn;
@@ -5335,6 +5475,48 @@ public final class GameCore {
                 addToHand(s, spirit);
             }
         }
+        if (PROF_INSCRIBER.equals(s.profession) && (c.upgraded || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0
+                || d.addStatusToEnemy || d.createWound || "wound".equals(c.id) || "daze".equals(c.id))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy) {
+                    e.mark += 1;
+                }
+                if ("wound".equals(c.id) || "daze".equals(c.id)) {
+                    e.vulnerable += 1;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(10, upgradedCardCount(s)), true);
+                }
+            }
+            if (hasTalent(s, "t_inscriber_archive") && ("wound".equals(c.id) || "daze".equals(c.id))) {
+                s.energy++;
+                draw(s, 1);
+            }
+            if (s.professionCharge >= 3) {
+                upgradeRandomHandCard(s);
+                gainBlock(s, 4 + s.act);
+                if (hasTalent(s, "t_inscriber_rubbing")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = 0;
+            }
+        }
+        if (hasTalent(s, "t_inscriber_etching") && (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                if (s.cardsPlayedThisTurn % 2 == 0) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+            }
+        }
+        if (hasTalent(s, "t_inscriber_grandcodex") && (c.upgraded || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0
+                || d.addStatusToEnemy || "wound".equals(c.id) || "daze".equals(c.id))) {
+            if (s.cardsPlayedThisTurn % 3 == 0) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (PROF_HEXER.equals(s.profession) && ("wound".equals(c.id) || "daze".equals(c.id) || d.vulnerable > 0 || d.addStatusToEnemy)) {
             addProfessionSkillCharge(s, 1);
             Enemy e = firstLiving(s);
@@ -5366,6 +5548,20 @@ public final class GameCore {
             }
             if ("wound".equals(c.id) || "daze".equals(c.id)) {
                 gainBlock(s, 4 + s.act);
+            }
+        }
+        if (hasRelic(s, "living_codex") && (c.upgraded || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0
+                || d.addStatusToEnemy || d.createWound || "wound".equals(c.id) || "daze".equals(c.id))) {
+            gainBlock(s, 3 + s.act);
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                if ("wound".equals(c.id) || "daze".equals(c.id) || d.addStatusToEnemy) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3 || s.cardsPlayedThisTurn == 6) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
             }
         }
         if (s.steelEngine > 0 && d.type == 1) {
@@ -6259,6 +6455,9 @@ public final class GameCore {
         if (PROF_HEXER.equals(s.profession)) {
             return focus == BUILD_STATUS ? 20 : focus == BUILD_BLOOD || focus == BUILD_ECHO ? 8 : 0;
         }
+        if (PROF_INSCRIBER.equals(s.profession)) {
+            return focus == BUILD_FORGE ? 18 : focus == BUILD_STATUS ? 14 : focus == BUILD_OVERLOAD || focus == BUILD_CYCLE ? 7 : 0;
+        }
         return 0;
     }
 
@@ -6295,7 +6494,8 @@ public final class GameCore {
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
-                    + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0);
+                    + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
+                    + ("inscriber_overseal".equals(d.id) ? 4 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
         }
         if (focus == BUILD_ECHO) {
             return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
@@ -6316,15 +6516,16 @@ public final class GameCore {
         }
         if (focus == BUILD_FORGE) {
             return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0)
-                    + ("forge_blueprint".equals(d.id) ? 10 : 0);
+                    + ("forge_blueprint".equals(d.id) ? 10 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
         }
         if (focus == BUILD_STATUS) {
             return d.burn * 2 + d.bind * 2 + d.vulnerable * 5 + (d.addStatusToEnemy ? 7 : 0)
-                    + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0) + ("plague_vector".equals(d.id) ? 10 : 0);
+                    + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0) + ("plague_vector".equals(d.id) ? 10 : 0)
+                    + ("inscriber_glyphstorm".equals(d.id) ? 5 : 0) + ("inscriber_codex".equals(d.id) ? 5 : 0);
         }
         if (focus == BUILD_CYCLE) {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
-                    + ("cycle_metronome".equals(d.id) ? 10 : 0);
+                    + ("cycle_metronome".equals(d.id) ? 10 : 0) + ("inscriber_palimp".equals(d.id) ? 4 : 0);
         }
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0) + d.gainSteelEngine * 5
@@ -6407,6 +6608,9 @@ public final class GameCore {
         else if ("t_hexer_darkdeal".equals(id)) bonus += status * 3 + Math.min(8, s.gold / 40);
         else if ("t_hexer_malediction".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2;
         else if ("t_hexer_cleanse".equals(id)) bonus += status * 5;
+        else if ("t_inscriber_rubbing".equals(id)) bonus += upgraded < 5 ? 10 : 4;
+        else if ("t_inscriber_etching".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2;
+        else if ("t_inscriber_archive".equals(id)) bonus += status * 4 + exhaustDeckCards(s) * 2;
         else if ("t_warden_vanguard".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2;
         else if ("t_duelist_masterstep".equals(id)) bonus += zeroCost * 3 + buildFocusDeckCards(s, BUILD_CYCLE);
         else if ("t_alchemist_grandbrew".equals(id)) bonus += potionCards(s) * 4 + buildFocusDeckCards(s, BUILD_STATUS);
@@ -6417,6 +6621,7 @@ public final class GameCore {
         else if ("t_weaver_grandpattern".equals(id)) bonus += upgraded * 2 + buildFocusDeckCards(s, BUILD_FORGE) * 2;
         else if ("t_summoner_overflow".equals(id)) bonus += tempOrEchoDeckCards(s) * 3;
         else if ("t_hexer_abysscurse".equals(id)) bonus += status * 3 + buildFocusDeckCards(s, BUILD_STATUS) * 2;
+        else if ("t_inscriber_grandcodex".equals(id)) bonus += upgraded * 2 + status * 2 + buildFocusDeckCards(s, BUILD_FORGE) * 2;
         return Math.min(36, bonus);
     }
 
@@ -6424,7 +6629,7 @@ public final class GameCore {
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
                     "t_arcanist_singularity", "t_merchant_monopoly", "t_weaver_grandpattern",
-                    "t_shared_longnight") ? 3 : 0;
+                    "t_inscriber_grandcodex", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -6446,18 +6651,20 @@ public final class GameCore {
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "t_shared_masterwork", "t_warden_armory", "t_weaver_setup",
-                    "t_weaver_mastery", "t_weaver_grandpattern") ? 3 : 0;
+                    "t_weaver_mastery", "t_weaver_grandpattern", "t_inscriber_rubbing",
+                    "t_inscriber_grandcodex") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
                     "t_ranger_quarry", "t_ranger_net", "t_ranger_wildpath", "t_ranger_apex",
                     "t_hexer_darkdeal", "t_hexer_malediction", "t_hexer_cleanse",
-                    "t_hexer_abysscurse", "t_duelist_execution") ? 3 : 0;
+                    "t_hexer_abysscurse", "t_inscriber_etching", "t_inscriber_archive",
+                    "t_inscriber_grandcodex", "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
                     "t_arcanist_overflow", "t_weaver_setup", "t_weaver_quicksilver",
-                    "t_shared_longnight") ? 3 : 0;
+                    "t_inscriber_archive", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
@@ -6468,10 +6675,12 @@ public final class GameCore {
     }
 
     private static String talentReason(State s, String id) {
-        if (isAny(id, "t_shared_masterwork", "t_weaver_mastery", "t_weaver_grandpattern") && upgradedDeckCards(s) >= 4) {
+        if (isAny(id, "t_shared_masterwork", "t_weaver_mastery", "t_weaver_grandpattern",
+                "t_inscriber_rubbing", "t_inscriber_grandcodex") && upgradedDeckCards(s) >= 4) {
             return "升级牌多";
         }
-        if (isAny(id, "t_hexer_cleanse", "t_hexer_darkdeal", "t_hexer_abysscurse") && statusDeckCards(s) > 0) {
+        if (isAny(id, "t_hexer_cleanse", "t_hexer_darkdeal", "t_hexer_abysscurse",
+                "t_inscriber_archive", "t_inscriber_grandcodex") && statusDeckCards(s) > 0) {
             return "状态牌可转化";
         }
         if (isAny(id, "t_duelist_tempo", "t_duelist_masterstep") && zeroCostDeckCards(s) >= 2) {
@@ -6674,7 +6883,7 @@ public final class GameCore {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
                     "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet",
-                    "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
+                    "engraver_stylus", "razor_pactstone", "tempo_spindle", "resonance_lens", "mastery_badge",
                     "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -6696,13 +6905,14 @@ public final class GameCore {
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
-                    "pattern_spool", "clockwork_loom", "forge_heart", "ability_crown") ? 3 : 0;
+                    "pattern_spool", "engraver_stylus", "clockwork_loom", "living_codex", "forge_heart",
+                    "ability_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
                     "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
                     "hawk_fletching", "solar_crucible", "apex_compass", "spirit_processional",
-                    "fallen_crown", "hex_moon") ? 3 : 0;
+                    "fallen_crown", "engraver_stylus", "living_codex", "hex_moon") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -6727,7 +6937,8 @@ public final class GameCore {
                 || (PROF_BLOODBOUND.equals(s.profession) && "crimson_seal".equals(id))
                 || (PROF_WEAVER.equals(s.profession) && "pattern_spool".equals(id))
                 || (PROF_SUMMONER.equals(s.profession) && "spirit_bell".equals(id))
-                || (PROF_HEXER.equals(s.profession) && "hex_tablet".equals(id));
+                || (PROF_HEXER.equals(s.profession) && "hex_tablet".equals(id))
+                || (PROF_INSCRIBER.equals(s.profession) && "engraver_stylus".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -6756,7 +6967,7 @@ public final class GameCore {
         return hasRelic(s, "command_banner") || hasRelic(s, "flash_heel") || hasRelic(s, "catalyst_pump")
                 || hasRelic(s, "hawk_fletching") || hasRelic(s, "echo_prism") || hasRelic(s, "ledger_stamp")
                 || hasRelic(s, "crimson_seal") || hasRelic(s, "pattern_spool") || hasRelic(s, "spirit_bell")
-                || hasRelic(s, "hex_tablet");
+                || hasRelic(s, "hex_tablet") || hasRelic(s, "engraver_stylus");
     }
 
     private static CardDef randomOverloadCard(State s, boolean allowRare) {
@@ -6845,6 +7056,10 @@ public final class GameCore {
             return 4;
         }
         if (PROF_HEXER.equals(s.profession) && (d.vulnerable > 0 || d.addStatusToEnemy || d.createWound || "wound".equals(d.id) || "daze".equals(d.id))) {
+            return 4;
+        }
+        if (PROF_INSCRIBER.equals(s.profession) && (d.upgradeRandom || d.scry > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.addStatusToEnemy || d.createWound || d.exhaustTopDiscard || d.skillChargeGain > 0)) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -6943,7 +7158,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -6954,6 +7169,7 @@ public final class GameCore {
         if (PROF_WEAVER.equals(s.profession)) return "pattern_spool";
         if (PROF_SUMMONER.equals(s.profession)) return "spirit_bell";
         if (PROF_HEXER.equals(s.profession)) return "hex_tablet";
+        if (PROF_INSCRIBER.equals(s.profession)) return "engraver_stylus";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -7018,15 +7234,24 @@ public final class GameCore {
         if (PROF_HEXER.equals(s.profession) && "fallen_crown".equals(id)) {
             return 4;
         }
+        if (PROF_INSCRIBER.equals(s.profession) && ("engraver_stylus".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "curse_censer".equals(id) || "stormglass_seal".equals(id))) {
+            return 2;
+        }
+        if (PROF_INSCRIBER.equals(s.profession) && "living_codex".equals(id)) {
+            return 4;
+        }
         if ((PROF_ALCHEMIST.equals(s.profession) || PROF_RANGER.equals(s.profession) || PROF_SUMMONER.equals(s.profession))
                 && ("emberroot_charm".equals(id) || "stormglass_seal".equals(id))) {
             return 2;
         }
-        if ((PROF_ARCANIST.equals(s.profession) || PROF_HEXER.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession))
+        if ((PROF_ARCANIST.equals(s.profession) || PROF_HEXER.equals(s.profession) || PROF_BLOODBOUND.equals(s.profession)
+                || PROF_INSCRIBER.equals(s.profession))
                 && ("curse_censer".equals(id) || "bloodcoin_broach".equals(id))) {
             return 2;
         }
-        if ((PROF_WEAVER.equals(s.profession) || PROF_WARDEN.equals(s.profession) || PROF_DUELIST.equals(s.profession))
+        if ((PROF_WEAVER.equals(s.profession) || PROF_WARDEN.equals(s.profession) || PROF_DUELIST.equals(s.profession)
+                || PROF_INSCRIBER.equals(s.profession))
                 && "mirror_anvil".equals(id)) {
             return 2;
         }
@@ -7173,6 +7398,10 @@ public final class GameCore {
             s.hp += 4;
         } else if ("fallen_crown".equals(id)) {
             addUpgradedDeckCard(s, "hexer_crownfall");
+            addStatusCard(s, "daze");
+        } else if ("living_codex".equals(id)) {
+            addUpgradedDeckCard(s, "inscriber_codex");
+            upgradeRandomDeckCard(s);
             addStatusCard(s, "daze");
         }
         log(s, "获得遗物：" + r.name);
@@ -7494,6 +7723,19 @@ public final class GameCore {
         c = addCard("hexer_crownfall", "咒冠坠落", "通用", 2, 1, 2, 0, 0, 6, 9, "敌群获得易伤与束缚，扩散异常并加入状态牌。", "更多格挡，加入裂伤并加强异常扩散。");
         c.profession = PROF_HEXER; c.vulnerable = 1; c.bind = 2; c.bindUp = 4; c.spreadStatus = true; c.targetEnemy = true; c.skillChargeGain = 2;
 
+        c = addCard("inscriber_mark", "裂纹刻印", "通用", 0, 1, 0, 7, 10, 0, 0, "造成伤害，施加易伤，职业技充能+1。", "更高伤害与易伤，职业技充能+2。");
+        c.profession = PROF_INSCRIBER; c.vulnerable = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("inscriber_tablet", "刻板抄录", "通用", 0, 1, 1, 0, 0, 6, 9, "获得格挡，升级手牌并抽1张。", "更多格挡，升级手牌并抽2张。");
+        c.profession = PROF_INSCRIBER; c.upgradeRandom = true; c.draw = 1; c.drawUp = 2;
+        c = addCard("inscriber_glyphstorm", "符雨", "通用", 1, 1, 2, 0, 0, 0, 0, "敌群获得束缚和易伤，加入1张眩光，职业技充能+2。", "更多控制，职业技充能+3。");
+        c.profession = PROF_INSCRIBER; c.aoe = true; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.addStatusToEnemy = true;
+        c = addCard("inscriber_overseal", "过载印封", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡，升级手牌，职业技充能+2，加入裂伤。", "更多格挡，职业技充能+3。");
+        c.profession = PROF_INSCRIBER; c.upgradeRandom = true; c.skillChargeGain = 2; c.createWound = true;
+        c = addCard("inscriber_palimp", "重写羊皮卷", "通用", 2, 1, 2, 0, 0, 0, 0, "抽2张，消耗弃牌堆顶牌；若消耗状态牌，职业技充能+1。", "抽3张；若消耗状态牌，再抽1张并充能。");
+        c.profession = PROF_INSCRIBER; c.draw = 2; c.drawUp = 3; c.exhaustTopDiscard = true; c.energyGain = 1;
+        c = addCard("inscriber_codex", "无名刻典", "通用", 2, 2, 2, 0, 0, 9, 13, "获得格挡，升级手牌，敌群易伤束缚，职业技充能+3。", "更多格挡与控制，职业技充能+4。");
+        c.profession = PROF_INSCRIBER; c.upgradeRandom = true; c.vulnerable = 1; c.bind = 2; c.bindUp = 3; c.skillChargeGain = 3; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -7699,6 +7941,7 @@ public final class GameCore {
         addRelicDef("pattern_spool", "定式线轴", "织牌师手牌充足时职业技更快充能；释放后升级手牌、抽牌并保留少量充能。");
         addRelicDef("spirit_bell", "灵铃", "唤灵师手牌充足时职业技更快充能；释放后制造临时灵火并获得格挡。");
         addRelicDef("hex_tablet", "咒碑", "咒术师面对易伤敌人时职业技更快充能；释放后追加控制与穿透伤害。");
+        addRelicDef("engraver_stylus", "活刻笔", "刻印师升级牌较多时职业技更快充能；释放后升级手牌、抽牌并追加刻痕控制。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -7709,6 +7952,7 @@ public final class GameCore {
         addRelicDef("clockwork_loom", "万象织机", "获得升级万象织钟；升级、检视和锻造牌提供格挡，并定期升级手牌。");
         addRelicDef("spirit_processional", "百灵仪仗", "获得升级百灵巡游；召唤和临时牌提供格挡、束缚并续接灵火。");
         addRelicDef("fallen_crown", "坠落咒冠", "获得升级咒冠坠落；异常与状态牌扩散易伤，状态牌额外格挡。");
+        addRelicDef("living_codex", "活页刻典", "获得升级无名刻典；升级、刻印和状态牌扩散易伤束缚，并定期升级手牌。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -7861,6 +8105,9 @@ public final class GameCore {
         addTalent("t_hexer_darkdeal", PROF_HEXER, "暗账交易", "状态牌提供金币和抽牌；职业技加入裂伤，获得升级暗契。");
         addTalent("t_hexer_malediction", PROF_HEXER, "恶咒连环", "首个敌人额外受束缚；获得升级恶咒。");
         addTalent("t_hexer_cleanse", PROF_HEXER, "以咒净咒", "移除一张状态牌，并获得升级以咒净咒。");
+        addTalent("t_inscriber_rubbing", PROF_INSCRIBER, "拓印工法", "获得升级刻板抄录并升级牌组；升级牌提供格挡和职业技充能。");
+        addTalent("t_inscriber_etching", PROF_INSCRIBER, "裂纹蚀刻", "获得升级符雨；刻印异常会追加伤害，并把易伤与束缚扩散到敌群。");
+        addTalent("t_inscriber_archive", PROF_INSCRIBER, "残页归档", "获得升级重写羊皮卷并净化状态；消耗状态牌时获得能量、抽牌和充能。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -7871,6 +8118,7 @@ public final class GameCore {
         addTalent("t_weaver_grandpattern", PROF_WEAVER, "大定式", "升级牌和牌序工程提供格挡与充能；连续定式会升级手牌、抽牌并加固防线。");
         addTalent("t_summoner_overflow", PROF_SUMMONER, "满溢灵潮", "获得升级灵庭；首回合临时游魂引，召唤与临时牌持续束缚并续接灵火。");
         addTalent("t_hexer_abysscurse", PROF_HEXER, "深渊咒冠", "获得升级恶咒并加入眩光；异常与状态牌会向敌群扩散易伤、束缚和穿透伤害。");
+        addTalent("t_inscriber_grandcodex", PROF_INSCRIBER, "活页宗典", "获得最大生命和升级无名刻典；升级、刻印与状态牌持续给职业技、格挡和抽牌。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

@@ -1163,6 +1163,12 @@ public final class GameView extends View {
             c.drawLine(cx, cy - size, cx, cy + size, p);
             c.drawLine(cx - size * 0.85f, cy - size * 0.45f, cx + size * 0.85f, cy + size * 0.45f, p);
             c.drawLine(cx - size * 0.85f, cy + size * 0.45f, cx + size * 0.85f, cy - size * 0.45f, p);
+        } else if (GameCore.PROF_INSCRIBER.equals(profession)) {
+            c.drawRect(cx - size * 0.72f, cy - size * 0.86f, cx + size * 0.72f, cy + size * 0.86f, p);
+            c.drawLine(cx - size * 0.45f, cy - size * 0.42f, cx + size * 0.45f, cy - size * 0.42f, p);
+            c.drawLine(cx - size * 0.45f, cy, cx + size * 0.45f, cy, p);
+            c.drawLine(cx - size * 0.45f, cy + size * 0.42f, cx + size * 0.45f, cy + size * 0.42f, p);
+            c.drawLine(cx + size * 0.15f, cy - size * 0.86f, cx - size * 0.48f, cy + size * 0.86f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
