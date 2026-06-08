@@ -161,6 +161,7 @@ public final class GameCore {
         }
         s.profession = profession;
         addProfessionStarter(s, profession);
+        applyProfessionMastery(s, profession);
         generateMap(s);
         rollBoons(s);
         s.mode = MODE_BOON;
@@ -1826,6 +1827,61 @@ public final class GameCore {
         return s.meta != null && s.meta.achievements.contains(id);
     }
 
+    public static int professionWins(State s, String profession) {
+        if (s == null || s.meta == null) {
+            return 0;
+        }
+        s.meta.ensure();
+        int index = professionIndex(profession);
+        if (index < 0 || index >= s.meta.professionWins.length) {
+            return 0;
+        }
+        return s.meta.professionWins[index];
+    }
+
+    public static int professionMasteryLevel(State s, String profession) {
+        int wins = professionWins(s, profession);
+        if (wins >= 5) {
+            return 3;
+        }
+        if (wins >= 3) {
+            return 2;
+        }
+        if (wins >= 1) {
+            return 1;
+        }
+        return 0;
+    }
+
+    public static String professionMasteryName(int level) {
+        if (level >= 3) return "宗师";
+        if (level == 2) return "熟练";
+        if (level == 1) return "入门";
+        return "未精通";
+    }
+
+    public static String professionMasteryText(State s, String profession) {
+        int level = professionMasteryLevel(s, profession);
+        if (level >= 3) {
+            return "精通3：升级起始牌、职业启动奖励、升级过载牌，每场战斗职业技预充。";
+        }
+        if (level == 2) {
+            return "精通2：升级起始牌，获得职业风格启动奖励，每场战斗职业技预充。";
+        }
+        if (level == 1) {
+            return "精通1：开局升级一张职业起始牌。";
+        }
+        return "首次胜利后解锁该职业精通奖励。";
+    }
+
+    public static String nextProfessionMasteryText(State s, String profession) {
+        int wins = professionWins(s, profession);
+        if (wins >= 5) return "已满";
+        if (wins >= 3) return "5胜升宗师";
+        if (wins >= 1) return "3胜升熟练";
+        return "1胜入门";
+    }
+
     public static String achievementName(String id) {
         if ("first_run".equals(id)) return "初入深渊";
         if ("first_win".equals(id)) return "抵达无光尽头";
@@ -1835,6 +1891,9 @@ public final class GameCore {
         if ("talent_master".equals(id)) return "专精大师";
         if ("rich".equals(id)) return "裂币盈囊";
         if ("quest_hunter".equals(id)) return "悬赏老手";
+        if ("profession_adept".equals(id)) return "一职成名";
+        if ("profession_master".equals(id)) return "宗师徽记";
+        if ("all_mastery".equals(id)) return "十职熟练";
         return id;
     }
 
@@ -1860,11 +1919,13 @@ public final class GameCore {
         s.log.clear();
         s.cardRewards.clear();
         s.cardRewardSkipped = false;
+        s.shopScoutUsed = false;
         s.relicRewards.clear();
         s.boonChoices.clear();
         s.pactChoices.clear();
         s.pact = "";
         s.pactFulfilled = 0;
+        s.masterySkillCharge = 0;
         s.runGuardMilestone = 0;
         s.runComboMilestone = 0;
         s.runHexMilestone = 0;
@@ -1953,6 +2014,84 @@ public final class GameCore {
             s.deck.add(new Card("daze"));
             s.gold += 25;
         }
+    }
+
+    private static void applyProfessionMastery(State s, String profession) {
+        int level = professionMasteryLevel(s, profession);
+        if (level <= 0) {
+            return;
+        }
+        upgradeProfessionStarter(s, profession);
+        if (level >= 2) {
+            applyProfessionMasteryKit(s, profession);
+            s.masterySkillCharge = 2;
+        }
+        if (level >= 3) {
+            addUpgradedDeckCard(s, masteryOverloadCard(profession));
+            s.masterySkillCharge = 3;
+        }
+        log(s, profession + "精通" + level + "：" + professionMasteryName(level) + "奖励已生效。");
+    }
+
+    private static void upgradeProfessionStarter(State s, String profession) {
+        if (PROF_WARDEN.equals(profession)) upgradeDeckCard(s, "warden_oath");
+        else if (PROF_DUELIST.equals(profession)) upgradeDeckCard(s, "duelist_flurry");
+        else if (PROF_ALCHEMIST.equals(profession)) upgradeDeckCard(s, "alchemist_mix");
+        else if (PROF_RANGER.equals(profession)) upgradeDeckCard(s, "ranger_trap");
+        else if (PROF_ARCANIST.equals(profession)) upgradeDeckCard(s, "arcanist_glyph");
+        else if (PROF_MERCHANT.equals(profession)) upgradeDeckCard(s, "merchant_haggle");
+        else if (PROF_BLOODBOUND.equals(profession)) upgradeDeckCard(s, "blood_pact");
+        else if (PROF_WEAVER.equals(profession)) upgradeDeckCard(s, "weaver_thread");
+        else if (PROF_SUMMONER.equals(profession)) upgradeDeckCard(s, "summoner_wisp");
+        else if (PROF_HEXER.equals(profession)) upgradeDeckCard(s, "hexer_hexmark");
+    }
+
+    private static void applyProfessionMasteryKit(State s, String profession) {
+        if (PROF_WARDEN.equals(profession)) {
+            s.maxHp += 4;
+            s.hp += 4;
+            upgradeRandomDeckCard(s);
+        } else if (PROF_DUELIST.equals(profession)) {
+            addUpgradedDeckCard(s, "quick_cut");
+            s.gold += 15;
+        } else if (PROF_ALCHEMIST.equals(profession)) {
+            while (s.potions.size() < Math.min(potionLimit(s), 3)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if (PROF_RANGER.equals(profession)) {
+            addUpgradedDeckCard(s, "snare_survey");
+            s.gold += 20;
+        } else if (PROF_ARCANIST.equals(profession)) {
+            addUpgradedDeckCard(s, "void_glimpse");
+        } else if (PROF_MERCHANT.equals(profession)) {
+            s.gold += 55;
+        } else if (PROF_BLOODBOUND.equals(profession)) {
+            s.maxHp += 5;
+            s.hp += 5;
+            addUpgradedDeckCard(s, "blood_rite");
+        } else if (PROF_WEAVER.equals(profession)) {
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+        } else if (PROF_SUMMONER.equals(profession)) {
+            addUpgradedDeckCard(s, "summoner_sprite");
+        } else if (PROF_HEXER.equals(profession)) {
+            addUpgradedDeckCard(s, "hexer_pact");
+            removeStatusCard(s);
+        }
+    }
+
+    private static String masteryOverloadCard(String profession) {
+        if (PROF_WARDEN.equals(profession)) return "warden_overguard";
+        if (PROF_DUELIST.equals(profession)) return "duelist_overtempo";
+        if (PROF_ALCHEMIST.equals(profession)) return "alchemist_overbrew";
+        if (PROF_RANGER.equals(profession)) return "ranger_overmark";
+        if (PROF_ARCANIST.equals(profession)) return "arcanist_overflow";
+        if (PROF_MERCHANT.equals(profession)) return "merchant_overdraft";
+        if (PROF_BLOODBOUND.equals(profession)) return "blood_overflow";
+        if (PROF_WEAVER.equals(profession)) return "weaver_overthread";
+        if (PROF_SUMMONER.equals(profession)) return "summoner_overcall";
+        if (PROF_HEXER.equals(profession)) return "hexer_overcurse";
+        return "forge_signal";
     }
 
     private static void applyTalentPickup(State s, String id) {
@@ -2568,6 +2707,9 @@ public final class GameCore {
         applyRouteCombatStart(s);
         applyEncounterStart(s);
         applyEnemyStartMechanics(s);
+        if (s.masterySkillCharge > 0) {
+            s.professionSkillCharge = Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.masterySkillCharge);
+        }
         if (hasRelic(s, "bone_mask")) {
             gainBlock(s, 8);
         }
@@ -4932,6 +5074,15 @@ public final class GameCore {
         if (victory && s.ascension >= 10) {
             unlockAchievement(s, "high_depth");
         }
+        if (anyProfessionWinsAtLeast(s, 3)) {
+            unlockAchievement(s, "profession_adept");
+        }
+        if (anyProfessionWinsAtLeast(s, 5)) {
+            unlockAchievement(s, "profession_master");
+        }
+        if (allProfessionWinsAtLeast(s, 3)) {
+            unlockAchievement(s, "all_mastery");
+        }
         if (s.talents.size() >= 2) {
             unlockAchievement(s, "talent_master");
         }
@@ -4949,11 +5100,27 @@ public final class GameCore {
     }
 
     private static boolean allProfessionWins(State s) {
+        return allProfessionWinsAtLeast(s, 1);
+    }
+
+    private static boolean anyProfessionWinsAtLeast(State s, int wins) {
         if (s.meta.professionWins.length < PROFESSIONS.length) {
             return false;
         }
         for (int i = 0; i < PROFESSIONS.length; i++) {
-            if (s.meta.professionWins[i] <= 0) {
+            if (s.meta.professionWins[i] >= wins) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean allProfessionWinsAtLeast(State s, int wins) {
+        if (s.meta.professionWins.length < PROFESSIONS.length) {
+            return false;
+        }
+        for (int i = 0; i < PROFESSIONS.length; i++) {
+            if (s.meta.professionWins[i] < wins) {
                 return false;
             }
         }
@@ -5834,6 +6001,17 @@ public final class GameCore {
         }
     }
 
+    private static void upgradeDeckCard(State s, String id) {
+        for (Card c : s.deck) {
+            CardDef d = card(c.id);
+            if (d != null && d.type != 3 && id.equals(c.id) && !c.upgraded) {
+                c.upgraded = true;
+                return;
+            }
+        }
+        upgradeRandomDeckCard(s);
+    }
+
     private static void upgradeRandomHandCard(State s) {
         ArrayList<Card> pool = new ArrayList<>();
         for (Card c : s.hand) {
@@ -6557,6 +6735,7 @@ public final class GameCore {
         public int pactStatusCards;
         public int pactForgeCards;
         public int pactGoldCards;
+        public int masterySkillCharge;
         public int runGuardMilestone;
         public int runComboMilestone;
         public int runHexMilestone;

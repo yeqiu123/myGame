@@ -403,7 +403,9 @@ public final class GameView extends View {
             c.drawRoundRect(new RectF(x + dp(8), y + dp(10), x + dp(50), y + dp(52)), dp(7), dp(7), p);
             drawProfessionMark(c, name, x + dp(29), y + dp(31), dp(17));
             drawText(c, name, x + dp(60), y + dp(30), 20, 0xfff5ead2, true);
-            drawWrapped(c, desc[i], x + dp(10), y + cardH - dp(28), cardW - dp(20), 11, 0xffc5d0cf);
+            int mastery = GameCore.professionMasteryLevel(s, name);
+            String progress = GameCore.professionWins(s, name) + "胜 " + GameCore.professionMasteryName(mastery) + " " + GameCore.nextProfessionMasteryText(s, name);
+            drawWrapped(c, desc[i] + " / " + progress, x + dp(10), y + cardH - dp(30), cardW - dp(20), 10, mastery > 0 ? 0xfff5d276 : 0xffc5d0cf);
             addButton(x + cardW - dp(58), y + dp(16), dp(48), dp(30), "选", "profession", i);
             addButton(x, y, cardW, cardH, "", "profession", i);
         }
@@ -861,8 +863,10 @@ public final class GameView extends View {
                 drawText(c, pDef.text, x, rowY + dp(17), 11, 0xffaebdc0, false);
             } else if (codexTab == 4) {
                 String prof = GameCore.PROFESSIONS[i];
-                drawText(c, prof + " / " + GameCore.professionSkillName(prof), x, rowY, 14, GameCore.professionColor(prof), true);
-                drawText(c, shortText(GameCore.professionText(prof) + " " + GameCore.professionSkillTextFor(prof), 48), x, rowY + dp(17), 11, 0xffaebdc0, false);
+                String title = prof + " / " + GameCore.professionSkillName(prof) + " / 胜" + GameCore.professionWins(s, prof)
+                        + " / " + GameCore.professionMasteryName(GameCore.professionMasteryLevel(s, prof));
+                drawText(c, title, x, rowY, 14, GameCore.professionColor(prof), true);
+                drawText(c, shortText(GameCore.professionMasteryText(s, prof), 52), x, rowY + dp(17), 11, 0xffaebdc0, false);
             } else {
                 String id = achievementId(i);
                 String mark = GameCore.hasAchievement(s, id) ? "*" : "-";
@@ -881,11 +885,11 @@ public final class GameView extends View {
     }
 
     private int achievementCount() {
-        return 8;
+        return 11;
     }
 
     private String achievementId(int index) {
-        String[] ids = {"first_run", "first_win", "all_professions", "collector", "high_depth", "talent_master", "rich", "quest_hunter"};
+        String[] ids = {"first_run", "first_win", "all_professions", "profession_adept", "profession_master", "all_mastery", "collector", "high_depth", "talent_master", "rich", "quest_hunter"};
         return ids[Math.max(0, Math.min(ids.length - 1, index))];
     }
 
