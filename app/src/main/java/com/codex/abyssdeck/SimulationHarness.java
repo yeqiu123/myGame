@@ -310,6 +310,7 @@ public final class SimulationHarness {
                     || d.exhaust || d.createWound || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("scrap_king_crown") && (isScavengerSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.draw > 0 || d.goldGain > 0 || d.vulnerable > 0 || d.bind > 0)) score += 20;
+            if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
@@ -429,7 +430,7 @@ public final class SimulationHarness {
                     || "tempo_metronome".equals(id) || "tuning_fork".equals(id) || "markchain_seal".equals(id)
                     || "overload_etch".equals(id) || "discipline_chart".equals(id) || "pressure_gauge".equals(id)
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
-                    || "starforge_lens".equals(id))) score += 36;
+                    || "starforge_lens".equals(id) || "salvage_hook".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
@@ -459,6 +460,7 @@ public final class SimulationHarness {
             if ("mirror_lens".equals(id) || "mirror_crown".equals(id)) score += 20;
             if ("string_spool".equals(id) || "marionette_crown".equals(id)) score += 20;
             if ("scrap_magnet".equals(id) || "scrap_king_crown".equals(id)) score += 20;
+            if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
             if (score > bestScore) {
@@ -663,18 +665,25 @@ public final class SimulationHarness {
                     || GameCore.PROF_GARDENER.equals(s.profession) || GameCore.PROF_CHEF.equals(s.profession)
                     || GameCore.PROF_BARD.equals(s.profession) || GameCore.PROF_MIRRORIST.equals(s.profession)
                     || GameCore.PROF_PUPPETEER.equals(s.profession) || GameCore.PROF_SCAVENGER.equals(s.profession)) ? 34 : 26;
+            else if ("spec_salvage".equals(id)) score += (GameCore.PROF_SCAVENGER.equals(s.profession) || GameCore.PROF_ARCANIST.equals(s.profession)
+                    || GameCore.PROF_MERCHANT.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
+                    || GameCore.PROF_INSCRIBER.equals(s.profession) || GameCore.PROF_PACTMAKER.equals(s.profession)
+                    || GameCore.PROF_DREAMWALKER.equals(s.profession) || GameCore.PROF_GARDENER.equals(s.profession)
+                    || GameCore.PROF_CHEF.equals(s.profession) || GameCore.PROF_BLOODBOUND.equals(s.profession)
+                    || GameCore.PROF_MEDIUM.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_PUPPETEER.equals(s.profession)) ? 33 : 25;
             if (GameCore.PROF_PACTMAKER.equals(s.profession) && ("spec_sustain".equals(id) || "spec_resonance".equals(id)
-                    || "spec_mastery".equals(id) || "spec_pressure".equals(id))) score += 6;
+                    || "spec_mastery".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id))) score += 6;
             if (GameCore.PROF_STORMCALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_burst".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_SHADOWDANCER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_burst".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id))) score += 8;
             if (GameCore.PROF_RUNEBLADE.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_assembly".equals(id) || "spec_control".equals(id)
-                    || "spec_markchain".equals(id) || "spec_pressure".equals(id))) score += 8;
+                    || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id))) score += 8;
             if (GameCore.PROF_MEDIUM.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id)
-                    || "spec_control".equals(id) || "spec_pressure".equals(id))) score += 8;
+                    || "spec_control".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id))) score += 8;
             if (GameCore.PROF_TACTICIAN.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_assembly".equals(id) || "spec_control".equals(id)
                     || "spec_markchain".equals(id) || "spec_tempo".equals(id) || "spec_pressure".equals(id))) score += 8;
@@ -683,13 +692,15 @@ public final class SimulationHarness {
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_DREAMWALKER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
-                    || "spec_markchain".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
+                    || "spec_markchain".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id)
+                    || "spec_salvage".equals(id))) score += 8;
             if (GameCore.PROF_GARDENER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
-                    || "spec_tempo".equals(id) || "spec_pressure".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id))) score += 8;
             if (GameCore.PROF_CHEF.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_sustain".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
-                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_pressure".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_pressure".equals(id)
+                    || "spec_salvage".equals(id))) score += 8;
             if (GameCore.PROF_BARD.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id)
                     || "spec_burst".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
@@ -698,13 +709,16 @@ public final class SimulationHarness {
                     || "spec_tempo".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
             if (GameCore.PROF_PUPPETEER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_echoflow".equals(id) || "spec_markchain".equals(id) || "spec_control".equals(id)
-                    || "spec_tempo".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
+                    || "spec_tempo".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id)
+                    || "spec_salvage".equals(id))) score += 8;
             if (GameCore.PROF_SCAVENGER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_markchain".equals(id)
-                    || "spec_control".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id))) score += 8;
+                    || "spec_control".equals(id) || "spec_sustain".equals(id) || "spec_pressure".equals(id)
+                    || "spec_salvage".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
-            if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id) || "spec_pressure".equals(id))) score += 4;
+            if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
+                    || "spec_pressure".equals(id) || "spec_salvage".equals(id))) score += 4;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
@@ -1218,6 +1232,7 @@ public final class SimulationHarness {
                         || d.draw > 0 || d.goldGain > 0 || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0)) score += 14;
                 if (s.relics.contains("scrap_king_crown") && (isScavengerSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.draw > 0 || d.goldGain > 0 || d.vulnerable > 0 || d.bind > 0)) score += 16;
+                if (s.relics.contains("salvage_hook") && (isSalvageSignal(d) || c.temp)) score += 14;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -1415,7 +1430,8 @@ public final class SimulationHarness {
                 || s.relics.contains("songbook") || s.relics.contains("finale_crown")
                 || s.relics.contains("mirror_lens") || s.relics.contains("mirror_crown")
                 || s.relics.contains("string_spool") || s.relics.contains("marionette_crown")
-                || s.relics.contains("scrap_magnet") || s.relics.contains("scrap_king_crown");
+                || s.relics.contains("scrap_magnet") || s.relics.contains("scrap_king_crown")
+                || s.relics.contains("salvage_hook");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
@@ -1564,6 +1580,16 @@ public final class SimulationHarness {
         return d != null && ("puppeteer_thread".equals(d.id) || "puppeteer_screen".equals(d.id)
                 || "puppeteer_rehearse".equals(d.id) || "puppeteer_needle".equals(d.id)
                 || "puppeteer_overpull".equals(d.id) || "puppeteer_grand_stage".equals(d.id));
+    }
+
+    private static boolean isSalvageSignal(GameCore.CardDef d) {
+        return d != null && (d.draw > 0 || d.goldGain > 0 || d.exhaust || d.exhaustTopDiscard
+                || d.createWound || d.heal > 0 || d.block > 0 || d.skillChargeGain > 0
+                || d.energyGain > 0 || d.cost == 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || isScavengerCard(d) || "cursed_coin".equals(d.id) || "void_tithe".equals(d.id)
+                || "void_draw".equals(d.id) || "void_hunger".equals(d.id) || "void_glimpse".equals(d.id)
+                || "cycle_metronome".equals(d.id) || "golden_engine".equals(d.id)
+                || "hybrid_blood_tithe".equals(d.id) || "hybrid_coinwall".equals(d.id));
     }
 
     private static boolean isScavengerSignal(GameCore.CardDef d) {
