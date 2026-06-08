@@ -10,7 +10,7 @@ public final class SimulationHarness {
         int[] depths = {0, 3, 6, 10};
         for (int depth : depths) {
             Result result = runBatch(depth, 40);
-            System.out.println("depth=" + depth + " runs=" + result.runs + " wins=" + result.wins
+            System.out.println("depth=" + depth + "(" + depthLabel(depth) + ") runs=" + result.runs + " wins=" + result.wins
                     + " losses=" + result.losses + " stalled=" + result.stalled + " avgFloor=" + (result.floorSum / Math.max(1, result.runs))
                     + " routeNodes=" + result.routeNodes);
         }
@@ -177,6 +177,13 @@ public final class SimulationHarness {
         else if (n.route == GameCore.ROUTE_DANGER) score += s.hp > s.maxHp * 0.55f ? 14 : -8;
         else if (n.route == GameCore.ROUTE_AMBUSH) score += s.hp > s.maxHp * 0.6f ? 10 : -12;
         return score;
+    }
+
+    private static String depthLabel(int depth) {
+        if (depth >= 10) return "lightless";
+        if (depth >= 6) return "nightmare";
+        if (depth >= 3) return "tide";
+        return "shallow";
     }
 
     private static void combat(GameCore.State s) {

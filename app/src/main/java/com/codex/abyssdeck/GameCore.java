@@ -210,6 +210,7 @@ public final class GameCore {
             c.upgraded = true;
             s.deck.add(c);
         }
+        applyDepthStartPenalty(s);
         s.boonChoices.clear();
         s.mode = MODE_MAP;
         log(s, "选择赐印：" + b.name);
@@ -234,6 +235,33 @@ public final class GameCore {
     public static void chooseDepth(State s, int depth) {
         s.ascension = depth;
         s.mode = MODE_ORIGIN;
+    }
+
+    public static String depthName(int depth) {
+        if (depth >= 10) return "无光";
+        if (depth >= 6) return "噩梦";
+        if (depth >= 3) return "暗潮";
+        return "浅层";
+    }
+
+    public static String depthText(int depth) {
+        if (depth >= 10) return "敌人更厚；精英和Boss压迫；开局加入眩光与裂伤；休息缩水；商店涨价。";
+        if (depth >= 6) return "敌人更厚；精英开局强化；开局加入眩光；休息缩水；商店涨价。";
+        if (depth >= 3) return "敌人更厚；精英开局强化；开局加入眩光。";
+        return "标准深渊规则。";
+    }
+
+    private static void applyDepthStartPenalty(State s) {
+        if (s.ascension < 3) {
+            return;
+        }
+        addStatusCard(s, "daze");
+        if (s.ascension >= 10) {
+            addStatusCard(s, "wound");
+            log(s, "无光阶层污染牌组：加入眩光与裂伤。");
+        } else {
+            log(s, depthName(s.ascension) + "阶层污染牌组：加入眩光。");
+        }
     }
 
     public static void openCodex(State s) {
@@ -744,10 +772,20 @@ public final class GameCore {
         if (s.mode != MODE_REST) {
             return;
         }
-        int amount = Math.max(18, s.maxHp / 3);
+        int amount = restHealAmount(s);
         s.hp = Math.min(s.maxHp, s.hp + amount);
         log(s, "营火恢复 " + amount + " 点生命。");
         s.mode = MODE_MAP;
+    }
+
+    public static int restHealAmount(State s) {
+        int amount = Math.max(18, s.maxHp / 3);
+        if (s.ascension >= 10) {
+            amount -= 8;
+        } else if (s.ascension >= 6) {
+            amount -= 5;
+        }
+        return Math.max(10, amount);
     }
 
     public static void restChoose(State s, String action) {
@@ -1002,6 +1040,7 @@ public final class GameCore {
 
     public static int shopCardPrice(State s, CardDef d) {
         int price = cardPrice(d);
+        price += depthShopSurcharge(s, price);
         if (PROF_MERCHANT.equals(s.profession)) {
             price -= 12;
         }
@@ -1016,6 +1055,7 @@ public final class GameCore {
 
     public static int shopRelicPrice(State s) {
         int price = 165;
+        price += depthShopSurcharge(s, price);
         if (PROF_MERCHANT.equals(s.profession)) {
             price -= 22;
         }
@@ -1030,6 +1070,7 @@ public final class GameCore {
 
     public static int shopPotionPrice(State s) {
         int price = 42;
+        price += depthShopSurcharge(s, price);
         if (PROF_MERCHANT.equals(s.profession)) {
             price -= 7;
         }
@@ -1044,6 +1085,7 @@ public final class GameCore {
 
     public static int shopServicePrice(State s, String action) {
         int price = "shop_remove".equals(action) ? 85 : "shop_upgrade".equals(action) ? 75 : 105;
+        price += depthShopSurcharge(s, price);
         if (PROF_MERCHANT.equals(s.profession)) {
             price -= 12;
         }
@@ -1054,6 +1096,14 @@ public final class GameCore {
             price -= 5;
         }
         return Math.max(35, price);
+    }
+
+    private static int depthShopSurcharge(State s, int basePrice) {
+        if (s == null || s.ascension < 6 || basePrice <= 0) {
+            return 0;
+        }
+        float rate = s.ascension >= 10 ? 0.18f : 0.10f;
+        return Math.max(s.ascension >= 10 ? 6 : 4, Math.round(basePrice * rate));
     }
 
     public static int potionLimit(State s) {
@@ -1875,6 +1925,7 @@ public final class GameCore {
         }
         Collections.shuffle(s.draw, s.run);
         spawnEnemies(s, kind);
+        applyDepthCombatRules(s, kind);
         applyRouteCombatStart(s);
         applyEncounterStart(s);
         applyEnemyStartMechanics(s);
@@ -1966,6 +2017,34 @@ public final class GameCore {
                 e.maxHp += extra;
                 e.hp += extra;
             }
+        }
+    }
+
+    private static void applyDepthCombatRules(State s, char kind) {
+        if (s.ascension < 3) {
+            return;
+        }
+        if (kind == 'E') {
+            int guard = 4 + s.act * 2 + s.ascension / 2;
+            for (Enemy e : s.enemies) {
+                e.block += guard;
+                if (s.ascension >= 6) {
+                    e.strength += 1;
+                    int extra = 4 + s.act * 2 + s.ascension;
+                    e.maxHp += extra;
+                    e.hp += extra;
+                }
+            }
+            log(s, s.ascension >= 6 ? "噩梦阶层：精英生命、力量与护甲提升。" : "暗潮阶层：精英带着护甲开局。");
+        } else if (kind == 'B' && s.ascension >= 10) {
+            int guard = 10 + s.act * 4;
+            for (Enemy e : s.enemies) {
+                e.block += guard;
+                e.strength += 1 + s.act / 2;
+            }
+            s.vulnerable += 1;
+            s.nextEnergyPenalty = Math.max(s.nextEnergyPenalty, 1);
+            log(s, "无光阶层：Boss压迫开局，你易伤且首回合能量-1。");
         }
     }
 
@@ -3786,7 +3865,13 @@ public final class GameCore {
     }
 
     private static void addStatusCard(State s, String id) {
-        s.discard.add(new Card(id));
+        Card card = new Card(id);
+        if (s.mode == MODE_COMBAT) {
+            s.discard.add(card);
+        } else {
+            s.deck.add(card);
+            s.seenCards.add(id);
+        }
     }
 
     private static ArrayList<Enemy> livingEnemies(State s) {

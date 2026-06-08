@@ -351,11 +351,12 @@ public final class GameView extends View {
             drawText(c, desc[i], dp(104), y + dp(62), 14, 0xffc5d0cf, false);
             addButton(w - dp(106), y + dp(28), dp(80), dp(38), "选择", "origin", i);
         }
-        drawText(c, "难度阶层", dp(24), dp(592), 18, 0xffe9d7a1, true);
-        String[] depth = {"浅层", "暗潮", "噩梦", "无光"};
+        drawText(c, "难度阶层：" + GameCore.depthName(s.ascension), dp(24), dp(592), 18, 0xffe9d7a1, true);
+        drawWrapped(c, GameCore.depthText(s.ascension), dp(24), dp(648), w - dp(48), 12, 0xffb9c7cf);
         int[] val = {0, 3, 6, 10};
-        for (int i = 0; i < depth.length; i++) {
-            addButton(dp(24) + i * dp(86), dp(610), dp(76), dp(36), depth[i] + (s.ascension == val[i] ? "*" : ""), "depth", val[i]);
+        for (int i = 0; i < val.length; i++) {
+            String label = GameCore.depthName(val[i]) + (s.ascension == val[i] ? "*" : "");
+            addButton(dp(24) + i * dp(86), dp(604), dp(76), dp(34), label, "depth", val[i]);
         }
     }
 
@@ -399,7 +400,8 @@ public final class GameView extends View {
     private void drawBoons(Canvas c) {
         int w = getWidth();
         drawText(c, "选择开局赐印", dp(24), dp(86), 30, 0xfff4d580, true);
-        drawText(c, s.origin + " / " + s.profession + " / 难度阶层 " + s.ascension, dp(26), dp(116), 15, 0xffc9d2d2, false);
+        drawText(c, s.origin + " / " + s.profession + " / " + GameCore.depthName(s.ascension) + "阶层", dp(26), dp(116), 15, 0xffc9d2d2, false);
+        drawText(c, shortText(GameCore.depthText(s.ascension), 42), dp(26), dp(136), 12, 0xffaebdc0, false);
         for (int i = 0; i < s.boonChoices.size(); i++) {
             GameCore.BoonDef b = GameCore.boon(s.boonChoices.get(i));
             float y = dp(154) + i * dp(118);
@@ -715,7 +717,7 @@ public final class GameView extends View {
         int w = getWidth();
         drawText(c, "静火营地", dp(24), dp(88), 30, 0xfff4d580, true);
         drawText(c, "火光不问你来处，只问你下一层要付出什么。", dp(24), dp(120), 15, 0xffc8d2ce, false);
-        addButton(dp(28), dp(170), w - dp(56), dp(54), "休整：恢复生命", "rest_heal", 0);
+        addButton(dp(28), dp(170), w - dp(56), dp(54), "休整：恢复" + GameCore.restHealAmount(s) + "生命", "rest_heal", 0);
         addButton(dp(28), dp(240), w - dp(56), dp(54), "锻造：升级一张牌", "rest_upgrade", 0);
         addButton(dp(28), dp(310), w - dp(56), dp(54), "净化：移除一张牌", "rest_remove", 0);
         addButton(dp(28), dp(380), w - dp(56), dp(54), "转化：重塑一张牌", "rest_transform", 0);
