@@ -57,7 +57,7 @@ public final class GameCore {
     public static final int QUEST_CONFLUENCE = 13;
     public static final int QUEST_MARK = 14;
     public static final int QUEST_OVERLOAD = 15;
-    public static final int EVENT_COUNT = 19;
+    public static final int EVENT_COUNT = 21;
     private static final int MILESTONE_GUARD = 1;
     private static final int MILESTONE_COMBO = 1 << 1;
     private static final int MILESTONE_HEX = 1 << 2;
@@ -2428,6 +2428,92 @@ public final class GameCore {
                 addStatusCard(s, "wound");
                 s.hp = Math.max(1, s.hp - Math.max(3, 7 - s.pactFulfilled));
                 s.pactStatusCards++;
+            }
+        } else if (e == 19) {
+            int focus = buildScoutFocus(s);
+            if (choice == 0) {
+                if (!hasBuildCoreTalent(s)) {
+                    applyBuildCorePickup(s, focus);
+                    s.hp = Math.max(1, s.hp - (7 + s.act));
+                    addStatusCard(s, s.act >= 2 ? "wound" : "daze");
+                    log(s, "核心熔炉把牌组锚定为" + BUILD_FOCUS_NAMES[focus] + "核心。");
+                } else {
+                    CardDef d = buildCoreRewardCard(activeBuildCoreFocus(s));
+                    if (d != null) {
+                        Card c = new Card(d.id);
+                        c.upgraded = true;
+                        s.deck.add(c);
+                    }
+                    addProfessionSkillCharge(s, 3);
+                    upgradeRandomDeckCard(s);
+                    s.hp = Math.max(1, s.hp - Math.max(4, 8 - s.act));
+                    log(s, "核心熔炉再次加压，既有核心获得补强。");
+                }
+            } else {
+                HashSet<String> offered = new HashSet<>();
+                for (int i = 0; i < 3; i++) {
+                    CardDef d = randomBuildScoutCard(s, true, offered);
+                    if (d == null) {
+                        break;
+                    }
+                    offered.add(d.id);
+                    Card c = new Card(d.id);
+                    c.upgraded = i == 0;
+                    s.deck.add(c);
+                    log(s, "核心熔炉吐出" + BUILD_FOCUS_NAMES[focus] + "零件：" + d.name);
+                }
+                RelicDef r = randomFocusRelic(s, focus);
+                addRelic(s, r.id);
+                addStatusCard(s, "daze");
+            }
+        } else if (e == 20) {
+            SkillSpecDef spec = skillSpec(s.skillSpec);
+            if (choice == 0) {
+                if (spec != null && s.skillSpecLevel < 3) {
+                    advanceSkillSpec(s);
+                } else if (spec == null) {
+                    String relicId = skillSpecRelicFor(s);
+                    addRelic(s, relicId);
+                } else {
+                    addProfessionSkillCharge(s, 4);
+                    upgradeRandomDeckCard(s);
+                }
+                int focus = activeBuildCoreFocus(s);
+                if (focus < 0) {
+                    focus = buildScoutFocus(s);
+                }
+                CardDef coreCard = buildCoreRewardCard(focus);
+                if (coreCard != null) {
+                    Card c = new Card(coreCard.id);
+                    c.upgraded = true;
+                    s.deck.add(c);
+                }
+                CardDef specCard = randomSkillSpecCard(s, true);
+                if (specCard != null) {
+                    Card c = new Card(specCard.id);
+                    c.upgraded = true;
+                    s.deck.add(c);
+                }
+                s.hp = Math.max(1, s.hp - (6 + s.act));
+                addStatusCard(s, "wound");
+                log(s, "融合祭坛把专修与核心压进同一套牌。");
+            } else {
+                String relicId = skillSpecRelicFor(s);
+                addRelic(s, relicId);
+                int focus = activeBuildCoreFocus(s);
+                if (focus < 0) {
+                    focus = buildScoutFocus(s);
+                }
+                RelicDef r = randomFocusRelic(s, focus);
+                addRelic(s, r.id);
+                addProfessionSkillCharge(s, 2);
+                if (s.gold >= 55) {
+                    s.gold -= 55;
+                } else {
+                    addStatusCard(s, "daze");
+                    addStatusCard(s, "wound");
+                }
+                log(s, "融合祭坛交出专修与核心遗物，但索走一笔保证金。");
             }
         } else {
             SkillSpecDef spec = skillSpec(s.skillSpec);
@@ -14209,7 +14295,7 @@ public final class GameCore {
         s.mode = MODE_EVENT;
         applyRouteArrival(s, '?');
         if (s.currentRoute == ROUTE_SECRET && s.run.nextInt(100) < 45) {
-            int[] rareEvents = {2, 4, 7, 10, 11, 15, 16, 17, 18};
+            int[] rareEvents = {2, 4, 7, 10, 11, 15, 16, 17, 18, 19, 20};
             s.eventId = rareEvents[s.run.nextInt(rareEvents.length)];
         } else {
             s.eventId = s.run.nextInt(EVENT_COUNT);

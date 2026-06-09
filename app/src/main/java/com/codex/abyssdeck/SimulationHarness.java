@@ -126,6 +126,8 @@ public final class SimulationHarness {
         if (s.eventId == 15) return s.hp > s.maxHp * 0.55f && s.deck.size() >= 22 ? 1 : 0;
         if (s.eventId == 17) return s.hp > s.maxHp * 0.6f && s.deck.size() < 34 ? 0 : 1;
         if (s.eventId == 18) return s.hp > s.maxHp * 0.5f && s.deck.size() < 34 ? 0 : 1;
+        if (s.eventId == 19) return s.hp > s.maxHp * 0.55f && (!hasBuildCoreTalent(s) || s.deck.size() < 36) ? 0 : 1;
+        if (s.eventId == 20) return s.hp > s.maxHp * 0.55f && s.deck.size() < 38 ? 0 : (s.gold >= 55 ? 1 : 0);
         return s.eventId % 2;
     }
 
