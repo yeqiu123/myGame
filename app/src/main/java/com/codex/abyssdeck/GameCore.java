@@ -124,6 +124,7 @@ public final class GameCore {
     public static final String PROF_GEOMANCER = "地脉师";
     public static final String PROF_WITCH = "药巫";
     public static final String PROF_SHIFTER = "移形师";
+    public static final String PROF_FATESEER = "命轮师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -132,7 +133,7 @@ public final class GameCore {
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
-            PROF_WITCH, PROF_SHIFTER
+            PROF_WITCH, PROF_SHIFTER, PROF_FATESEER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -822,6 +823,7 @@ public final class GameCore {
         if (PROF_GEOMANCER.equals(profession)) return "地鸣";
         if (PROF_WITCH.equals(profession)) return "巫酿";
         if (PROF_SHIFTER.equals(profession)) return "折跃";
+        if (PROF_FATESEER.equals(profession)) return "改命";
         return "职业技";
     }
 
@@ -894,6 +896,7 @@ public final class GameCore {
         if (PROF_GEOMANCER.equals(profession)) return "满充能：消耗地势引发地鸣，按格挡、燃灼束缚、升级牌、汇流和过载造成穿透，获得格挡、抽牌并制造地脉牌。";
         if (PROF_WITCH.equals(profession)) return "满充能：消耗药性发动巫酿，按药剂、状态、临时牌和异常压力造成穿透，治疗、抽牌并制造药灵牌。";
         if (PROF_SHIFTER.equals(profession)) return "满充能：消耗相位发动折跃，按低费连打、临时牌、弃牌、控制和过载造成穿透，获得格挡、抽牌并制造移形牌。";
+        if (PROF_FATESEER.equals(profession)) return "满充能：消耗预见改命，按检视、升级牌、抽牌、汇流和过载造成穿透，升级手牌、获得格挡并制造命轮牌。";
         return "选择职业后可用。";
     }
 
@@ -1918,6 +1921,47 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, tempo / 3)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, phase / 2);
+        } else if (PROF_FATESEER.equals(s.profession)) {
+            int foresight = Math.max(1, s.professionCharge);
+            int scryPulse = Math.min(16, buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_CYCLE)
+                    + upgradedCardCount(s) / 3);
+            int cadence = Math.min(12, s.cardsPlayedThisTurn + s.hand.size() / 2);
+            int labels = Math.min(10, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 2 + target.burn;
+            int damage = 8 + s.act * 3 + Math.min(62, foresight * 3 + scryPulse * 3
+                    + cadence * 3 + labels * 4 + pressure) + overload * 6;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, foresight / 3 + scryPulse / 4) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, labels / 4 + overload / 4);
+                if (scryPulse >= 7 || hasTalent(s, "t_fateseer_thread")) {
+                    target.bind += 1 + s.bindPower / 2;
+                }
+            }
+            gainBlock(s, 5 + s.act * 2 + Math.min(34, foresight * 2 + scryPulse * 2
+                    + labels * 3 + upgradedCardCount(s)) + overload * 3);
+            draw(s, 1 + Math.min(3, foresight / 5 + scryPulse / 6 + cadence / 5) + overload / 4);
+            upgradeRandomHandCard(s);
+            if (foresight >= 5 || scryPulse >= 8 || labels >= 4 || overload >= 3) {
+                s.energy++;
+            }
+            Card omen = new Card(overload >= 4 || hasTalent(s, "t_fateseer_grand") ? "fateseer_grand_design" : "fateseer_omen");
+            omen.temp = true;
+            omen.upgraded = foresight >= 5 || hasTalent(s, "t_fateseer_omen");
+            addToHand(s, omen);
+            if (hasTalent(s, "t_fateseer_grand")) {
+                Card wheel = new Card("fateseer_wheel");
+                wheel.temp = true;
+                wheel.upgraded = true;
+                addToHand(s, wheel);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, scryPulse / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, Math.max(1, pressure / 8)));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, labels / 2)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, foresight / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3386,6 +3430,9 @@ public final class GameCore {
         if (PROF_SHIFTER.equals(profession)) {
             return "用低费连打、抽牌、临时牌和弃牌回收积累相位，把折跃转成抽牌、返能、控场和穿透爆发。适合循环、回声、异常、过载和守势构筑。";
         }
+        if (PROF_FATESEER.equals(profession)) {
+            return "用检视、升级、抽牌和汇流积累预见，把牌序规划转成改命爆发。适合工坊、循环、汇流、标链和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3491,6 +3538,9 @@ public final class GameCore {
         }
         if (PROF_SHIFTER.equals(profession)) {
             return 0xff8ee6d6;
+        }
+        if (PROF_FATESEER.equals(profession)) {
+            return 0xfff0c77b;
         }
         return 0xffd6c07a;
     }
@@ -3860,6 +3910,14 @@ public final class GameCore {
             s.maxHp += 1;
             s.hp += 1;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_FATESEER.equals(profession)) {
+            s.deck.add(new Card("fateseer_omen"));
+            s.deck.add(new Card("fateseer_veil"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 1;
+            s.hp += 1;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3915,6 +3973,7 @@ public final class GameCore {
         else if (PROF_GEOMANCER.equals(profession)) upgradeDeckCard(s, "geomancer_rune");
         else if (PROF_WITCH.equals(profession)) upgradeDeckCard(s, "witch_brew");
         else if (PROF_SHIFTER.equals(profession)) upgradeDeckCard(s, "shifter_slip");
+        else if (PROF_FATESEER.equals(profession)) upgradeDeckCard(s, "fateseer_omen");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4050,6 +4109,10 @@ public final class GameCore {
             addUpgradedDeckCard(s, "shifter_anchor");
             removeStatusCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_FATESEER.equals(profession)) {
+            addUpgradedDeckCard(s, "fateseer_wheel");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4088,6 +4151,7 @@ public final class GameCore {
         if (PROF_GEOMANCER.equals(profession)) return "geomancer_overquake";
         if (PROF_WITCH.equals(profession)) return "witch_overbrew";
         if (PROF_SHIFTER.equals(profession)) return "shifter_overblink";
+        if (PROF_FATESEER.equals(profession)) return "fateseer_overfate";
         return "forge_signal";
     }
 
@@ -4591,6 +4655,20 @@ public final class GameCore {
         } else if ("t_shifter_grand".equals(id)) {
             addUpgradedDeckCard(s, "shifter_grand_paradox");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_fateseer_omen".equals(id)) {
+            addUpgradedDeckCard(s, "fateseer_omen");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_fateseer_veil".equals(id)) {
+            addUpgradedDeckCard(s, "fateseer_veil");
+            s.maxHp += 2;
+            s.hp += 2;
+        } else if ("t_fateseer_thread".equals(id)) {
+            addUpgradedDeckCard(s, "fateseer_thread");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_fateseer_grand".equals(id)) {
+            addUpgradedDeckCard(s, "fateseer_grand_design");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5033,7 +5111,8 @@ public final class GameCore {
                 || "t_bard_grand".equals(id) || "t_mirrorist_grand".equals(id)
                 || "t_puppeteer_grand".equals(id) || "t_scavenger_grand".equals(id)
                 || "t_lightkeeper_grand".equals(id) || "t_geomancer_grand".equals(id)
-                || "t_witch_grand".equals(id) || "t_shifter_grand".equals(id);
+                || "t_witch_grand".equals(id) || "t_shifter_grand".equals(id)
+                || "t_fateseer_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5053,7 +5132,8 @@ public final class GameCore {
                 || "bard_grand_finale".equals(id) || "mirrorist_grand_mirror".equals(id)
                 || "puppeteer_grand_stage".equals(id) || "scavenger_grand_foundry".equals(id)
                 || "lightkeeper_grand_beacon".equals(id) || "geomancer_grand_fault".equals(id)
-                || "witch_grand_cauldron".equals(id) || "shifter_grand_paradox".equals(id);
+                || "witch_grand_cauldron".equals(id) || "shifter_grand_paradox".equals(id)
+                || "fateseer_grand_design".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5073,7 +5153,8 @@ public final class GameCore {
                 || "finale_crown".equals(id) || "mirror_crown".equals(id)
                 || "marionette_crown".equals(id) || "scrap_king_crown".equals(id)
                 || "dawn_beacon".equals(id) || "tectonic_crown".equals(id)
-                || "witch_moon_crown".equals(id) || "phase_crown".equals(id);
+                || "witch_moon_crown".equals(id) || "phase_crown".equals(id)
+                || "fate_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -5579,6 +5660,9 @@ public final class GameCore {
                 || d.energyGain > 0 || d.createEcho || d.exhaust || d.exhaustTopDiscard
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
                 || d.profession.equals(PROF_SHIFTER))) amount++;
+        else if (PROF_FATESEER.equals(s.profession) && d != null && (d.scry > 0 || d.upgradeRandom
+                || d.draw > 0 || d.skillChargeGain > 0 || d.energyGain > 0 || d.vulnerable > 0
+                || d.bind > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FATESEER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -7450,6 +7534,41 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "fate_lantern") && PROF_FATESEER.equals(s.profession)) {
+            int scryPulse = Math.min(16, buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_CYCLE));
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + scryPulse / 5
+                    + s.confluenceChain / 2));
+            gainBlock(s, 5 + s.act + Math.min(16, s.professionCharge + scryPulse * 2
+                    + s.confluenceChain * 3));
+            upgradeRandomHandCard(s);
+            Card omen = new Card("fateseer_omen");
+            omen.temp = true;
+            omen.upgraded = true;
+            addToHand(s, omen);
+            if (target != null) {
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(24, target.mark * 2
+                        + s.professionCharge * 2 + scryPulse * 2 + s.confluenceChain * 3), true);
+            }
+        }
+        if (hasRelic(s, "fate_crown") && PROF_FATESEER.equals(s.profession)) {
+            Card design = new Card("fateseer_overfate");
+            design.temp = true;
+            design.upgraded = true;
+            addToHand(s, design);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || upgradedCardCount(s) >= 7 || s.confluenceChain >= 4
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -7519,6 +7638,9 @@ public final class GameCore {
         if (hasRelic(s, "phase_lens") && PROF_SHIFTER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.cardsPlayedThisTurn >= 3 || tempOrEchoHandCount(s) >= 2
                 || s.discard.size() >= 6 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "fate_lantern") && PROF_FATESEER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || upgradedCardCount(s) >= 5 || s.confluenceChain >= 2
+                || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -7699,6 +7821,7 @@ public final class GameCore {
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || PROF_WITCH.equals(s.profession) || PROF_SHIFTER.equals(s.profession)
+                || PROF_FATESEER.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
                 || hasRelic(s, "echo_prism") || hasRelic(s, "echoflow_charm")
@@ -7720,7 +7843,7 @@ public final class GameCore {
                 || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
-                || PROF_GEOMANCER.equals(s.profession)
+                || PROF_GEOMANCER.equals(s.profession) || PROF_FATESEER.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -7734,7 +7857,7 @@ public final class GameCore {
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
-                || PROF_SHIFTER.equals(s.profession)
+                || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear") || hasRelic(s, "resonance_prism")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
@@ -7751,7 +7874,7 @@ public final class GameCore {
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
-                || PROF_SHIFTER.equals(s.profession)
+                || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec) || "spec_pressure".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -7771,7 +7894,8 @@ public final class GameCore {
                 || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
                 || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession)
-                || PROF_WITCH.equals(s.profession) || PROF_SHIFTER.equals(s.profession))) {
+                || PROF_WITCH.equals(s.profession) || PROF_SHIFTER.equals(s.profession)
+                || PROF_FATESEER.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -9027,6 +9151,37 @@ public final class GameCore {
                 slip.temp = true;
                 slip.upgraded = true;
                 addToHand(s, slip);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_FATESEER.equals(s.profession) && s.turn == 1) {
+            int upgraded = upgradedCardCount(s);
+            int scryPulse = buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_CYCLE);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, upgraded / 4 + scryPulse / 4 + s.confluenceChain);
+            gainBlock(s, 3 + s.act + Math.min(7, upgraded + scryPulse));
+            upgradeRandomHandCard(s);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1 + (hasTalent(s, "t_fateseer_omen") ? 1 : 0);
+                firstLiving(s).vulnerable += hasTalent(s, "t_fateseer_thread") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_fateseer_omen")) {
+                Card omen = new Card("fateseer_omen");
+                omen.temp = true;
+                omen.upgraded = true;
+                addToHand(s, omen);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_fateseer_veil")) {
+                gainBlock(s, 4 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_fateseer_grand")) {
+                Card omen = new Card("fateseer_omen");
+                omen.temp = true;
+                omen.upgraded = true;
+                addToHand(s, omen);
+                upgradeRandomHandCard(s);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -11595,6 +11750,111 @@ public final class GameCore {
             }
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("fateseer_omen".equals(d.id) && target != null) {
+            int foresight = Math.max(0, s.professionCharge);
+            int scryPulse = Math.min(14, d.scry + upgradedCardCount(s) / 4 + buildFocusDeckCards(s, BUILD_FORGE) / 3);
+            damage += Math.min(c.upgraded ? 31 : 21, foresight * 2 + scryPulse * 3
+                    + s.cardsPlayedThisTurn * 3 + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            if (c.upgraded || scryPulse >= 4 || s.cardsPlayedThisTurn <= 3) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+        }
+        if ("fateseer_veil".equals(d.id)) {
+            int foresight = Math.max(0, s.professionCharge);
+            int upgraded = upgradedCardCount(s);
+            block += Math.min(c.upgraded ? 32 : 22, foresight * 2 + upgraded * 2
+                    + buildFocusDeckCards(s, BUILD_GUARD) + buildFocusDeckCards(s, BUILD_FORGE));
+            if (c.upgraded || upgraded >= 5 || s.cardsPlayedThisTurn >= 3) {
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+            upgradeRandomHandCard(s);
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, 1);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("fateseer_wheel".equals(d.id)) {
+            int foresight = Math.max(0, s.professionCharge);
+            int labels = Math.min(10, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            block += Math.min(c.upgraded ? 34 : 24, foresight * 2 + labels * 4
+                    + upgradedCardCount(s) + d.scry * 2);
+            if (labels >= 3 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            upgradeRandomHandCard(s);
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, labels / 3));
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("fateseer_thread".equals(d.id) && target != null) {
+            int foresight = Math.max(0, s.professionCharge);
+            int pressure = target.mark * 3 + target.vulnerable * 3 + target.bind * 2;
+            damage += Math.min(c.upgraded ? 48 : 34, pressure + foresight * 2
+                    + d.scry * 4 + upgradedCardCount(s));
+            target.mark += 2;
+            target.vulnerable += 1;
+            if (c.upgraded || target.mark >= 4) {
+                target.bind += 1 + s.bindPower / 2;
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("fateseer_overfate".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int foresight = Math.max(0, s.professionCharge);
+            int labels = Math.min(12, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            block += Math.min(c.upgraded ? 38 : 27, foresight * 2 + overloadNow * 7
+                    + d.scry * 4 + labels * 3 + upgradedCardCount(s));
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 56 : 40, overloadNow * 8 + foresight * 2
+                        + d.scry * 5 + labels * 4 + target.mark * 2);
+            }
+            if (overloadNow >= 2 || labels >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            upgradeRandomHandCard(s);
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+        }
+        if ("fateseer_grand_design".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int foresight = Math.max(0, s.professionCharge);
+            int labels = Math.min(14, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = bestEnemyPressure(s);
+            damage += Math.min(c.upgraded ? 84 : 62, foresight * 4 + d.scry * 7
+                    + upgradedCardCount(s) * 3 + labels * 5 + pressure + overloadNow * 9);
+            block += Math.min(c.upgraded ? 58 : 42, foresight * 3 + d.scry * 4
+                    + upgradedCardCount(s) * 2 + labels * 3 + overloadNow * 6);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+            Card omen = new Card("fateseer_omen");
+            omen.temp = true;
+            omen.upgraded = true;
+            addToHand(s, omen);
+            upgradeRandomHandCard(s);
+            if (labels >= 4 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
@@ -14730,6 +14990,92 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_FATESEER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                || d.draw > 0 || d.skillChargeGain > 0 || d.energyGain > 0 || hybridFocusCount(d) >= 2
+                || d.vulnerable > 0 || d.bind > 0 || d.profession.equals(PROF_FATESEER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            int upgraded = upgradedCardCount(s);
+            int labels = Math.min(10, s.confluenceChain + hybridFocusCount(d));
+            if (e != null) {
+                if (d.scry > 0 || d.upgradeRandom || c.upgraded || d.profession.equals(PROF_FATESEER)) {
+                    e.mark += 1;
+                }
+                if (d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2) {
+                    e.vulnerable += 1;
+                }
+                if (s.professionCharge >= 4 || upgraded >= 6 || labels >= 4 || s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(30, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge * 2 + upgraded + labels * 3), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(18, s.professionCharge + upgraded
+                        + labels * 2 + s.cardsPlayedThisTurn));
+                if (d.scry > 0 || d.upgradeRandom || hasTalent(s, "t_fateseer_omen")) {
+                    upgradeRandomHandCard(s);
+                }
+                if (s.cardsPlayedThisTurn >= 3 || d.draw > 0 || hasTalent(s, "t_fateseer_veil")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_fateseer_omen") && (d.scry > 0 || d.draw > 0 || d.upgradeRandom
+                || c.upgraded || d.profession.equals(PROF_FATESEER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, e.mark * 2
+                        + s.professionCharge * 2 + upgradedCardCount(s)), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || d.scry > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_fateseer_veil") && (d.block > 0 || d.type == 1 || d.scry > 0
+                || d.upgradeRandom || c.upgraded || d.profession.equals(PROF_FATESEER))) {
+            gainBlock(s, 4 + s.act + Math.min(15, s.professionCharge + upgradedCardCount(s)
+                    + buildFocusDeckCards(s, BUILD_GUARD)));
+            if (s.cardsPlayedThisTurn == 3 || d.upgradeRandom || d.scry > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_fateseer_thread") && (d.vulnerable > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.scry > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_FATESEER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 3 || s.confluenceChain >= 3 || s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(25, e.mark * 2 + e.vulnerable * 3
+                            + s.professionCharge * 2 + s.confluenceChain * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_fateseer_grand") && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_FATESEER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || upgradedCardCount(s) >= 7 || s.confluenceChain >= 3)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(32, e.mark * 2 + e.vulnerable * 2
+                        + s.professionCharge * 2 + upgradedCardCount(s) + s.confluenceChain * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -15335,6 +15681,45 @@ public final class GameCore {
             }
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
+            }
+        }
+        if (hasRelic(s, "fate_lantern") && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                || d.draw > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_FATESEER))) {
+            addProfessionSkillCharge(s, 1);
+            int upgraded = upgradedCardCount(s);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(10, s.professionCharge + upgraded
+                        + s.confluenceChain * 2));
+                upgradeRandomHandCard(s);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.scry > 0 || d.upgradeRandom || c.upgraded || s.confluenceChain >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, e.mark * 2
+                            + s.professionCharge * 2 + upgraded + s.confluenceChain * 3), true);
+                }
+            }
+        }
+        if (hasRelic(s, "fate_crown") && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                || d.skillChargeGain > 0 || d.rarity == 2 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_FATESEER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || upgradedCardCount(s) >= 7
+                        || s.confluenceChain >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(28, e.mark * 2
+                            + e.vulnerable * 2 + s.professionCharge + upgradedCardCount(s)
+                            + s.confluenceChain * 4), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -16676,6 +17061,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_ECHO ? 16 : focus == BUILD_STATUS ? 14
                     : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_GUARD ? 10 : focus == BUILD_FORGE ? 6 : 0;
         }
+        if (PROF_FATESEER.equals(s.profession)) {
+            return focus == BUILD_FORGE ? 18 : focus == BUILD_CYCLE ? 16 : focus == BUILD_OVERLOAD ? 14
+                    : focus == BUILD_STATUS ? 12 : focus == BUILD_GUARD ? 10 : focus == BUILD_ECHO ? 6 : 0;
+        }
         return 0;
     }
 
@@ -16765,6 +17154,9 @@ public final class GameCore {
         }
         if (PROF_SHIFTER.equals(d.profession)) {
             return shifterFocusCardValue(d, focus);
+        }
+        if (PROF_FATESEER.equals(d.profession)) {
+            return fateseerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -17538,6 +17930,43 @@ public final class GameCore {
         return 0;
     }
 
+    private static int fateseerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.scry * 2 + (d.upgradeRandom ? 4 : 0)
+                    + ("fateseer_omen".equals(d.id) ? 8 : 0) + ("fateseer_thread".equals(d.id) ? 8 : 0)
+                    + ("fateseer_overfate".equals(d.id) ? 16 : 0) + ("fateseer_grand_design".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + d.draw * 3 + d.scry * 2
+                    + ("fateseer_omen".equals(d.id) ? 8 : 0) + ("fateseer_wheel".equals(d.id) ? 8 : 0)
+                    + ("fateseer_grand_design".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return d.scry * 4 + (d.upgradeRandom ? 10 : 0) + d.draw * 2
+                    + ("fateseer_omen".equals(d.id) ? 12 : 0) + ("fateseer_veil".equals(d.id) ? 18 : 0)
+                    + ("fateseer_wheel".equals(d.id) ? 16 : 0) + ("fateseer_overfate".equals(d.id) ? 16 : 0)
+                    + ("fateseer_grand_design".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 7 + d.bind * 5 + d.skillChargeGain * 2 + d.scry * 2
+                    + ("fateseer_omen".equals(d.id) ? 8 : 0) + ("fateseer_thread".equals(d.id) ? 18 : 0)
+                    + ("fateseer_overfate".equals(d.id) ? 16 : 0) + ("fateseer_grand_design".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 6 : 0) + d.scry * 2
+                    + d.skillChargeGain * 2 + ("fateseer_omen".equals(d.id) ? 16 : 0)
+                    + ("fateseer_wheel".equals(d.id) ? 18 : 0) + ("fateseer_overfate".equals(d.id) ? 14 : 0)
+                    + ("fateseer_grand_design".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + d.draw * 2 + d.scry * 2
+                    + (d.upgradeRandom ? 4 : 0) + ("fateseer_veil".equals(d.id) ? 18 : 0)
+                    + ("fateseer_wheel".equals(d.id) ? 16 : 0) + ("fateseer_overfate".equals(d.id) ? 14 : 0)
+                    + ("fateseer_grand_design".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -17912,6 +18341,15 @@ public final class GameCore {
         else if ("t_shifter_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_CYCLE) * 2
                 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_GUARD);
+        else if ("t_fateseer_omen".equals(id)) bonus += upgraded + buildFocusDeckCards(s, BUILD_FORGE) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_fateseer_veil".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + upgraded + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_fateseer_thread".equals(id)) bonus += bindDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_STATUS) * 2
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_fateseer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_FORGE) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_STATUS)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_GUARD);
         return Math.min(36, bonus);
     }
 
@@ -17938,7 +18376,8 @@ public final class GameCore {
                     "t_mirrorist_reflect", "t_mirrorist_grand", "t_scavenger_market",
                     "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
                     "t_geomancer_quake", "t_geomancer_grand", "t_witch_curse", "t_witch_grand",
-                    "t_shifter_lance", "t_shifter_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_shifter_lance", "t_shifter_grand", "t_fateseer_thread", "t_fateseer_grand",
+                    "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -17954,7 +18393,8 @@ public final class GameCore {
                     "t_chef_grand", "t_bard_ballad", "t_bard_chorus", "t_bard_grand",
                     "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
                     "t_lightkeeper_keeper", "t_lightkeeper_vigil", "t_lightkeeper_grand",
-                    "t_geomancer_rune", "t_geomancer_grand", "t_witch_brew", "t_witch_grand", "t_shifter_slip", "t_shifter_anchor", "t_shifter_grand") ? 3 : 0;
+                    "t_geomancer_rune", "t_geomancer_grand", "t_witch_brew", "t_witch_grand",
+                    "t_shifter_slip", "t_shifter_anchor", "t_shifter_grand", "t_fateseer_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -17986,7 +18426,8 @@ public final class GameCore {
                     "t_chef_grand", "t_bard_grand", "t_mirrorist_guard",
                     "t_mirrorist_reflect", "t_mirrorist_grand", "t_lightkeeper_prism",
                     "t_lightkeeper_grand", "t_geomancer_rune", "t_geomancer_grand",
-                    "t_witch_grand", "t_shifter_grand") ? 3 : 0;
+                    "t_witch_grand", "t_shifter_grand", "t_fateseer_omen", "t_fateseer_veil",
+                    "t_fateseer_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -18009,6 +18450,7 @@ public final class GameCore {
                     "t_mirrorist_grand", "t_scavenger_salvage", "t_scavenger_patch",
                     "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
                     "t_geomancer_quake", "t_geomancer_grand", "t_witch_curse", "t_witch_grand",
+                    "t_fateseer_thread", "t_fateseer_grand",
                     "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
@@ -18032,7 +18474,8 @@ public final class GameCore {
                     "t_scavenger_salvage", "t_scavenger_market", "t_scavenger_grand",
                     "t_lightkeeper_keeper", "t_lightkeeper_prism", "t_lightkeeper_grand",
                     "t_geomancer_rune", "t_geomancer_grand", "t_witch_brew", "t_witch_grand",
-                    "t_shifter_slip", "t_shifter_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_shifter_slip", "t_shifter_grand", "t_fateseer_omen", "t_fateseer_grand",
+                    "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
@@ -18048,7 +18491,8 @@ public final class GameCore {
                     "t_chef_stew", "t_chef_grand", "t_bard_ballad", "t_bard_grand",
                     "t_mirrorist_guard", "t_mirrorist_grand", "t_scavenger_patch",
                     "t_scavenger_grand", "t_lightkeeper_vigil", "t_lightkeeper_grand",
-                    "t_geomancer_mantle", "t_geomancer_grand", "t_witch_ward", "t_witch_grand", "t_shifter_grand") ? 3 : 0;
+                    "t_geomancer_mantle", "t_geomancer_grand", "t_witch_ward", "t_witch_grand",
+                    "t_shifter_grand", "t_fateseer_veil", "t_fateseer_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -18345,6 +18789,18 @@ public final class GameCore {
                 && (bindDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
             return "折跃刺杀";
         }
+        if (isAny(id, "t_fateseer_omen", "t_fateseer_grand")
+                && (upgradedDeckCards(s) >= 4 || buildFocusDeckCards(s, BUILD_FORGE) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3)) {
+            return "命兆回路";
+        }
+        if (isAny(id, "t_fateseer_veil", "t_fateseer_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || upgradedDeckCards(s) >= 5 || s.hp < s.maxHp)) {
+            return "命幕防线";
+        }
+        if (isAny(id, "t_fateseer_thread", "t_fateseer_grand")
+                && (bindDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
+            return "断线裁命";
+        }
         return "";
     }
 
@@ -18587,7 +19043,8 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown",
+                    "fate_lantern", "fate_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
@@ -18626,7 +19083,7 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown", "witch_moon_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_moon_crown", "fate_lantern", "fate_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -18639,7 +19096,8 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown",
+                    "fate_lantern", "fate_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -18651,7 +19109,8 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown",
+                    "fate_lantern", "fate_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -18664,7 +19123,7 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "faultline_core", "tectonic_crown",
-                    "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "witch_bottle", "witch_moon_crown", "fate_lantern", "fate_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -18702,7 +19161,9 @@ public final class GameCore {
                 || (PROF_SCAVENGER.equals(s.profession) && "scrap_magnet".equals(id))
                 || (PROF_LIGHTKEEPER.equals(s.profession) && "lantern_wick".equals(id))
                 || (PROF_GEOMANCER.equals(s.profession) && "faultline_core".equals(id))
-                || (PROF_WITCH.equals(s.profession) && "witch_bottle".equals(id));
+                || (PROF_WITCH.equals(s.profession) && "witch_bottle".equals(id))
+                || (PROF_SHIFTER.equals(s.profession) && "phase_lens".equals(id))
+                || (PROF_FATESEER.equals(s.profession) && "fate_lantern".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -18750,6 +19211,7 @@ public final class GameCore {
                 || hasRelic(s, "faultline_core") || hasRelic(s, "tectonic_crown")
                 || hasRelic(s, "witch_bottle") || hasRelic(s, "witch_moon_crown")
                 || hasRelic(s, "phase_lens") || hasRelic(s, "phase_crown")
+                || hasRelic(s, "fate_lantern") || hasRelic(s, "fate_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
@@ -18953,6 +19415,11 @@ public final class GameCore {
         if (PROF_SHIFTER.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
                 || d.createEcho || d.exhaust || d.exhaustTopDiscard || d.skillChargeGain > 0
                 || d.vulnerable > 0 || d.bind > 0 || d.block > 0 || d.profession.equals(PROF_SHIFTER))) {
+            return 4;
+        }
+        if (PROF_FATESEER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.block > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FATESEER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -19562,6 +20029,14 @@ public final class GameCore {
                 || d.createEcho || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_SHIFTER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "fate_lantern") && (d.scry > 0 || d.upgradeRandom || d.draw > 0
+                || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FATESEER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "fate_crown") && (d.scry > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                || d.rarity == 2 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FATESEER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -19599,7 +20074,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -19634,6 +20109,7 @@ public final class GameCore {
         if (PROF_GEOMANCER.equals(s.profession)) return "faultline_core";
         if (PROF_WITCH.equals(s.profession)) return "witch_bottle";
         if (PROF_SHIFTER.equals(s.profession)) return "phase_lens";
+        if (PROF_FATESEER.equals(s.profession)) return "fate_lantern";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -19922,7 +20398,8 @@ public final class GameCore {
                 || PROF_GARDENER.equals(s.profession) || PROF_CHEF.equals(s.profession)
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession)
-                || PROF_WITCH.equals(s.profession) || PROF_SHIFTER.equals(s.profession))
+                || PROF_WITCH.equals(s.profession) || PROF_SHIFTER.equals(s.profession)
+                || PROF_FATESEER.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -19942,7 +20419,7 @@ public final class GameCore {
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
                 || PROF_SCAVENGER.equals(s.profession) || PROF_LIGHTKEEPER.equals(s.profession)
                 || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
-                || PROF_SHIFTER.equals(s.profession))
+                || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession))
                 && "pressure_gauge".equals(id)) {
             return 2;
         }
@@ -19988,6 +20465,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_SHIFTER.equals(s.profession) && "phase_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_FATESEER.equals(s.profession) && ("fate_lantern".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "tempo_metronome".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "salvage_hook".equals(id)
+                || "echo_ledger".equals(id) || "void_abacus".equals(id))) {
+            return 2;
+        }
+        if (PROF_FATESEER.equals(s.profession) && "fate_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -21222,6 +21710,18 @@ public final class GameCore {
         c.profession = PROF_SHIFTER; c.draw = c.drawUp = 1; c.energyGain = 1; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.createEcho = true; c.echoCardId = "shifter_slip"; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("shifter_grand_paradox", "终局悖跃", "通用", 2, 2, 0, 11, 15, 9, 13, "造成伤害并获得格挡；按相位、低费连打、临时牌、弃牌和过载追加终局收益。", "更高伤害、格挡和折跃返还。");
         c.profession = PROF_SHIFTER; c.draw = c.drawUp = 1; c.vulnerable = 1; c.bind = 2; c.bindUp = 3; c.createEcho = true; c.echoCardId = "shifter_slip"; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("fateseer_omen", "命兆翻牌", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、检视、标记并抽牌；预见、升级和牌序会提高收益。", "更高伤害、检视和预见。");
+        c.profession = PROF_FATESEER; c.draw = c.drawUp = 1; c.scry = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("fateseer_veil", "命幕护身", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、检视并升级手牌；已升级牌越多越稳。", "更多格挡、检视和升级收益。");
+        c.profession = PROF_FATESEER; c.draw = c.drawUp = 1; c.scry = 2; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("fateseer_wheel", "命轮校准", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、检视、抽牌并返能；汇流链会放大预见。", "更多格挡、检视和返能窗口。");
+        c.profession = PROF_FATESEER; c.draw = c.drawUp = 1; c.scry = 3; c.energyGain = 1; c.skillChargeGain = 1;
+        c = addCard("fateseer_thread", "断命丝", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加标记和易伤；检视与控制压力会提高裁切。", "更高伤害、控制和充能。");
+        c.profession = PROF_FATESEER; c.scry = 2; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("fateseer_overfate", "过载改命", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、检视、抽牌和充能；过载、升级和汇流会追加命丝裁切。", "更多格挡、检视、控制和充能。");
+        c.profession = PROF_FATESEER; c.draw = c.drawUp = 1; c.scry = 3; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("fateseer_grand_design", "终局命图", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按预见、检视、升级、汇流和过载追加终局收益。", "更高伤害、格挡和命兆返还。");
+        c.profession = PROF_FATESEER; c.draw = c.drawUp = 1; c.scry = 4; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "fateseer_omen"; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -21504,6 +22004,8 @@ public final class GameCore {
         addRelicDef("tectonic_crown", "地壳冠冕", "获得升级终局地裂；地脉师格挡、异常、汇流、升级、充能和稀有牌会滚动印记、升级与地鸣追击。");
         addRelicDef("witch_moon_crown", "月锅冠冕", "获得升级终局月锅；药巫药剂、状态、异常、临时药灵、充能和稀有牌会滚动印记、抽牌、补药与巫酿追击。");
         addRelicDef("phase_crown", "悖跃冠冕", "获得升级终局悖跃；移形师低费、抽牌、临时牌、弃牌、充能和稀有牌会滚动印记、返能与折跃追击。");
+        addRelicDef("fate_lantern", "命灯", "命轮师检视、升级、抽牌、汇流和职业牌更快推动职业技；释放后制造命兆并改写手牌。");
+        addRelicDef("fate_crown", "命轮冠冕", "获得升级终局命图；命轮师检视、升级、汇流、充能和稀有牌会滚动印记、升级与改命追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -21746,6 +22248,9 @@ public final class GameCore {
         addTalent("t_shifter_slip", PROF_SHIFTER, "闪相回路", "获得升级闪相切；低费、抽牌、返能和临时牌追加印记，并把相位转成穿透追击。");
         addTalent("t_shifter_anchor", PROF_SHIFTER, "锚点防线", "获得升级锚点回收；格挡、技能、临时牌和弃牌回收提供额外防线，并在关键节奏补职业技。");
         addTalent("t_shifter_lance", PROF_SHIFTER, "折跃刺杀", "获得升级折跃刺；标记、束缚、易伤和充能牌会扩张控制压力并转成折跃追击。");
+        addTalent("t_fateseer_omen", PROF_FATESEER, "命兆回路", "获得升级命兆翻牌；检视、抽牌、升级和命轮牌追加印记，并把预见转成穿透追击。");
+        addTalent("t_fateseer_veil", PROF_FATESEER, "命幕防线", "获得生命和升级命幕护身；格挡、检视、升级和技能牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_fateseer_thread", PROF_FATESEER, "断线裁命", "获得升级断命丝并升级牌组；易伤、束缚、检视和汇流牌会扩张控制压力并转成改命追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -21780,6 +22285,7 @@ public final class GameCore {
         addTalent("t_geomancer_grand", PROF_GEOMANCER, "终局地裂", "获得升级终局地裂；格挡、异常、升级、汇流与过载牌持续抽牌、升级并把地势印记转为地鸣裁切。");
         addTalent("t_witch_grand", PROF_WITCH, "终局月锅", "获得升级终局月锅；药剂、状态、异常、临时药灵与过载牌持续抽牌、补药并把药性印记转为巫酿裁切。");
         addTalent("t_shifter_grand", PROF_SHIFTER, "终局悖跃", "获得升级终局悖跃；低费、抽牌、临时牌、弃牌与过载牌持续返能、抽牌并把相位印记转为折跃裁切。");
+        addTalent("t_fateseer_grand", PROF_FATESEER, "终局命图", "获得升级终局命图；检视、升级、汇流、抽牌与过载牌持续改写手牌并把预见印记转为改命裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

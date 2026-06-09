@@ -1411,6 +1411,28 @@ public final class GameView extends View {
             flame.cubicTo(cx - size * 0.28f, cy - size * 0.06f, cx - size * 0.08f, cy - size * 0.28f, cx, cy - size * 0.5f);
             flame.cubicTo(cx + size * 0.3f, cy - size * 0.18f, cx + size * 0.22f, cy + size * 0.12f, cx, cy + size * 0.24f);
             c.drawPath(flame, p);
+        } else if (GameCore.PROF_FATESEER.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            c.drawCircle(cx, cy, size * 0.88f, p);
+            c.drawCircle(cx, cy, size * 0.34f, p);
+            c.drawLine(cx, cy - size * 0.88f, cx, cy - size * 0.48f, p);
+            c.drawLine(cx, cy + size * 0.48f, cx, cy + size * 0.88f, p);
+            c.drawLine(cx - size * 0.88f, cy, cx - size * 0.48f, cy, p);
+            c.drawLine(cx + size * 0.48f, cy, cx + size * 0.88f, cy, p);
+            Path star = new Path();
+            star.moveTo(cx, cy - size * 0.72f);
+            star.lineTo(cx + size * 0.18f, cy - size * 0.18f);
+            star.lineTo(cx + size * 0.72f, cy);
+            star.lineTo(cx + size * 0.18f, cy + size * 0.18f);
+            star.lineTo(cx, cy + size * 0.72f);
+            star.lineTo(cx - size * 0.18f, cy + size * 0.18f);
+            star.lineTo(cx - size * 0.72f, cy);
+            star.lineTo(cx - size * 0.18f, cy - size * 0.18f);
+            star.close();
+            c.drawPath(star, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy, size * 0.13f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
