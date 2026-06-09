@@ -232,6 +232,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_LIGHTKEEPER.equals(s.profession) && isLightkeeperSignal(d)) score += 14;
             if (GameCore.PROF_GEOMANCER.equals(s.profession) && isGeomancerSignal(d)) score += 14;
             if (GameCore.PROF_WITCH.equals(s.profession) && isWitchSignal(d)) score += 14;
+            if (GameCore.PROF_SHIFTER.equals(s.profession) && isShifterSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -288,6 +289,7 @@ public final class SimulationHarness {
             if (isScavengerCard(d)) score += 14;
             if (isGeomancerCard(d)) score += 14;
             if (isWitchCard(d)) score += 14;
+            if (isShifterCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -349,6 +351,10 @@ public final class SimulationHarness {
                     || d.bind > 0 || d.createEcho || d.heal > 0)) score += 18;
             if (s.relics.contains("witch_moon_crown") && (isWitchSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.createPotion || d.createEcho)) score += 20;
+            if (s.relics.contains("phase_lens") && (isShifterSignal(d) || d.cost == 0
+                    || d.draw > 0 || d.createEcho || d.energyGain > 0)) score += 18;
+            if (s.relics.contains("phase_crown") && (isShifterSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.createEcho || d.energyGain > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -496,6 +502,12 @@ public final class SimulationHarness {
                     || "overload_etch".equals(id) || "discipline_chart".equals(id) || "salvage_hook".equals(id)
                     || "void_abacus".equals(id) || "echo_ledger".equals(id) || "confluence_map".equals(id)
                     || "prism_gear".equals(id) || "mosaic_core".equals(id) || "resonance_prism".equals(id))) score += 36;
+            if (GameCore.PROF_SHIFTER.equals(s.profession) && ("phase_crown".equals(id) || "phase_lens".equals(id)
+                    || "tempo_metronome".equals(id) || "amber_quill".equals(id) || "void_abacus".equals(id)
+                    || "echo_ledger".equals(id) || "echoflow_charm".equals(id) || "markchain_seal".equals(id)
+                    || "pressure_gauge".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "salvage_hook".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -532,6 +544,7 @@ public final class SimulationHarness {
             if ("lantern_wick".equals(id) || "dawn_beacon".equals(id)) score += 20;
             if ("faultline_core".equals(id) || "tectonic_crown".equals(id)) score += 20;
             if ("witch_bottle".equals(id) || "witch_moon_crown".equals(id)) score += 20;
+            if ("phase_lens".equals(id) || "phase_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -670,6 +683,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_WITCH.equals(s.profession) && ("pact_brewer".equals(id) || "pact_hex".equals(id)
                     || "pact_void".equals(id) || "pact_suppression".equals(id) || "pact_confluence".equals(id)
                     || "pact_hunter".equals(id) || "pact_guardian".equals(id))) score += 24;
+            if (GameCore.PROF_SHIFTER.equals(s.profession) && ("pact_sprinter".equals(id) || "pact_void".equals(id)
+                    || "pact_suppression".equals(id) || "pact_confluence".equals(id) || "pact_hunter".equals(id)
+                    || "pact_guardian".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -827,6 +843,10 @@ public final class SimulationHarness {
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
                     || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id)
                     || "spec_sustain".equals(id) || "spec_bulwark".equals(id))) score += 8;
+            if (GameCore.PROF_SHIFTER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
+                    || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id)
+                    || "spec_burst".equals(id) || "spec_bulwark".equals(id))) score += 8;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -1106,6 +1126,18 @@ public final class SimulationHarness {
                     if (statusDeckCards(s) >= 1 && ("witch_ward".equals(c.id) || "witch_charm".equals(c.id)
                             || "witch_grand_cauldron".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_SHIFTER.equals(s.profession) && (isShifterSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || d.createEcho || c.temp) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isShifterCard(d)
+                            || d.draw > 0 || d.energyGain > 0)) score += 6;
+                    if (shifterEnemyPressure(s) >= 8 && ("shifter_lance".equals(c.id)
+                            || "shifter_overblink".equals(c.id) || "shifter_grand_paradox".equals(c.id))) score += 8;
+                    if ((s.cardsPlayedThisTurn >= 3 || tempOrEchoHandCards(s) >= 2 || s.discard.size() >= 6)
+                            && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isShifterCard(d))) score += 5;
+                    if (tempOrEchoHandCards(s) >= 2 && ("shifter_screen".equals(c.id) || "shifter_anchor".equals(c.id)
+                            || "shifter_grand_paradox".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1240,6 +1272,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || isWitchCard(d))) score += 12;
                 if (s.talents.contains("t_witch_grand") && (d.createPotion || d.burn > 0 || d.bind > 0
                         || d.createEcho || d.skillChargeGain > 0 || d.rarity == 2 || isWitchCard(d))) score += 14;
+                if (s.talents.contains("t_shifter_slip") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                        || d.createEcho || isShifterCard(d))) score += 12;
+                if (s.talents.contains("t_shifter_anchor") && (d.block > 0 || d.exhaust || d.exhaustTopDiscard
+                        || d.createEcho || c.temp || isShifterCard(d))) score += 12;
+                if (s.talents.contains("t_shifter_lance") && (d.vulnerable > 0 || d.bind > 0
+                        || d.skillChargeGain > 0 || d.cost == 0 || isShifterCard(d))) score += 12;
+                if (s.talents.contains("t_shifter_grand") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                        || d.createEcho || d.skillChargeGain > 0 || d.rarity == 2 || isShifterCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1309,6 +1349,9 @@ public final class SimulationHarness {
                 if ("witch_grand_cauldron".equals(c.id) || "witch_overbrew".equals(c.id)) score += 18;
                 if ("witch_brew".equals(c.id) || "witch_ward".equals(c.id)
                         || "witch_curse".equals(c.id) || "witch_charm".equals(c.id)) score += 14;
+                if ("shifter_grand_paradox".equals(c.id) || "shifter_overblink".equals(c.id)) score += 18;
+                if ("shifter_slip".equals(c.id) || "shifter_screen".equals(c.id)
+                        || "shifter_anchor".equals(c.id) || "shifter_lance".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -1428,6 +1471,10 @@ public final class SimulationHarness {
                         || d.createPotion || d.burn > 0 || d.bind > 0 || d.createEcho || d.heal > 0)) score += 14;
                 if (s.relics.contains("witch_moon_crown") && (isWitchSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.createPotion || d.createEcho)) score += 16;
+                if (s.relics.contains("phase_lens") && (isShifterSignal(d) || c.temp
+                        || d.cost == 0 || d.draw > 0 || d.energyGain > 0 || d.createEcho)) score += 14;
+                if (s.relics.contains("phase_crown") && (isShifterSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.createEcho || d.energyGain > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -1620,6 +1667,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_SHIFTER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean blinkWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).vulnerable > 0 || s.enemies.get(target).bind >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || blinkWindow || tempOrEchoHandCards(s) >= 3
+                    || s.cardsPlayedThisTurn >= 3 || s.discard.size() >= 8 || shifterEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -1710,6 +1767,7 @@ public final class SimulationHarness {
                     "prismist_overbeam", "dreamwalker_overdream", "gardener_overgrowth",
                     "chef_overcook", "bard_overcrescendo", "mirrorist_overimage",
                     "puppeteer_overpull", "scavenger_overhaul", "geomancer_overquake", "witch_overbrew",
+                    "shifter_overblink",
                     "fusion_spark",
                     "prism_guard_matrix", "apex_resonance") ? 12 : 0)
                     + (isAny(d.id, "hybrid_guard_conduit", "hybrid_bloodcharge", "hybrid_rift_engine",
@@ -1723,6 +1781,7 @@ public final class SimulationHarness {
                     "chronomancer_loop", "medium_whisper", "medium_veil", "medium_oracle",
                     "medium_overtrance", "medium_grand_seance", "shadowdancer_veil", "bard_chorus",
                     "mirrorist_reflect", "puppeteer_rehearse", "echo_forge_loop",
+                    "shifter_slip", "shifter_screen", "shifter_anchor", "shifter_grand_paradox",
                     "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_BREW) {
@@ -1765,7 +1824,8 @@ public final class SimulationHarness {
                     "tactician_flank", "prismist_spill", "dreamwalker_bind", "gardener_compost",
                     "chef_spice", "bard_discord", "puppeteer_needle", "geomancer_quake",
                     "geomancer_overquake", "geomancer_grand_fault", "witch_brew", "witch_curse",
-                    "witch_overbrew", "witch_grand_cauldron", "fusion_spark",
+                    "witch_overbrew", "witch_grand_cauldron", "shifter_lance", "shifter_overblink",
+                    "shifter_grand_paradox", "fusion_spark",
                     "bloodcoin_catalyst", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_CYCLE) {
@@ -1777,6 +1837,7 @@ public final class SimulationHarness {
                     "shadowdancer_step", "bard_note", "bard_chorus", "mirrorist_shard",
                     "puppeteer_thread", "scavenger_sort", "geomancer_rune", "geomancer_geode",
                     "geomancer_overquake", "witch_brew", "witch_charm", "witch_overbrew",
+                    "shifter_slip", "shifter_screen", "shifter_anchor", "shifter_overblink",
                     "fusion_spark", "echo_forge_loop",
                     "apex_resonance") ? 10 : 0);
         }
@@ -1790,6 +1851,7 @@ public final class SimulationHarness {
                     "bard_ballad", "mirrorist_guard", "puppeteer_screen", "scavenger_patch",
                     "geomancer_mantle", "geomancer_geode", "geomancer_grand_fault",
                     "witch_ward", "witch_charm", "witch_grand_cauldron",
+                    "shifter_screen", "shifter_anchor", "shifter_grand_paradox",
                     "echo_forge_loop", "prism_guard_matrix", "apex_resonance") ? 10 : 0);
         }
         return 0;
@@ -1805,21 +1867,21 @@ public final class SimulationHarness {
                     "pressure_gauge", "storm_rod", "tempest_crown", "ability_crown", "contract_stamp",
                     "grand_ledger", "confluence_map", "prism_gear", "starforge_lens",
                     "resonance_prism", "faultline_core", "tectonic_crown",
-                    "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "void_abacus", "echo_prism", "singularity_orb",
                     "echo_ledger", "void_anchor", "echoflow_charm", "echo_crown", "spirit_planchette",
                     "ancestral_planchette", "dreamcatcher_charm", "oneiric_crown", "songbook",
                     "finale_crown", "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "resonance_prism", "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "resonance_prism", "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell",
                     "alchemist_case", "glass_vials", "catalyst_pump", "solar_crucible",
                     "emberroot_charm", "split_anvil", "bloodspark_contract", "recipe_book",
                     "banquet_crown", "seed_satchel", "verdant_crown", "resonance_prism",
-                    "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "witch_bottle", "witch_moon_crown", "phase_crown") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
@@ -1831,7 +1893,7 @@ public final class SimulationHarness {
             return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
                     "bloodspark_contract", "crimson_seal", "blood_crown", "blood_contract",
                     "contract_stamp", "grand_ledger", "hex_moon", "vital_sprout",
-                    "resonance_prism", "witch_moon_crown") ? 3 : 0;
+                    "resonance_prism", "witch_moon_crown", "phase_crown") ? 3 : 0;
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
@@ -1839,7 +1901,7 @@ public final class SimulationHarness {
                     "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
                     "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism",
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown",
-                    "faultline_core", "tectonic_crown", "witch_moon_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_moon_crown", "phase_lens", "phase_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -1849,7 +1911,7 @@ public final class SimulationHarness {
                     "storm_rod", "tempest_crown", "war_table", "grand_war_room",
                     "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "resonance_prism", "faultline_core", "tectonic_crown",
-                    "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum",
@@ -1858,7 +1920,7 @@ public final class SimulationHarness {
                     "hourglass_charm", "time_engine", "echo_ledger", "confluence_map",
                     "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism",
                     "songbook", "finale_crown", "faultline_core", "tectonic_crown",
-                    "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -1868,7 +1930,7 @@ public final class SimulationHarness {
                     "grand_war_room", "seed_satchel", "verdant_crown", "string_spool",
                     "marionette_crown", "confluence_map", "prism_gear", "mosaic_core",
                     "starforge_lens", "resonance_prism", "faultline_core", "tectonic_crown",
-                    "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -1921,6 +1983,7 @@ public final class SimulationHarness {
                 || s.relics.contains("scrap_magnet") || s.relics.contains("scrap_king_crown")
                 || s.relics.contains("faultline_core") || s.relics.contains("tectonic_crown")
                 || s.relics.contains("witch_bottle") || s.relics.contains("witch_moon_crown")
+                || s.relics.contains("phase_lens") || s.relics.contains("phase_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2133,6 +2196,18 @@ public final class SimulationHarness {
                 || "witch_overbrew".equals(d.id) || "witch_grand_cauldron".equals(d.id));
     }
 
+    private static boolean isShifterSignal(GameCore.CardDef d) {
+        return d != null && (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || d.createEcho
+                || d.exhaust || d.exhaustTopDiscard || d.skillChargeGain > 0 || d.vulnerable > 0
+                || d.bind > 0 || d.block > 0 || GameCore.PROF_SHIFTER.equals(d.profession));
+    }
+
+    private static boolean isShifterCard(GameCore.CardDef d) {
+        return d != null && ("shifter_slip".equals(d.id) || "shifter_screen".equals(d.id)
+                || "shifter_anchor".equals(d.id) || "shifter_lance".equals(d.id)
+                || "shifter_overblink".equals(d.id) || "shifter_grand_paradox".equals(d.id));
+    }
+
     private static int stormcallerEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -2158,6 +2233,16 @@ public final class SimulationHarness {
         for (GameCore.Enemy e : s.enemies) {
             if (e.hp > 0) {
                 pressure += e.burn * 3 + e.bind * 3 + e.vulnerable * 2 + e.mark * 2;
+            }
+        }
+        return pressure;
+    }
+
+    private static int shifterEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 2 + e.burn;
             }
         }
         return pressure;
