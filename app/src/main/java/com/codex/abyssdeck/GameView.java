@@ -1449,6 +1449,22 @@ public final class GameView extends View {
             drop.cubicTo(cx - size * 0.34f, cy - size * 0.22f, cx - size * 0.22f, cy + size * 0.18f, cx, cy + size * 0.18f);
             drop.cubicTo(cx + size * 0.22f, cy + size * 0.18f, cx + size * 0.34f, cy - size * 0.22f, cx, cy - size * 0.72f);
             c.drawPath(drop, p);
+        } else if (GameCore.PROF_FROSTBINDER.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            c.drawCircle(cx, cy, size * 0.82f, p);
+            for (int i = 0; i < 6; i++) {
+                double a = Math.PI / 3 * i - Math.PI / 2;
+                float x = cx + (float) Math.cos(a) * size * 0.78f;
+                float y = cy + (float) Math.sin(a) * size * 0.78f;
+                c.drawLine(cx, cy, x, y, p);
+                c.drawLine(x, y, cx + (float) Math.cos(a + 0.36f) * size * 0.56f,
+                        cy + (float) Math.sin(a + 0.36f) * size * 0.56f, p);
+                c.drawLine(x, y, cx + (float) Math.cos(a - 0.36f) * size * 0.56f,
+                        cy + (float) Math.sin(a - 0.36f) * size * 0.56f, p);
+            }
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy, size * 0.14f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

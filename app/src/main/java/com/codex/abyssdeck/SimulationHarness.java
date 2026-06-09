@@ -235,6 +235,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_SHIFTER.equals(s.profession) && isShifterSignal(d)) score += 14;
             if (GameCore.PROF_FATESEER.equals(s.profession) && isFateseerSignal(d)) score += 14;
             if (GameCore.PROF_TIDECALLER.equals(s.profession) && isTidecallerSignal(d)) score += 14;
+            if (GameCore.PROF_FROSTBINDER.equals(s.profession) && isFrostbinderSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -294,6 +295,7 @@ public final class SimulationHarness {
             if (isShifterCard(d)) score += 14;
             if (isFateseerCard(d)) score += 14;
             if (isTidecallerCard(d)) score += 14;
+            if (isFrostbinderCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -366,6 +368,10 @@ public final class SimulationHarness {
             if (s.relics.contains("tide_shell") && (isTidecallerSignal(d) || d.block > 0
                     || d.bind > 0 || d.draw > 0)) score += 18;
             if (s.relics.contains("tide_crown") && (isTidecallerSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.block > 0 || d.bind > 0)) score += 20;
+            if (s.relics.contains("frost_chain") && (isFrostbinderSignal(d) || d.block > 0
+                    || d.bind > 0 || d.draw > 0 || d.exhaust || d.createWound)) score += 18;
+            if (s.relics.contains("frost_crown") && (isFrostbinderSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.block > 0 || d.bind > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
@@ -533,6 +539,13 @@ public final class SimulationHarness {
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "echo_ledger".equals(id)
                     || "void_abacus".equals(id))) score += 36;
+            if (GameCore.PROF_FROSTBINDER.equals(s.profession) && ("frost_crown".equals(id) || "frost_chain".equals(id)
+                    || "thorn_ring".equals(id) || "hex_moon".equals(id) || "curse_censer".equals(id)
+                    || "bulwark_core".equals(id) || "dreamcatcher_charm".equals(id) || "markchain_seal".equals(id)
+                    || "pressure_gauge".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "echo_ledger".equals(id)
+                    || "void_abacus".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -572,6 +585,7 @@ public final class SimulationHarness {
             if ("phase_lens".equals(id) || "phase_crown".equals(id)) score += 20;
             if ("fate_lantern".equals(id) || "fate_crown".equals(id)) score += 20;
             if ("tide_shell".equals(id) || "tide_crown".equals(id)) score += 20;
+            if ("frost_chain".equals(id) || "frost_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -718,6 +732,9 @@ public final class SimulationHarness {
                     || "pact_guardian".equals(id))) score += 24;
             if (GameCore.PROF_TIDECALLER.equals(s.profession) && ("pact_guardian".equals(id) || "pact_suppression".equals(id)
                     || "pact_sprinter".equals(id) || "pact_hunter".equals(id) || "pact_confluence".equals(id))) score += 24;
+            if (GameCore.PROF_FROSTBINDER.equals(s.profession) && ("pact_hex".equals(id) || "pact_guardian".equals(id)
+                    || "pact_suppression".equals(id) || "pact_void".equals(id) || "pact_hunter".equals(id)
+                    || "pact_confluence".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -885,6 +902,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_TIDECALLER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_tempo".equals(id) || "spec_sustain".equals(id) || "spec_control".equals(id)
                     || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_bulwark".equals(id))) score += 8;
+            if (GameCore.PROF_FROSTBINDER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_control".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id)
+                    || "spec_echoflow".equals(id) || "spec_bulwark".equals(id) || "spec_sustain".equals(id))) score += 10;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -961,7 +981,7 @@ public final class SimulationHarness {
                         || isStormcallerCard(d) || isShadowdancerCard(d) || isRunebladeCard(d) || isMediumCard(d)
                         || isTacticianCard(d) || isPrismistCard(d) || isDreamwalkerCard(d) || isGardenerCard(d)
                         || isBardCard(d) || isMirroristCard(d) || isPuppeteerCard(d) || isScavengerCard(d)
-                        || isGeomancerCard(d) || isWitchCard(d))) score += 20;
+                        || isGeomancerCard(d) || isWitchCard(d) || isFrostbinderCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -1200,6 +1220,19 @@ public final class SimulationHarness {
                     if (s.block >= 12 && ("tidecaller_breaker".equals(c.id) || "tidecaller_current".equals(c.id)
                             || "tidecaller_grand_tide".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_FROSTBINDER.equals(s.profession) && (isFrostbinderSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.bind > 0 || d.block > 0 || d.draw > 0 || d.exhaust || "wound".equals(c.id)
+                            || "daze".equals(c.id) || isFrostbinderCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isFrostbinderCard(d)
+                            || d.bind > 0 || d.block > 0)) score += 6;
+                    if (frostbinderEnemyPressure(s) >= 8 && ("frostbinder_shatter".equals(c.id)
+                            || "frostbinder_overfreeze".equals(c.id) || "frostbinder_grand_winter".equals(c.id))) score += 8;
+                    if ((statusDeckCards(s) >= 1 || s.exhaust.size() >= 5 || s.block >= 14)
+                            && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isFrostbinderCard(d))) score += 5;
+                    if (statusDeckCards(s) >= 1 && ("frostbinder_ward".equals(c.id) || "frostbinder_rime".equals(c.id)
+                            || "frostbinder_grand_winter".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1358,6 +1391,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || d.block > 0 || isTidecallerCard(d))) score += 12;
                 if (s.talents.contains("t_tidecaller_grand") && (d.block > 0 || d.bind > 0
                         || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isTidecallerCard(d))) score += 14;
+                if (s.talents.contains("t_frostbinder_shard") && (d.cost == 0 || d.draw > 0
+                        || d.bind > 0 || "wound".equals(c.id) || "daze".equals(c.id) || isFrostbinderCard(d))) score += 12;
+                if (s.talents.contains("t_frostbinder_ward") && (d.block > 0 || d.type == 1
+                        || d.draw > 0 || "wound".equals(c.id) || "daze".equals(c.id) || isFrostbinderCard(d))) score += 12;
+                if (s.talents.contains("t_frostbinder_shatter") && (d.vulnerable > 0 || d.bind > 0
+                        || d.skillChargeGain > 0 || "wound".equals(c.id) || "daze".equals(c.id) || isFrostbinderCard(d))) score += 12;
+                if (s.talents.contains("t_frostbinder_grand") && (d.block > 0 || d.bind > 0
+                        || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isFrostbinderCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1430,6 +1471,9 @@ public final class SimulationHarness {
                 if ("shifter_grand_paradox".equals(c.id) || "shifter_overblink".equals(c.id)) score += 18;
                 if ("shifter_slip".equals(c.id) || "shifter_screen".equals(c.id)
                         || "shifter_anchor".equals(c.id) || "shifter_lance".equals(c.id)) score += 14;
+                if ("frostbinder_grand_winter".equals(c.id) || "frostbinder_overfreeze".equals(c.id)) score += 18;
+                if ("frostbinder_shard".equals(c.id) || "frostbinder_ward".equals(c.id)
+                        || "frostbinder_rime".equals(c.id) || "frostbinder_shatter".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -1560,6 +1604,10 @@ public final class SimulationHarness {
                 if (s.relics.contains("tide_shell") && (isTidecallerSignal(d) || c.temp
                         || d.block > 0 || d.bind > 0 || d.draw > 0)) score += 14;
                 if (s.relics.contains("tide_crown") && (isTidecallerSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.block > 0 || d.bind > 0)) score += 16;
+                if (s.relics.contains("frost_chain") && (isFrostbinderSignal(d) || c.temp
+                        || d.block > 0 || d.bind > 0 || d.draw > 0 || d.exhaust)) score += 14;
+                if (s.relics.contains("frost_crown") && (isFrostbinderSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.block > 0 || d.bind > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
@@ -1783,6 +1831,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_FROSTBINDER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean frostWindow = target >= 0 && (s.enemies.get(target).bind >= 3
+                    || s.enemies.get(target).vulnerable > 0 || s.enemies.get(target).mark >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || frostWindow || s.block >= 18
+                    || statusDeckCards(s) >= 1 || s.exhaust.size() >= 5 || frostbinderEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -1873,7 +1931,7 @@ public final class SimulationHarness {
                     "prismist_overbeam", "dreamwalker_overdream", "gardener_overgrowth",
                     "chef_overcook", "bard_overcrescendo", "mirrorist_overimage",
                     "puppeteer_overpull", "scavenger_overhaul", "geomancer_overquake", "witch_overbrew",
-                    "shifter_overblink", "fateseer_overfate", "tidecaller_overtide",
+                    "shifter_overblink", "fateseer_overfate", "tidecaller_overtide", "frostbinder_overfreeze",
                     "fusion_spark",
                     "prism_guard_matrix", "apex_resonance") ? 12 : 0)
                     + (isAny(d.id, "hybrid_guard_conduit", "hybrid_bloodcharge", "hybrid_rift_engine",
@@ -1889,7 +1947,7 @@ public final class SimulationHarness {
                     "mirrorist_reflect", "puppeteer_rehearse", "echo_forge_loop",
                     "shifter_slip", "shifter_screen", "shifter_anchor", "shifter_grand_paradox",
                     "fateseer_omen", "fateseer_grand_design", "tidecaller_ripple", "tidecaller_current",
-                    "apex_resonance") ? 10 : 0);
+                    "frostbinder_shard", "frostbinder_rime", "frostbinder_grand_winter", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 6 : 0)
@@ -1936,7 +1994,8 @@ public final class SimulationHarness {
                     "witch_overbrew", "witch_grand_cauldron", "shifter_lance", "shifter_overblink",
                     "shifter_grand_paradox", "fateseer_thread", "fateseer_overfate",
                     "fateseer_grand_design", "tidecaller_ripple", "tidecaller_surge",
-                    "tidecaller_overtide", "tidecaller_grand_tide", "fusion_spark",
+                    "tidecaller_overtide", "tidecaller_grand_tide", "frostbinder_shard",
+                    "frostbinder_shatter", "frostbinder_overfreeze", "frostbinder_grand_winter", "fusion_spark",
                     "bloodcoin_catalyst", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_CYCLE) {
@@ -1951,6 +2010,7 @@ public final class SimulationHarness {
                     "shifter_slip", "shifter_screen", "shifter_anchor", "shifter_overblink",
                     "fateseer_omen", "fateseer_wheel", "fateseer_overfate",
                     "tidecaller_ripple", "tidecaller_current", "tidecaller_overtide",
+                    "frostbinder_shard", "frostbinder_rime", "frostbinder_overfreeze",
                     "fusion_spark", "echo_forge_loop",
                     "apex_resonance") ? 10 : 0);
         }
@@ -1967,6 +2027,7 @@ public final class SimulationHarness {
                     "shifter_screen", "shifter_anchor", "shifter_grand_paradox",
                     "fateseer_veil", "fateseer_wheel", "fateseer_overfate", "fateseer_grand_design",
                     "tidecaller_breaker", "tidecaller_current", "tidecaller_overtide", "tidecaller_grand_tide",
+                    "frostbinder_ward", "frostbinder_rime", "frostbinder_overfreeze", "frostbinder_grand_winter",
                     "echo_forge_loop", "prism_guard_matrix", "apex_resonance") ? 10 : 0);
         }
         return 0;
@@ -1983,7 +2044,8 @@ public final class SimulationHarness {
                     "grand_ledger", "confluence_map", "prism_gear", "starforge_lens",
                     "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
+                    "frost_chain", "frost_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "void_abacus", "echo_prism", "singularity_orb",
@@ -1991,7 +2053,7 @@ public final class SimulationHarness {
                     "ancestral_planchette", "dreamcatcher_charm", "oneiric_crown", "songbook",
                     "finale_crown", "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "resonance_prism", "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "tide_shell", "tide_crown") ? 3 : 0;
+                    "tide_shell", "tide_crown", "frost_chain", "frost_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell",
@@ -2030,7 +2092,8 @@ public final class SimulationHarness {
                     "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
+                    "frost_chain", "frost_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum",
@@ -2040,7 +2103,8 @@ public final class SimulationHarness {
                     "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism",
                     "songbook", "finale_crown", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
+                    "frost_chain", "frost_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -2051,7 +2115,8 @@ public final class SimulationHarness {
                     "marionette_crown", "confluence_map", "prism_gear", "mosaic_core",
                     "starforge_lens", "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
+                    "frost_chain", "frost_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -2107,6 +2172,7 @@ public final class SimulationHarness {
                 || s.relics.contains("phase_lens") || s.relics.contains("phase_crown")
                 || s.relics.contains("fate_lantern") || s.relics.contains("fate_crown")
                 || s.relics.contains("tide_shell") || s.relics.contains("tide_crown")
+                || s.relics.contains("frost_chain") || s.relics.contains("frost_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2353,6 +2419,29 @@ public final class SimulationHarness {
         return d != null && ("tidecaller_ripple".equals(d.id) || "tidecaller_breaker".equals(d.id)
                 || "tidecaller_current".equals(d.id) || "tidecaller_surge".equals(d.id)
                 || "tidecaller_overtide".equals(d.id) || "tidecaller_grand_tide".equals(d.id));
+    }
+
+    private static boolean isFrostbinderSignal(GameCore.CardDef d) {
+        return d != null && (d.bind > 0 || d.block > 0 || d.draw > 0 || d.exhaust
+                || d.exhaustTopDiscard || d.createEcho || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.createWound || "wound".equals(d.id) || "daze".equals(d.id)
+                || isHybridCore(d) || GameCore.PROF_FROSTBINDER.equals(d.profession));
+    }
+
+    private static boolean isFrostbinderCard(GameCore.CardDef d) {
+        return d != null && ("frostbinder_shard".equals(d.id) || "frostbinder_ward".equals(d.id)
+                || "frostbinder_rime".equals(d.id) || "frostbinder_shatter".equals(d.id)
+                || "frostbinder_overfreeze".equals(d.id) || "frostbinder_grand_winter".equals(d.id));
+    }
+
+    private static int frostbinderEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.bind * 4 + e.vulnerable * 3 + e.mark * 2 + e.burn;
+            }
+        }
+        return pressure;
     }
 
     private static int tidecallerEnemyPressure(GameCore.State s) {
