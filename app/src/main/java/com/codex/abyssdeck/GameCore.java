@@ -122,6 +122,7 @@ public final class GameCore {
     public static final String PROF_SCAVENGER = "拾荒者";
     public static final String PROF_LIGHTKEEPER = "守灯人";
     public static final String PROF_GEOMANCER = "地脉师";
+    public static final String PROF_WITCH = "药巫";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -129,7 +130,8 @@ public final class GameCore {
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
-            PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER
+            PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
+            PROF_WITCH
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -817,6 +819,7 @@ public final class GameCore {
         if (PROF_SCAVENGER.equals(profession)) return "归炉";
         if (PROF_LIGHTKEEPER.equals(profession)) return "照夜";
         if (PROF_GEOMANCER.equals(profession)) return "地鸣";
+        if (PROF_WITCH.equals(profession)) return "巫酿";
         return "职业技";
     }
 
@@ -887,6 +890,7 @@ public final class GameCore {
         if (PROF_SCAVENGER.equals(profession)) return "满充能：消耗废料归炉，按弃牌、状态牌、消耗、金币和过载造成穿透，回收状态、抽牌、治疗并制造拾荒牌。";
         if (PROF_LIGHTKEEPER.equals(profession)) return "满充能：消耗灯火照夜，按消耗、回声、检视和净化造成穿透，获得格挡、抽牌并制造灯牌。";
         if (PROF_GEOMANCER.equals(profession)) return "满充能：消耗地势引发地鸣，按格挡、燃灼束缚、升级牌、汇流和过载造成穿透，获得格挡、抽牌并制造地脉牌。";
+        if (PROF_WITCH.equals(profession)) return "满充能：消耗药性发动巫酿，按药剂、状态、临时牌和异常压力造成穿透，治疗、抽牌并制造药灵牌。";
         return "选择职业后可用。";
     }
 
@@ -1820,6 +1824,55 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, strata / 2);
+        } else if (PROF_WITCH.equals(s.profession)) {
+            int tincture = Math.max(1, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.burn * 3 + target.bind * 3 + target.vulnerable * 3 + target.mark * 2;
+            int damage = 8 + s.act * 3 + Math.min(58, tincture * 3 + potionPulse * 4
+                    + statuses * 5 + echoes * 3 + pressure) + overload * 6;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.burn += 2 + Math.min(4, tincture / 3) + s.burnPower / 2 + overload / 2;
+                target.bind += 1 + Math.min(3, potionPulse / 2) + s.bindPower / 2;
+                target.vulnerable += 1 + Math.min(2, statuses / 2 + overload / 4);
+                target.mark += 1 + Math.min(3, echoes + tincture / 4);
+            }
+            gainBlock(s, 5 + s.act * 2 + Math.min(30, tincture * 2 + potionPulse * 3
+                    + statuses * 4 + echoes * 3) + overload * 3);
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(12, tincture / 2 + statuses * 2 + potionPulse) + overload);
+            draw(s, 1 + Math.min(2, tincture / 5 + potionPulse / 4 + echoes / 3) + overload / 4);
+            if (s.potions.size() < potionLimit(s) && (potionPulse == 0 || tincture >= 4 || overload >= 2)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "巫酿补药：" + p.name);
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (tincture >= 5 || potionPulse >= 3 || statuses >= 2 || overload >= 3) {
+                s.energy++;
+            }
+            Card brew = new Card(overload >= 4 || hasTalent(s, "t_witch_grand") ? "witch_grand_cauldron" : "witch_brew");
+            brew.temp = true;
+            brew.upgraded = tincture >= 5 || hasTalent(s, "t_witch_brew");
+            addToHand(s, brew);
+            if (hasTalent(s, "t_witch_grand")) {
+                Card charm = new Card("witch_charm");
+                charm.temp = true;
+                charm.upgraded = true;
+                addToHand(s, charm);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_BREW, 1 + Math.min(3, potionPulse));
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, Math.max(1, statuses + pressure / 10)));
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.max(1, echoes));
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, tincture / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3282,6 +3335,9 @@ public final class GameCore {
         if (PROF_GEOMANCER.equals(profession)) {
             return "用格挡、燃灼、束缚、升级和汇流积累地势，把稳固防线转成地鸣穿透。适合守势、异常、工坊、汇流和过载构筑。";
         }
+        if (PROF_WITCH.equals(profession)) {
+            return "用药剂、状态转化、临时药灵和异常压力积累药性，把巫酿转成治疗、抽牌、控制和穿透爆发。适合炼调、异常、回声、循环和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3381,6 +3437,9 @@ public final class GameCore {
         }
         if (PROF_GEOMANCER.equals(profession)) {
             return 0xffc6d47a;
+        }
+        if (PROF_WITCH.equals(profession)) {
+            return 0xffa9e07f;
         }
         return 0xffd6c07a;
     }
@@ -3733,6 +3792,16 @@ public final class GameCore {
             s.hp += 5;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_WITCH.equals(profession)) {
+            s.deck.add(new Card("witch_brew"));
+            s.deck.add(new Card("witch_ward"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 2;
+            s.hp += 2;
+            if (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3786,6 +3855,7 @@ public final class GameCore {
         else if (PROF_SCAVENGER.equals(profession)) upgradeDeckCard(s, "scavenger_pick");
         else if (PROF_LIGHTKEEPER.equals(profession)) upgradeDeckCard(s, "lightkeeper_glimmer");
         else if (PROF_GEOMANCER.equals(profession)) upgradeDeckCard(s, "geomancer_rune");
+        else if (PROF_WITCH.equals(profession)) upgradeDeckCard(s, "witch_brew");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3910,6 +3980,13 @@ public final class GameCore {
             s.maxHp += 4;
             s.hp += 4;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_WITCH.equals(profession)) {
+            addUpgradedDeckCard(s, "witch_charm");
+            while (s.potions.size() < Math.min(potionLimit(s), 3)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3946,6 +4023,7 @@ public final class GameCore {
         if (PROF_SCAVENGER.equals(profession)) return "scavenger_overhaul";
         if (PROF_LIGHTKEEPER.equals(profession)) return "lightkeeper_overflare";
         if (PROF_GEOMANCER.equals(profession)) return "geomancer_overquake";
+        if (PROF_WITCH.equals(profession)) return "witch_overbrew";
         return "forge_signal";
     }
 
@@ -4420,6 +4498,23 @@ public final class GameCore {
         } else if ("t_geomancer_grand".equals(id)) {
             addUpgradedDeckCard(s, "geomancer_grand_fault");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_witch_brew".equals(id)) {
+            addUpgradedDeckCard(s, "witch_brew");
+            if (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_witch_ward".equals(id)) {
+            addUpgradedDeckCard(s, "witch_ward");
+            s.maxHp += 3;
+            s.hp += 3;
+            removeStatusCard(s);
+        } else if ("t_witch_curse".equals(id)) {
+            addUpgradedDeckCard(s, "witch_curse");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_witch_grand".equals(id)) {
+            addUpgradedDeckCard(s, "witch_grand_cauldron");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -4861,7 +4956,8 @@ public final class GameCore {
                 || "t_gardener_grand".equals(id) || "t_chef_grand".equals(id)
                 || "t_bard_grand".equals(id) || "t_mirrorist_grand".equals(id)
                 || "t_puppeteer_grand".equals(id) || "t_scavenger_grand".equals(id)
-                || "t_lightkeeper_grand".equals(id) || "t_geomancer_grand".equals(id);
+                || "t_lightkeeper_grand".equals(id) || "t_geomancer_grand".equals(id)
+                || "t_witch_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -4880,7 +4976,8 @@ public final class GameCore {
                 || "gardener_grand_grove".equals(id) || "chef_grand_banquet".equals(id)
                 || "bard_grand_finale".equals(id) || "mirrorist_grand_mirror".equals(id)
                 || "puppeteer_grand_stage".equals(id) || "scavenger_grand_foundry".equals(id)
-                || "lightkeeper_grand_beacon".equals(id) || "geomancer_grand_fault".equals(id);
+                || "lightkeeper_grand_beacon".equals(id) || "geomancer_grand_fault".equals(id)
+                || "witch_grand_cauldron".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -4899,7 +4996,8 @@ public final class GameCore {
                 || "verdant_crown".equals(id) || "banquet_crown".equals(id)
                 || "finale_crown".equals(id) || "mirror_crown".equals(id)
                 || "marionette_crown".equals(id) || "scrap_king_crown".equals(id)
-                || "dawn_beacon".equals(id) || "tectonic_crown".equals(id);
+                || "dawn_beacon".equals(id) || "tectonic_crown".equals(id)
+                || "witch_moon_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -5397,6 +5495,10 @@ public final class GameCore {
         else if (PROF_GEOMANCER.equals(s.profession) && d != null && (d.block > 0 || d.burn > 0 || d.bind > 0
                 || d.vulnerable > 0 || d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) amount++;
+        else if (PROF_WITCH.equals(s.profession) && d != null && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.createEcho || d.exhaust || d.draw > 0 || d.heal > 0
+                || d.skillChargeGain > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_WITCH))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -7186,6 +7288,51 @@ public final class GameCore {
                 target.burn += 2 + s.burnPower / 2;
             }
         }
+        if (hasRelic(s, "witch_bottle") && PROF_WITCH.equals(s.profession)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + statuses + potionPulse / 2));
+            gainBlock(s, 5 + s.act + Math.min(16, s.professionCharge + statuses * 4
+                    + potionPulse * 3 + tempOrEchoHandCount(s) * 2));
+            Card brew = new Card("witch_brew");
+            brew.temp = true;
+            brew.upgraded = true;
+            addToHand(s, brew);
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+            }
+            if (target != null) {
+                target.burn += 2 + s.burnPower / 2;
+                target.bind += 1 + s.bindPower / 2;
+                target.mark += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(24, target.burn * 2 + target.bind * 2
+                        + target.vulnerable * 2 + s.professionCharge * 2 + potionPulse * 3 + statuses * 4), true);
+            }
+        }
+        if (hasRelic(s, "witch_moon_crown") && PROF_WITCH.equals(s.profession)) {
+            Card cauldron = new Card("witch_overbrew");
+            cauldron.temp = true;
+            cauldron.upgraded = true;
+            addToHand(s, cauldron);
+            draw(s, 1);
+            if (s.potions.size() < potionLimit(s)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "月锅回药：" + p.name);
+            }
+            if (s.professionCharge >= 5 || s.potions.size() >= 2 || statusDeckCards(s) + statusHandCards(s) >= 2
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.burn += 2 + s.burnPower / 2;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -7249,6 +7396,9 @@ public final class GameCore {
                 || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
         if (hasRelic(s, "faultline_core") && PROF_GEOMANCER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.block >= 16 || bestEnemyPressure(s) >= 7 || s.confluenceChain >= 3)) amount++;
+        if (hasRelic(s, "witch_bottle") && PROF_WITCH.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || !s.potions.isEmpty() || statusDeckCards(s) + statusHandCards(s) > 0
+                || firstLiving(s) != null && (firstLiving(s).burn > 0 || firstLiving(s).bind > 0))) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -7415,7 +7565,8 @@ public final class GameCore {
         if (quest == QUEST_SKILL) {
             return s.profession != null && s.profession.length() > 0;
         }
-        if (quest == QUEST_BREW && (PROF_ALCHEMIST.equals(s.profession) || PROF_CHEF.equals(s.profession) || !s.potions.isEmpty()
+        if (quest == QUEST_BREW && (PROF_ALCHEMIST.equals(s.profession) || PROF_CHEF.equals(s.profession)
+                || PROF_WITCH.equals(s.profession) || !s.potions.isEmpty()
                 || hasTalent(s, "t_alchemist_grandbrew") || hasRelic(s, "alchemist_case") || hasRelic(s, "glass_vials"))) {
             return true;
         }
@@ -7427,6 +7578,7 @@ public final class GameCore {
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_CHEF.equals(s.profession)
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
+                || PROF_WITCH.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
                 || hasRelic(s, "echo_prism") || hasRelic(s, "echoflow_charm")
@@ -7437,6 +7589,7 @@ public final class GameCore {
                 || PROF_HEXER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession) || PROF_ADJUDICATOR.equals(s.profession)
                 || PROF_PACTMAKER.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
+                || PROF_WITCH.equals(s.profession)
                 || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
                 || hasTalent(s, "t_hexer_darkdeal") || hasRelic(s, "bloodcoin_broach") || hasRelic(s, "kingmaker_seal"))) {
             return true;
@@ -7460,7 +7613,7 @@ public final class GameCore {
         if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
-                || PROF_GEOMANCER.equals(s.profession)
+                || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear") || hasRelic(s, "resonance_prism")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
@@ -7476,7 +7629,7 @@ public final class GameCore {
                 || PROF_CHEF.equals(s.profession)
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
-                || PROF_GEOMANCER.equals(s.profession)
+                || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec) || "spec_pressure".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -7495,7 +7648,8 @@ public final class GameCore {
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
-                || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession))) {
+                || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession)
+                || PROF_WITCH.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -8675,6 +8829,48 @@ public final class GameCore {
                 rune.upgraded = true;
                 addToHand(s, rune);
                 upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_WITCH.equals(s.profession) && s.turn == 1) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int echoes = tempOrEchoHandCount(s);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, potionPulse / 2 + statuses + echoes
+                    + buildFocusDeckCards(s, BUILD_BREW) / 4);
+            gainBlock(s, 3 + s.act + Math.min(7, statuses * 2 + potionPulse * 2 + echoes));
+            s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, statuses + potionPulse + healingDeckCards(s) / 2));
+            if (s.potions.size() < potionLimit(s) && (potionPulse == 0 || hasTalent(s, "t_witch_brew"))) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "药巫起锅：" + p.name);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += 1 + s.burnPower / 2;
+                firstLiving(s).bind += hasTalent(s, "t_witch_curse") ? 1 + s.bindPower / 2 : 0;
+                firstLiving(s).mark += hasTalent(s, "t_witch_brew") ? 1 : 0;
+                firstLiving(s).vulnerable += statuses > 0 || hasTalent(s, "t_witch_grand") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_witch_brew")) {
+                Card brew = new Card("witch_brew");
+                brew.temp = true;
+                brew.upgraded = true;
+                addToHand(s, brew);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_witch_ward")) {
+                if (statuses > 0) {
+                    removeStatusCard(s);
+                    s.energy++;
+                }
+                gainBlock(s, 4 + s.act);
+            }
+            if (hasTalent(s, "t_witch_grand")) {
+                Card brew = new Card("witch_brew");
+                brew.temp = true;
+                brew.upgraded = true;
+                addToHand(s, brew);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -11041,6 +11237,107 @@ public final class GameCore {
             if (s.confluenceChain >= 4 || s.block >= 24 || overloadNow >= 2 || c.upgraded) {
                 draw += 1;
                 upgradeRandomHandCard(s);
+            }
+        }
+        if ("witch_brew".equals(d.id) && target != null) {
+            int tincture = Math.max(0, s.professionCharge);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            damage += Math.min(c.upgraded ? 30 : 20, tincture * 2 + potionPulse * 4
+                    + statuses * 3 + target.burn * 2 + target.bind);
+            target.burn += 1 + s.burnPower / 2;
+            target.mark += c.upgraded ? 2 : 1;
+            if (potionPulse > 0 || statuses > 0 || c.upgraded) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("witch_ward".equals(d.id)) {
+            int tincture = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int echoes = tempOrEchoHandCount(s);
+            block += Math.min(c.upgraded ? 30 : 21, tincture * 2 + statuses * 5
+                    + echoes * 3 + s.potions.size() * 4);
+            if (statuses > 0 && (s.cardsPlayedThisTurn <= 3 || c.upgraded)) {
+                removeStatusCard(s);
+                heal += 2 + s.act;
+                addProfessionSkillCharge(s, 1);
+            }
+            if (echoes >= 2 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("witch_curse".equals(d.id) && target != null) {
+            int tincture = Math.max(0, s.professionCharge);
+            int pressure = target.burn * 3 + target.bind * 3 + target.vulnerable * 3 + target.mark * 2;
+            damage += Math.min(c.upgraded ? 45 : 32, pressure + tincture * 2
+                    + (statusDeckCards(s) + statusHandCards(s)) * 5 + s.potions.size() * 4);
+            target.burn += c.upgraded ? 2 : 1;
+            target.bind += 1 + s.bindPower / 2;
+            target.vulnerable += 1;
+            if (pressure >= 8 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("witch_charm".equals(d.id)) {
+            int tincture = Math.max(0, s.professionCharge);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 32 : 22, tincture * 2 + potionPulse * 4
+                    + statuses * 4 + tempOrEchoHandCount(s) * 3);
+            if (s.potions.size() < potionLimit(s) && (potionPulse <= 1 || c.upgraded)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "护符温药：" + p.name);
+                addQuestProgress(s, QUEST_BREW, 1);
+            }
+            if (statuses > 0 || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("witch_overbrew".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tincture = Math.max(0, s.professionCharge);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 36 : 25, tincture * 2 + overloadNow * 7
+                    + potionPulse * 4 + statuses * 5 + tempOrEchoHandCount(s) * 3);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                target.burn += 2 + s.burnPower / 2;
+                target.bind += 1 + s.bindPower / 2;
+                damage += Math.min(c.upgraded ? 54 : 38, overloadNow * 8 + tincture * 2
+                        + potionPulse * 5 + statuses * 5 + target.burn * 2 + target.bind * 2);
+            }
+            if (overloadNow >= 2 || potionPulse >= 2 || statuses > 0 || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("witch_grand_cauldron".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tincture = Math.max(0, s.professionCharge);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int pressure = bestEnemyPressure(s);
+            damage += Math.min(c.upgraded ? 80 : 58, tincture * 4 + potionPulse * 6
+                    + statuses * 7 + tempOrEchoHandCount(s) * 5 + pressure + overloadNow * 9);
+            block += Math.min(c.upgraded ? 56 : 40, tincture * 3 + potionPulse * 4
+                    + statuses * 6 + tempOrEchoHandCount(s) * 4 + overloadNow * 6);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.burn += 3 + s.burnPower / 2;
+                target.bind += 2 + s.bindPower / 2;
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                heal += 3 + s.act;
+            }
+            if (potionPulse >= 3 || statuses >= 2 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
             }
         }
         if ("hybrid_coinwall".equals(d.id)) {
@@ -13992,6 +14289,103 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_WITCH.equals(s.profession) && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.createEcho || c.temp || d.exhaust || d.heal > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_WITCH))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            if (e != null) {
+                if (d.createPotion || d.burn > 0 || d.profession.equals(PROF_WITCH)) {
+                    e.burn += 1 + s.burnPower / 2;
+                }
+                if (d.bind > 0 || d.vulnerable > 0 || statuses > 0) {
+                    e.vulnerable += 1;
+                }
+                if (s.professionCharge >= 4 || potionPulse >= 3 || statuses > 0 || tempOrEchoHandCount(s) >= 2) {
+                    e.mark += 1;
+                    damageEnemy(s, e, 3 + s.act + Math.min(29, e.burn * 2 + e.bind * 2
+                            + e.vulnerable * 2 + s.professionCharge * 2 + potionPulse * 3 + statuses * 4), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(17, s.professionCharge + potionPulse * 2
+                        + statuses * 3 + tempOrEchoHandCount(s) * 2));
+                if (s.cardsPlayedThisTurn >= 3 || d.createEcho || hasTalent(s, "t_witch_brew")) {
+                    draw(s, 1);
+                }
+                if (statuses > 0 && (s.cardsPlayedThisTurn <= 4 || hasTalent(s, "t_witch_ward"))) {
+                    removeStatusCard(s);
+                    s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_witch_brew") && (d.createPotion || d.cost == 0 || d.draw > 0
+                || d.createEcho || d.profession.equals(PROF_WITCH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(23, e.mark * 2
+                        + s.professionCharge * 2 + s.potions.size() * 4), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || d.createPotion) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_witch_ward") && (d.block > 0 || d.heal > 0 || d.type == 1
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_WITCH))) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            gainBlock(s, 4 + s.act + Math.min(14, s.professionCharge + statuses * 3 + s.potions.size() * 2));
+            if (statuses > 0 && s.cardsPlayedThisTurn <= 3) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (s.cardsPlayedThisTurn == 3 || statuses > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_witch_curse") && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || d.createWound || d.profession.equals(PROF_WITCH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+                if (bestEnemyPressure(s) >= 9 || s.cardsPlayedThisTurn >= 3) {
+                    e.mark += 1;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + s.potions.size() * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_witch_grand") && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.createEcho || d.exhaust || d.skillChargeGain > 0 || d.rarity == 2
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_WITCH))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || s.potions.size() >= 2 || statusDeckCards(s) + statusHandCards(s) > 0)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(31, e.mark * 2 + e.vulnerable * 2
+                        + e.bind + e.burn + s.professionCharge * 2 + s.potions.size() * 4), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                if (s.potions.size() < potionLimit(s)) {
+                    PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                    s.potions.add(p.id);
+                    log(s, "终局巫锅：" + p.name);
+                }
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -14516,6 +14910,50 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "witch_bottle") && (d.createPotion || d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.createEcho || d.exhaust || d.draw > 0 || d.heal > 0 || d.skillChargeGain > 0
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_WITCH))) {
+            addProfessionSkillCharge(s, 1);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(9, s.professionCharge + s.potions.size() * 3
+                        + statuses * 3 + tempOrEchoHandCount(s)));
+                if (statuses > 0 && s.relicTriggersThisTurn == 0) {
+                    removeStatusCard(s);
+                    s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.createPotion || d.burn > 0 || statuses > 0 || s.potions.size() >= 2) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(23, e.mark * 2
+                            + e.burn * 2 + e.bind * 2 + s.professionCharge * 2 + s.potions.size() * 3), true);
+                }
+            }
+        }
+        if (hasRelic(s, "witch_moon_crown") && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.createEcho || d.profession.equals(PROF_WITCH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || s.potions.size() >= 2
+                        || statusDeckCards(s) + statusHandCards(s) > 0) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(27, e.mark * 2 + e.vulnerable * 2
+                            + e.bind + e.burn + s.professionCharge + s.potions.size() * 4), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                if (s.potions.size() < potionLimit(s)) {
+                    PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                    s.potions.add(p.id);
+                    log(s, "月冠煨药：" + p.name);
+                }
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -15848,6 +16286,11 @@ public final class GameCore {
             return focus == BUILD_GUARD ? 18 : focus == BUILD_STATUS ? 16 : focus == BUILD_FORGE ? 14
                     : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_CYCLE ? 10 : focus == BUILD_ECHO ? 6 : 0;
         }
+        if (PROF_WITCH.equals(s.profession)) {
+            return focus == BUILD_BREW ? 18 : focus == BUILD_STATUS ? 16 : focus == BUILD_ECHO ? 14
+                    : focus == BUILD_CYCLE ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 8
+                    : focus == BUILD_BLOOD ? 6 : 0;
+        }
         return 0;
     }
 
@@ -15931,6 +16374,9 @@ public final class GameCore {
         }
         if (PROF_GEOMANCER.equals(d.profession)) {
             return geomancerFocusCardValue(d, focus);
+        }
+        if (PROF_WITCH.equals(d.profession)) {
+            return witchFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -16624,6 +17070,51 @@ public final class GameCore {
         return 0;
     }
 
+    private static int witchFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + (d.createPotion ? 3 : 0) + (d.createEcho ? 3 : 0)
+                    + ("witch_brew".equals(d.id) ? 6 : 0) + ("witch_curse".equals(d.id) ? 8 : 0)
+                    + ("witch_overbrew".equals(d.id) ? 16 : 0) + ("witch_grand_cauldron".equals(d.id) ? 13 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 13 : 0) + d.draw * 3 + (d.exhaust ? 4 : 0) + (d.cost == 0 ? 5 : 0)
+                    + ("witch_brew".equals(d.id) ? 8 : 0) + ("witch_ward".equals(d.id) ? 12 : 0)
+                    + ("witch_charm".equals(d.id) ? 14 : 0) + ("witch_overbrew".equals(d.id) ? 12 : 0)
+                    + ("witch_grand_cauldron".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return (d.createPotion ? 14 : 0) + d.burn * 4 + d.bind * 3 + d.heal * 2
+                    + ("witch_brew".equals(d.id) ? 16 : 0) + ("witch_charm".equals(d.id) ? 18 : 0)
+                    + ("witch_overbrew".equals(d.id) ? 16 : 0) + ("witch_grand_cauldron".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return d.heal * 5 + (d.createWound ? 5 : 0) + (d.exhaust ? 3 : 0)
+                    + ("witch_ward".equals(d.id) ? 8 : 0) + ("witch_grand_cauldron".equals(d.id) ? 6 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return d.scry * 2 + (d.upgradeRandom ? 6 : 0)
+                    + ("witch_charm".equals(d.id) ? 6 : 0) + ("witch_grand_cauldron".equals(d.id) ? 4 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 5 + d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2
+                    + (d.createPotion ? 4 : 0) + ("witch_brew".equals(d.id) ? 10 : 0)
+                    + ("witch_curse".equals(d.id) ? 18 : 0) + ("witch_overbrew".equals(d.id) ? 16 : 0)
+                    + ("witch_grand_cauldron".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 6 : 0) + d.skillChargeGain * 2 + (d.createEcho ? 4 : 0)
+                    + ("witch_brew".equals(d.id) ? 14 : 0) + ("witch_ward".equals(d.id) ? 10 : 0)
+                    + ("witch_charm".equals(d.id) ? 12 : 0) + ("witch_overbrew".equals(d.id) ? 10 : 0)
+                    + ("witch_grand_cauldron".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + d.heal * 4 + (d.createEcho ? 3 : 0)
+                    + ("witch_ward".equals(d.id) ? 16 : 0) + ("witch_charm".equals(d.id) ? 14 : 0)
+                    + ("witch_overbrew".equals(d.id) ? 14 : 0) + ("witch_grand_cauldron".equals(d.id) ? 14 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -16980,6 +17471,15 @@ public final class GameCore {
         else if ("t_geomancer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GUARD) * 2
                 + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_FORGE)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_CYCLE);
+        else if ("t_witch_brew".equals(id)) bonus += potionCards(s) * 3 + zeroCost * 2
+                + buildFocusDeckCards(s, BUILD_BREW) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_witch_ward".equals(id)) bonus += status * 4 + buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + healingDeckCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_witch_curse".equals(id)) bonus += burnDeckCards(s) * 2 + bindDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) * 2 + professionCards;
+        else if ("t_witch_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_BREW) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_ECHO)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_CYCLE);
         return Math.min(36, bonus);
     }
 
@@ -17005,7 +17505,7 @@ public final class GameCore {
                     "t_chef_spice", "t_chef_grand", "t_bard_chorus", "t_bard_grand",
                     "t_mirrorist_reflect", "t_mirrorist_grand", "t_scavenger_market",
                     "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
-                    "t_geomancer_quake", "t_geomancer_grand",
+                    "t_geomancer_quake", "t_geomancer_grand", "t_witch_curse", "t_witch_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -17022,13 +17522,14 @@ public final class GameCore {
                     "t_chef_grand", "t_bard_ballad", "t_bard_chorus", "t_bard_grand",
                     "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
                     "t_lightkeeper_keeper", "t_lightkeeper_vigil", "t_lightkeeper_grand",
-                    "t_geomancer_rune", "t_geomancer_grand") ? 3 : 0;
+                    "t_geomancer_rune", "t_geomancer_grand", "t_witch_brew", "t_witch_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
                     "t_alchemist_distiller", "t_alchemist_grandbrew", "t_stormcaller_front",
                     "t_prismist_spill", "t_chef_prep", "t_chef_spice", "t_chef_grand",
-                    "t_geomancer_quake", "t_geomancer_grand") ? 3 : 0;
+                    "t_geomancer_quake", "t_geomancer_grand", "t_witch_brew", "t_witch_curse",
+                    "t_witch_grand") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "t_shared_hunter", "t_shared_wayfarer", "t_merchant_interest",
@@ -17039,7 +17540,7 @@ public final class GameCore {
         if (focus == BUILD_BLOOD) {
             return isAny(id, "t_bloodbound_scar", "t_bloodbound_feast", "t_bloodbound_crimson",
                     "t_bloodbound_hemocraft", "t_hexer_darkdeal", "t_hexer_abysscurse",
-                    "t_pactmaker_bloodseal") ? 3 : 0;
+                    "t_pactmaker_bloodseal", "t_witch_ward", "t_witch_grand") ? 3 : 0;
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "t_shared_masterwork", "t_warden_armory", "t_weaver_setup",
@@ -17053,7 +17554,8 @@ public final class GameCore {
                     "t_gardener_compost", "t_gardener_grand", "t_chef_spice",
                     "t_chef_grand", "t_bard_grand", "t_mirrorist_guard",
                     "t_mirrorist_reflect", "t_mirrorist_grand", "t_lightkeeper_prism",
-                    "t_lightkeeper_grand", "t_geomancer_rune", "t_geomancer_grand") ? 3 : 0;
+                    "t_lightkeeper_grand", "t_geomancer_rune", "t_geomancer_grand",
+                    "t_witch_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -17075,7 +17577,7 @@ public final class GameCore {
                     "t_bard_note", "t_bard_grand", "t_mirrorist_shard",
                     "t_mirrorist_grand", "t_scavenger_salvage", "t_scavenger_patch",
                     "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
-                    "t_geomancer_quake", "t_geomancer_grand",
+                    "t_geomancer_quake", "t_geomancer_grand", "t_witch_curse", "t_witch_grand",
                     "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
@@ -17098,7 +17600,7 @@ public final class GameCore {
                     "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
                     "t_scavenger_salvage", "t_scavenger_market", "t_scavenger_grand",
                     "t_lightkeeper_keeper", "t_lightkeeper_prism", "t_lightkeeper_grand",
-                    "t_geomancer_rune", "t_geomancer_grand",
+                    "t_geomancer_rune", "t_geomancer_grand", "t_witch_brew", "t_witch_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -17115,7 +17617,7 @@ public final class GameCore {
                     "t_chef_stew", "t_chef_grand", "t_bard_ballad", "t_bard_grand",
                     "t_mirrorist_guard", "t_mirrorist_grand", "t_scavenger_patch",
                     "t_scavenger_grand", "t_lightkeeper_vigil", "t_lightkeeper_grand",
-                    "t_geomancer_mantle", "t_geomancer_grand") ? 3 : 0;
+                    "t_geomancer_mantle", "t_geomancer_grand", "t_witch_ward", "t_witch_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -17388,6 +17890,18 @@ public final class GameCore {
                 && (burnDeckCards(s) + bindDeckCards(s) >= 3 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
             return "震源连锁";
         }
+        if (isAny(id, "t_witch_brew", "t_witch_grand")
+                && (potionCards(s) >= 1 || s.potions.size() < potionLimit(s) || buildFocusDeckCards(s, BUILD_BREW) >= 2)) {
+            return "药锅循环";
+        }
+        if (isAny(id, "t_witch_ward", "t_witch_grand")
+                && (statusDeckCards(s) > 0 || buildFocusDeckCards(s, BUILD_GUARD) >= 2 || s.hp < s.maxHp)) {
+            return "草符防线";
+        }
+        if (isAny(id, "t_witch_curse", "t_witch_grand")
+                && (burnDeckCards(s) + bindDeckCards(s) >= 3 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
+            return "苦酿连咒";
+        }
         return "";
     }
 
@@ -17630,7 +18144,7 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
@@ -17641,13 +18155,14 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
                     "glass_vials", "emberroot_charm", "split_anvil", "bloodspark_contract", "mosaic_core", "resonance_prism",
                     "catalyst_pump", "solar_crucible", "hex_moon", "storm_rod", "tempest_crown",
-                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown") ? 3 : 0;
+                    "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown",
+                    "witch_bottle", "witch_moon_crown") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
@@ -17658,7 +18173,7 @@ public final class GameCore {
         if (focus == BUILD_BLOOD) {
             return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
                     "bloodspark_contract", "crimson_seal", "blood_crown", "contract_stamp", "grand_ledger",
-                    "blood_contract", "mosaic_core", "resonance_prism", "hex_moon") ? 3 : 0;
+                    "blood_contract", "mosaic_core", "resonance_prism", "hex_moon", "witch_moon_crown") ? 3 : 0;
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
@@ -17668,7 +18183,7 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_moon_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -17681,7 +18196,7 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -17693,7 +18208,7 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -17705,7 +18220,8 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown", "faultline_core", "tectonic_crown") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "faultline_core", "tectonic_crown",
+                    "witch_bottle", "witch_moon_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -17742,7 +18258,8 @@ public final class GameCore {
                 || (PROF_PUPPETEER.equals(s.profession) && "string_spool".equals(id))
                 || (PROF_SCAVENGER.equals(s.profession) && "scrap_magnet".equals(id))
                 || (PROF_LIGHTKEEPER.equals(s.profession) && "lantern_wick".equals(id))
-                || (PROF_GEOMANCER.equals(s.profession) && "faultline_core".equals(id));
+                || (PROF_GEOMANCER.equals(s.profession) && "faultline_core".equals(id))
+                || (PROF_WITCH.equals(s.profession) && "witch_bottle".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -17788,6 +18305,7 @@ public final class GameCore {
                 || hasRelic(s, "scrap_magnet") || hasRelic(s, "scrap_king_crown")
                 || hasRelic(s, "lantern_wick") || hasRelic(s, "dawn_beacon")
                 || hasRelic(s, "faultline_core") || hasRelic(s, "tectonic_crown")
+                || hasRelic(s, "witch_bottle") || hasRelic(s, "witch_moon_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
@@ -17982,6 +18500,12 @@ public final class GameCore {
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
             return 4;
         }
+        if (PROF_WITCH.equals(s.profession) && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.createEcho || d.exhaust || d.heal > 0 || d.draw > 0
+                || d.skillChargeGain > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_WITCH))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -18016,7 +18540,8 @@ public final class GameCore {
                     || "chef_sizzle".equals(d.id) || "chef_grand_banquet".equals(d.id)
                     || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)
                     || "mirrorist_prismcut".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)
-                    || "geomancer_quake".equals(d.id) || "geomancer_grand_fault".equals(d.id)) bonus += 4;
+                    || "geomancer_quake".equals(d.id) || "geomancer_grand_fault".equals(d.id)
+                    || "witch_curse".equals(d.id) || "witch_grand_cauldron".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
@@ -18040,7 +18565,9 @@ public final class GameCore {
                     || "mirrorist_overimage".equals(d.id) || "lightkeeper_glimmer".equals(d.id)
                     || "lightkeeper_vigil".equals(d.id) || "lightkeeper_prism".equals(d.id)
                     || "lightkeeper_overflare".equals(d.id) || "geomancer_rune".equals(d.id)
-                    || "geomancer_geode".equals(d.id) || "geomancer_overquake".equals(d.id)) bonus += 4;
+                    || "geomancer_geode".equals(d.id) || "geomancer_overquake".equals(d.id)
+                    || "witch_brew".equals(d.id) || "witch_charm".equals(d.id)
+                    || "witch_overbrew".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -18063,7 +18590,8 @@ public final class GameCore {
                     || "lightkeeper_prism".equals(d.id) || "lightkeeper_overflare".equals(d.id)
                     || "lightkeeper_grand_beacon".equals(d.id) || "geomancer_mantle".equals(d.id)
                     || "geomancer_geode".equals(d.id) || "geomancer_overquake".equals(d.id)
-                    || "geomancer_grand_fault".equals(d.id)) bonus += 4;
+                    || "geomancer_grand_fault".equals(d.id) || "witch_ward".equals(d.id)
+                    || "witch_charm".equals(d.id) || "witch_grand_cauldron".equals(d.id)) bonus += 4;
         } else if ("spec_bulwark".equals(spec.id)) {
             if (d.block > 0 || d.blockToDamage || d.retainBlock || d.burnToBlock || d.gainSteelEngine > 0) bonus += 4;
             if (d.type == 1 || d.skillChargeGain > 0 || d.draw > 0 || d.upgradeRandom || hybridFocusCount(d) >= 2) bonus += 2;
@@ -18108,7 +18636,8 @@ public final class GameCore {
                     || "lightkeeper_brand".equals(d.id) || "lightkeeper_overflare".equals(d.id)
                     || "lightkeeper_grand_beacon".equals(d.id) || "geomancer_rune".equals(d.id)
                     || "geomancer_quake".equals(d.id) || "geomancer_overquake".equals(d.id)
-                    || "geomancer_grand_fault".equals(d.id)) bonus += 4;
+                    || "geomancer_grand_fault".equals(d.id) || "witch_curse".equals(d.id)
+                    || "witch_overbrew".equals(d.id) || "witch_grand_cauldron".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -18127,7 +18656,8 @@ public final class GameCore {
                     || "mirrorist_guard".equals(d.id) || "mirrorist_reflect".equals(d.id)
                     || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)
                     || "lightkeeper_prism".equals(d.id) || "lightkeeper_grand_beacon".equals(d.id)
-                    || "geomancer_geode".equals(d.id) || "geomancer_grand_fault".equals(d.id)) bonus += 4;
+                    || "geomancer_geode".equals(d.id) || "geomancer_grand_fault".equals(d.id)
+                    || "witch_charm".equals(d.id) || "witch_grand_cauldron".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -18150,7 +18680,8 @@ public final class GameCore {
                     || "lightkeeper_prism".equals(d.id) || "lightkeeper_overflare".equals(d.id)
                     || "lightkeeper_grand_beacon".equals(d.id) || "geomancer_rune".equals(d.id)
                     || "geomancer_mantle".equals(d.id) || "geomancer_geode".equals(d.id)
-                    || "geomancer_overquake".equals(d.id)) bonus += 4;
+                    || "geomancer_overquake".equals(d.id) || "witch_brew".equals(d.id)
+                    || "witch_charm".equals(d.id) || "witch_overbrew".equals(d.id)) bonus += 4;
         } else if ("spec_markchain".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -18179,7 +18710,9 @@ public final class GameCore {
                     || "mirrorist_shard".equals(d.id) || "mirrorist_prismcut".equals(d.id)
                     || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)
                     || "geomancer_rune".equals(d.id) || "geomancer_quake".equals(d.id)
-                    || "geomancer_overquake".equals(d.id) || "geomancer_grand_fault".equals(d.id)) bonus += 4;
+                    || "geomancer_overquake".equals(d.id) || "geomancer_grand_fault".equals(d.id)
+                    || "witch_curse".equals(d.id) || "witch_overbrew".equals(d.id)
+                    || "witch_grand_cauldron".equals(d.id)) bonus += 4;
         } else if ("spec_pressure".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.burn > 0 || d.addStatusToEnemy || d.spreadStatus) bonus += 4;
             if (d.skillChargeGain > 0 || d.draw > 0 || d.block > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -18231,7 +18764,9 @@ public final class GameCore {
                 || "lightkeeper_prism".equals(id) || "lightkeeper_overflare".equals(id)
                 || "geomancer_rune".equals(id) || "geomancer_mantle".equals(id)
                 || "geomancer_geode".equals(id) || "geomancer_overquake".equals(id)
-                || "geomancer_grand_fault".equals(id)
+                || "geomancer_grand_fault".equals(id) || "witch_brew".equals(id)
+                || "witch_ward".equals(id) || "witch_charm".equals(id)
+                || "witch_overbrew".equals(id) || "witch_grand_cauldron".equals(id)
                 || "fusion_spark".equals(id) || "echo_forge_loop".equals(id)
                 || "prism_guard_matrix".equals(id) || "apex_resonance".equals(id);
     }
@@ -18280,7 +18815,9 @@ public final class GameCore {
                 || "lightkeeper_glimmer".equals(id) || "lightkeeper_brand".equals(id)
                 || "lightkeeper_overflare".equals(id) || "lightkeeper_grand_beacon".equals(id)
                 || "geomancer_quake".equals(id) || "geomancer_overquake".equals(id)
-                || "geomancer_grand_fault".equals(id);
+                || "geomancer_grand_fault".equals(id) || "witch_brew".equals(id)
+                || "witch_curse".equals(id) || "witch_overbrew".equals(id)
+                || "witch_grand_cauldron".equals(id);
     }
 
     private static boolean bulwarkCardId(String id) {
@@ -18298,7 +18835,9 @@ public final class GameCore {
                 || "puppeteer_screen".equals(id) || "scavenger_patch".equals(id)
                 || "lightkeeper_vigil".equals(id) || "lightkeeper_prism".equals(id)
                 || "geomancer_mantle".equals(id) || "geomancer_geode".equals(id)
-                || "geomancer_grand_fault".equals(id) || "hybrid_coinwall".equals(id)
+                || "geomancer_grand_fault".equals(id) || "witch_ward".equals(id)
+                || "witch_charm".equals(id) || "witch_grand_cauldron".equals(id)
+                || "hybrid_coinwall".equals(id)
                 || "hybrid_spirit_anvil".equals(id) || "echo_forge_loop".equals(id)
                 || "apex_resonance".equals(id);
     }
@@ -18320,7 +18859,9 @@ public final class GameCore {
                 || "dreamwalker_lucid".equals(id) || "gardener_compost".equals(id)
                 || "chef_stew".equals(id) || "lightkeeper_glimmer".equals(id)
                 || "lightkeeper_vigil".equals(id) || "lightkeeper_prism".equals(id)
-                || "lightkeeper_overflare".equals(id) || "lightkeeper_grand_beacon".equals(id);
+                || "lightkeeper_overflare".equals(id) || "lightkeeper_grand_beacon".equals(id)
+                || "witch_ward".equals(id) || "witch_charm".equals(id)
+                || "witch_grand_cauldron".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -18553,6 +19094,15 @@ public final class GameCore {
                 || d.skillChargeGain > 0 || d.rarity == 2 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "witch_bottle") && (d.createPotion || d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.createEcho || d.exhaust || d.draw > 0 || d.heal > 0 || d.skillChargeGain > 0
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_WITCH))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "witch_moon_crown") && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.createEcho || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_WITCH))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -18590,7 +19140,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -18623,6 +19173,7 @@ public final class GameCore {
         if (PROF_SCAVENGER.equals(s.profession)) return "scrap_magnet";
         if (PROF_LIGHTKEEPER.equals(s.profession)) return "lantern_wick";
         if (PROF_GEOMANCER.equals(s.profession)) return "faultline_core";
+        if (PROF_WITCH.equals(s.profession)) return "witch_bottle";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -18910,7 +19461,8 @@ public final class GameCore {
                 || PROF_PRISMIST.equals(s.profession) || PROF_DREAMWALKER.equals(s.profession)
                 || PROF_GARDENER.equals(s.profession) || PROF_CHEF.equals(s.profession)
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
-                || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession))
+                || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession)
+                || PROF_WITCH.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -18929,7 +19481,7 @@ public final class GameCore {
                 || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
                 || PROF_SCAVENGER.equals(s.profession) || PROF_LIGHTKEEPER.equals(s.profession)
-                || PROF_GEOMANCER.equals(s.profession))
+                || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession))
                 && "pressure_gauge".equals(id)) {
             return 2;
         }
@@ -18952,6 +19504,18 @@ public final class GameCore {
             return 2;
         }
         if (PROF_GEOMANCER.equals(s.profession) && "tectonic_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_WITCH.equals(s.profession) && ("witch_bottle".equals(id) || "glass_vials".equals(id)
+                || "cinder_spoon".equals(id) || "green_bell".equals(id) || "emberroot_charm".equals(id)
+                || "stormglass_seal".equals(id) || "curse_censer".equals(id) || "echoflow_charm".equals(id)
+                || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "overload_etch".equals(id)
+                || "discipline_chart".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
+                || "resonance_prism".equals(id) || "salvage_hook".equals(id) || "void_abacus".equals(id)
+                || "echo_ledger".equals(id))) {
+            return 2;
+        }
+        if (PROF_WITCH.equals(s.profession) && "witch_moon_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -19394,6 +19958,26 @@ public final class GameCore {
             addUpgradedDeckCard(s, "geomancer_grand_fault");
             addUpgradedDeckCard(s, "geomancer_rune");
             upgradeRandomDeckCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("witch_bottle".equals(id)) {
+            addUpgradedDeckCard(s, "witch_charm");
+            removeStatusCard(s);
+            if (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("witch_moon_crown".equals(id)) {
+            addUpgradedDeckCard(s, "witch_grand_cauldron");
+            addUpgradedDeckCard(s, "witch_brew");
+            removeStatusCard(s);
+            upgradeRandomDeckCard(s);
+            while (s.potions.size() < Math.min(potionLimit(s), 3)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
             s.maxHp += 5;
             s.hp += 5;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
@@ -20142,6 +20726,19 @@ public final class GameCore {
         c = addCard("geomancer_grand_fault", "终局地裂", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按地势、格挡、升级、汇流、异常和过载追加终局收益。", "更高伤害、格挡和地脉返还。");
         c.profession = PROF_GEOMANCER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.burn = 2; c.burnUp = 3; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("witch_brew", "药锅搅拌", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加燃灼；药剂、状态和敌方异常会提高药性收益。", "更高伤害、燃灼和充能。");
+        c.profession = PROF_WITCH; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("witch_ward", "药草护符", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、治疗并抽牌；状态牌可被护符转成续航。", "更多格挡、治疗和充能。");
+        c.profession = PROF_WITCH; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.skillChargeGain = 1;
+        c = addCard("witch_curse", "苦酿诅咒", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，施加燃灼、束缚和易伤；敌方压力越高越痛。", "更高伤害、燃灼和束缚。");
+        c.profession = PROF_WITCH; c.burn = 2; c.burnUp = 3; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("witch_charm", "瓶中药灵", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌、调制药剂并制造临时搅拌；连接药剂与回声循环。", "更多格挡、抽牌和药灵收益。");
+        c.profession = PROF_WITCH; c.draw = c.drawUp = 1; c.createPotion = true; c.createEcho = true; c.echoCardId = "witch_brew"; c.skillChargeGain = 1;
+        c = addCard("witch_overbrew", "过载巫酿", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和充能；施加异常并制造临时搅拌。", "更多格挡、异常和充能。");
+        c.profession = PROF_WITCH; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "witch_brew"; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("witch_grand_cauldron", "终局月锅", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按药性、药剂、状态、药灵和过载追加终局收益。", "更高伤害、格挡和巫酿返还。");
+        c.profession = PROF_WITCH; c.draw = c.drawUp = 1; c.burn = 2; c.burnUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createPotion = true; c.createEcho = true; c.echoCardId = "witch_brew"; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -20387,6 +20984,7 @@ public final class GameCore {
         addRelicDef("scrap_magnet", "废料磁芯", "拾荒者弃牌、状态、金币、消耗和回收牌更快推动职业技；释放后制造挑拣并把废料转为治疗、格挡与标记。");
         addRelicDef("lantern_wick", "照夜灯芯", "守灯人消耗、临时、检视、升级和灯牌更快推动职业技；释放后制造灯火、净化状态并加固防线。");
         addRelicDef("faultline_core", "断层核心", "地脉师格挡、异常、升级和汇流牌更快推动职业技；释放后制造刻石并把地势转为格挡、束缚和地鸣追击。");
+        addRelicDef("witch_bottle", "药巫瓶", "药巫药剂、状态、临时药灵和异常牌更快推动职业技；释放后制造药灵、净化状态并追加巫酿追击。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -20419,6 +21017,7 @@ public final class GameCore {
         addRelicDef("scrap_king_crown", "拾荒王冠", "获得升级终局回收炉；拾荒者状态、弃牌、消耗、金币、充能和稀有牌会滚动标记、治疗、抽牌与归炉追击。");
         addRelicDef("dawn_beacon", "曦明灯塔", "获得升级终局灯塔；守灯人临时、消耗、检视、升级、充能和稀有牌会滚动印记、抽牌、升级与照夜追击。");
         addRelicDef("tectonic_crown", "地壳冠冕", "获得升级终局地裂；地脉师格挡、异常、汇流、升级、充能和稀有牌会滚动印记、升级与地鸣追击。");
+        addRelicDef("witch_moon_crown", "月锅冠冕", "获得升级终局月锅；药巫药剂、状态、异常、临时药灵、充能和稀有牌会滚动印记、抽牌、补药与巫酿追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -20655,6 +21254,9 @@ public final class GameCore {
         addTalent("t_geomancer_rune", PROF_GEOMANCER, "脉纹回路", "获得升级脉纹刻石并升级牌组；检视、升级、低费和汇流牌追加印记，并把地势转成穿透追击。");
         addTalent("t_geomancer_mantle", PROF_GEOMANCER, "岩幕防线", "获得生命和升级岩幕护身；格挡、技能、束缚和地脉牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_geomancer_quake", PROF_GEOMANCER, "震源连锁", "获得升级裂地震荡；燃灼、束缚、易伤和充能牌会扩张敌方压力并转成地鸣追击。");
+        addTalent("t_witch_brew", PROF_WITCH, "药锅回游", "获得升级药锅搅拌和药剂；低费、抽牌、制药和药巫牌追加印记，并把药性转成穿透追击。");
+        addTalent("t_witch_ward", PROF_WITCH, "草符防线", "获得生命和升级药草护符；格挡、治疗、技能和状态牌提供额外防线，并在关键节奏净化状态。");
+        addTalent("t_witch_curse", PROF_WITCH, "苦酿连咒", "获得升级苦酿诅咒；燃灼、束缚、易伤和充能牌扩张敌方压力并转成巫酿追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -20687,6 +21289,7 @@ public final class GameCore {
         addTalent("t_scavenger_grand", PROF_SCAVENGER, "终局回收炉", "获得升级终局回收炉；状态、弃牌、消耗、金币与过载牌持续抽牌、治疗并把废料印记转为归炉裁切。");
         addTalent("t_lightkeeper_grand", PROF_LIGHTKEEPER, "终局灯塔", "获得升级终局灯塔；临时、回声、消耗、检视与过载牌持续抽牌、升级并把灯火印记转为照夜裁切。");
         addTalent("t_geomancer_grand", PROF_GEOMANCER, "终局地裂", "获得升级终局地裂；格挡、异常、升级、汇流与过载牌持续抽牌、升级并把地势印记转为地鸣裁切。");
+        addTalent("t_witch_grand", PROF_WITCH, "终局月锅", "获得升级终局月锅；药剂、状态、异常、临时药灵与过载牌持续抽牌、补药并把药性印记转为巫酿裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
