@@ -1465,6 +1465,28 @@ public final class GameView extends View {
             }
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx, cy, size * 0.14f, p);
+        } else if (GameCore.PROF_PLAGUEDOCTOR.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            Path mask = new Path();
+            mask.moveTo(cx - size * 0.72f, cy - size * 0.38f);
+            mask.cubicTo(cx - size * 0.18f, cy - size * 0.92f, cx + size * 0.5f, cy - size * 0.66f,
+                    cx + size * 0.58f, cy - size * 0.1f);
+            mask.cubicTo(cx + size * 0.26f, cy + size * 0.26f, cx - size * 0.3f, cy + size * 0.18f,
+                    cx - size * 0.72f, cy - size * 0.38f);
+            c.drawPath(mask, p);
+            Path beak = new Path();
+            beak.moveTo(cx - size * 0.62f, cy - size * 0.14f);
+            beak.lineTo(cx - size * 1.02f, cy + size * 0.2f);
+            beak.lineTo(cx - size * 0.48f, cy + size * 0.12f);
+            c.drawPath(beak, p);
+            c.drawCircle(cx + size * 0.22f, cy - size * 0.28f, size * 0.13f, p);
+            c.drawRoundRect(new RectF(cx + size * 0.28f, cy + size * 0.16f,
+                    cx + size * 0.82f, cy + size * 0.82f), size * 0.14f, size * 0.14f, p);
+            c.drawLine(cx + size * 0.42f, cy + size * 0.16f, cx + size * 0.42f, cy - size * 0.02f, p);
+            c.drawLine(cx + size * 0.68f, cy + size * 0.16f, cx + size * 0.68f, cy - size * 0.02f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx + size * 0.55f, cy + size * 0.54f, size * 0.11f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

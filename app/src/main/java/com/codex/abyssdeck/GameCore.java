@@ -127,6 +127,7 @@ public final class GameCore {
     public static final String PROF_FATESEER = "命轮师";
     public static final String PROF_TIDECALLER = "潮汐使";
     public static final String PROF_FROSTBINDER = "霜缚者";
+    public static final String PROF_PLAGUEDOCTOR = "瘟疫医师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -135,7 +136,7 @@ public final class GameCore {
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
-            PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER
+            PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -828,6 +829,7 @@ public final class GameCore {
         if (PROF_FATESEER.equals(profession)) return "改命";
         if (PROF_TIDECALLER.equals(profession)) return "回潮";
         if (PROF_FROSTBINDER.equals(profession)) return "霜契";
+        if (PROF_PLAGUEDOCTOR.equals(profession)) return "疫方";
         return "职业技";
     }
 
@@ -903,6 +905,7 @@ public final class GameCore {
         if (PROF_FATESEER.equals(profession)) return "满充能：消耗预见改命，按检视、升级牌、抽牌、汇流和过载造成穿透，升级手牌、获得格挡并制造命轮牌。";
         if (PROF_TIDECALLER.equals(profession)) return "满充能：消耗潮势回潮，按格挡、束缚、抽牌、连打和过载造成穿透，获得格挡、抽牌并制造潮汐牌。";
         if (PROF_FROSTBINDER.equals(profession)) return "满充能：消耗霜纹缔结霜契，按状态牌、束缚、格挡、消耗和过载造成穿透，净化状态、抽牌并制造霜牌。";
+        if (PROF_PLAGUEDOCTOR.equals(profession)) return "满充能：消耗病灶配制疫方，按药剂、状态牌、治疗、燃缚易和过载造成穿透，净化状态、治疗、抽牌并制造疫医牌。";
         return "选择职业后可用。";
     }
 
@@ -2054,6 +2057,56 @@ public final class GameCore {
             addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, statuses / 3 + binds / 4));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, frost / 2);
+        } else if (PROF_PLAGUEDOCTOR.equals(s.profession)) {
+            int lesions = Math.max(1, s.professionCharge);
+            int statuses = Math.min(18, statusDeckCards(s) + statusHandCards(s));
+            int potionPulse = s.potions.size() + potionCards(s);
+            int healing = healingDeckCards(s);
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.burn * 4 + target.bind * 3 + target.vulnerable * 3 + target.mark * 2;
+            int cleanse = Math.min(3 + overload / 3, statusDeckCards(s));
+            int damage = 9 + s.act * 3 + Math.min(70, lesions * 3 + potionPulse * 5
+                    + statuses * 5 + healing * 3 + pressure) + overload * 7;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.burn += 2 + Math.min(4, lesions / 3 + potionPulse / 2) + s.burnPower / 2 + overload / 2;
+                target.bind += 1 + Math.min(3, statuses / 2) + s.bindPower / 2;
+                target.vulnerable += 1 + Math.min(2, statuses / 3 + overload / 4);
+                target.mark += 1 + Math.min(3, potionPulse / 2 + overload / 3);
+            }
+            for (int i = 0; i < cleanse; i++) {
+                removeStatusCard(s);
+            }
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(14, lesions / 2 + statuses * 2 + potionPulse + healing) + overload);
+            gainBlock(s, 5 + s.act * 2 + Math.min(38, lesions * 2 + statuses * 4
+                    + potionPulse * 3 + healing * 2) + overload * 3);
+            draw(s, 1 + Math.min(3, lesions / 5 + statuses / 3 + potionPulse / 3) + overload / 4);
+            if (s.potions.size() < potionLimit(s) && (potionPulse <= 1 || statuses > 0 || overload >= 2)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "疫方调剂：" + p.name);
+                addQuestProgress(s, QUEST_BREW, 1);
+            }
+            if (statuses >= 2 || potionPulse >= 3 || cleanse >= 2 || overload >= 3) {
+                s.energy++;
+            }
+            Card vial = new Card(overload >= 4 || hasTalent(s, "t_plaguedoctor_grand")
+                    ? "plaguedoctor_grand_plague" : "plaguedoctor_lancet");
+            vial.temp = true;
+            vial.upgraded = lesions >= 5 || hasTalent(s, "t_plaguedoctor_lancet");
+            addToHand(s, vial);
+            if (hasTalent(s, "t_plaguedoctor_grand")) {
+                Card mask = new Card("plaguedoctor_mask");
+                mask.temp = true;
+                mask.upgraded = true;
+                addToHand(s, mask);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_BREW, 1 + Math.min(3, potionPulse));
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, Math.max(1, statuses + pressure / 10)));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, Math.max(1, pressure / 8)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, lesions / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3531,6 +3584,9 @@ public final class GameCore {
         if (PROF_FROSTBINDER.equals(profession)) {
             return "用眩光、裂伤、束缚和格挡积累霜纹，把负面牌净化成霜契爆发。适合状态转化、异常、守势、回声和过载构筑。";
         }
+        if (PROF_PLAGUEDOCTOR.equals(profession)) {
+            return "用病灶、药剂、治疗和状态转化扩散感染，把裂伤与眩光炼成续航、控场和疫方爆发。适合炼调、异常、血契、循环和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3645,6 +3701,9 @@ public final class GameCore {
         }
         if (PROF_FROSTBINDER.equals(profession)) {
             return 0xffbde7ff;
+        }
+        if (PROF_PLAGUEDOCTOR.equals(profession)) {
+            return 0xff9fe0a1;
         }
         return 0xffd6c07a;
     }
@@ -4036,6 +4095,16 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_PLAGUEDOCTOR.equals(profession)) {
+            s.deck.add(new Card("plaguedoctor_lancet"));
+            s.deck.add(new Card("plaguedoctor_mask"));
+            s.deck.add(new Card("wound"));
+            s.maxHp += 3;
+            s.hp += 3;
+            if (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4094,6 +4163,7 @@ public final class GameCore {
         else if (PROF_FATESEER.equals(profession)) upgradeDeckCard(s, "fateseer_omen");
         else if (PROF_TIDECALLER.equals(profession)) upgradeDeckCard(s, "tidecaller_ripple");
         else if (PROF_FROSTBINDER.equals(profession)) upgradeDeckCard(s, "frostbinder_shard");
+        else if (PROF_PLAGUEDOCTOR.equals(profession)) upgradeDeckCard(s, "plaguedoctor_lancet");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4244,6 +4314,13 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_PLAGUEDOCTOR.equals(profession)) {
+            addUpgradedDeckCard(s, "plaguedoctor_culture");
+            removeStatusCard(s);
+            while (s.potions.size() < Math.min(potionLimit(s), 3)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4285,6 +4362,7 @@ public final class GameCore {
         if (PROF_FATESEER.equals(profession)) return "fateseer_overfate";
         if (PROF_TIDECALLER.equals(profession)) return "tidecaller_overtide";
         if (PROF_FROSTBINDER.equals(profession)) return "frostbinder_overfreeze";
+        if (PROF_PLAGUEDOCTOR.equals(profession)) return "plaguedoctor_overdose";
         return "forge_signal";
     }
 
@@ -4829,6 +4907,23 @@ public final class GameCore {
         } else if ("t_frostbinder_grand".equals(id)) {
             addUpgradedDeckCard(s, "frostbinder_grand_winter");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_plaguedoctor_lancet".equals(id)) {
+            addUpgradedDeckCard(s, "plaguedoctor_lancet");
+            if (s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_plaguedoctor_mask".equals(id)) {
+            addUpgradedDeckCard(s, "plaguedoctor_mask");
+            s.maxHp += 3;
+            s.hp += 3;
+            removeStatusCard(s);
+        } else if ("t_plaguedoctor_quarantine".equals(id)) {
+            addUpgradedDeckCard(s, "plaguedoctor_quarantine");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_plaguedoctor_grand".equals(id)) {
+            addUpgradedDeckCard(s, "plaguedoctor_grand_plague");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5273,7 +5368,7 @@ public final class GameCore {
                 || "t_lightkeeper_grand".equals(id) || "t_geomancer_grand".equals(id)
                 || "t_witch_grand".equals(id) || "t_shifter_grand".equals(id)
                 || "t_fateseer_grand".equals(id) || "t_tidecaller_grand".equals(id)
-                || "t_frostbinder_grand".equals(id);
+                || "t_frostbinder_grand".equals(id) || "t_plaguedoctor_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5295,7 +5390,7 @@ public final class GameCore {
                 || "lightkeeper_grand_beacon".equals(id) || "geomancer_grand_fault".equals(id)
                 || "witch_grand_cauldron".equals(id) || "shifter_grand_paradox".equals(id)
                 || "fateseer_grand_design".equals(id) || "tidecaller_grand_tide".equals(id)
-                || "frostbinder_grand_winter".equals(id);
+                || "frostbinder_grand_winter".equals(id) || "plaguedoctor_grand_plague".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5316,7 +5411,8 @@ public final class GameCore {
                 || "marionette_crown".equals(id) || "scrap_king_crown".equals(id)
                 || "dawn_beacon".equals(id) || "tectonic_crown".equals(id)
                 || "witch_moon_crown".equals(id) || "phase_crown".equals(id)
-                || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id);
+                || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
+                || "plague_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -5833,6 +5929,10 @@ public final class GameCore {
                 || d.draw > 0 || d.exhaust || d.exhaustTopDiscard || d.createEcho || d.skillChargeGain > 0
                 || d.vulnerable > 0 || d.createWound || "wound".equals(d.id) || "daze".equals(d.id)
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FROSTBINDER))) amount++;
+        else if (PROF_PLAGUEDOCTOR.equals(s.profession) && d != null && (d.createPotion || d.burn > 0
+                || d.bind > 0 || d.vulnerable > 0 || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.createEcho || d.createWound || d.exhaust || "wound".equals(d.id) || "daze".equals(d.id)
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PLAGUEDOCTOR))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -7808,6 +7908,49 @@ public final class GameCore {
                 target.mark += 2;
             }
         }
+        if (hasRelic(s, "plague_case") && PROF_PLAGUEDOCTOR.equals(s.profession)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + statuses + potionPulse / 2));
+            gainBlock(s, 5 + s.act + Math.min(17, s.professionCharge * 2 + statuses * 4
+                    + potionPulse * 3 + bestEnemyPressure(s) / 3));
+            if (s.potions.size() < potionLimit(s) && (statuses > 0 || potionPulse <= 1)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "疫医箱补药：" + p.name);
+            }
+            Card lancet = new Card("plaguedoctor_lancet");
+            lancet.temp = true;
+            lancet.upgraded = true;
+            addToHand(s, lancet);
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+            }
+            if (target != null) {
+                target.burn += 2 + s.burnPower / 2;
+                target.mark += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(25, target.burn * 2 + target.bind * 2
+                        + s.professionCharge * 2 + statuses * 4 + potionPulse * 3), true);
+            }
+        }
+        if (hasRelic(s, "plague_crown") && PROF_PLAGUEDOCTOR.equals(s.profession)) {
+            Card dose = new Card("plaguedoctor_overdose");
+            dose.temp = true;
+            dose.upgraded = true;
+            addToHand(s, dose);
+            draw(s, 1);
+            if (s.professionCharge >= 5 || s.potions.size() >= 2 || statusDeckCards(s) + statusHandCards(s) >= 2
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.burn += 3 + s.burnPower / 2;
+                target.vulnerable += 1;
+                target.mark += 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -7886,6 +8029,9 @@ public final class GameCore {
         if (hasRelic(s, "frost_chain") && PROF_FROSTBINDER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || statusDeckCards(s) + statusHandCards(s) > 0
                 || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
+        if (hasRelic(s, "plague_case") && PROF_PLAGUEDOCTOR.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || !s.potions.isEmpty() || statusDeckCards(s) + statusHandCards(s) > 0
+                || firstLiving(s) != null && (firstLiving(s).burn > 0 || firstLiving(s).vulnerable > 0))) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -8053,7 +8199,7 @@ public final class GameCore {
             return s.profession != null && s.profession.length() > 0;
         }
         if (quest == QUEST_BREW && (PROF_ALCHEMIST.equals(s.profession) || PROF_CHEF.equals(s.profession)
-                || PROF_WITCH.equals(s.profession) || !s.potions.isEmpty()
+                || PROF_WITCH.equals(s.profession) || PROF_PLAGUEDOCTOR.equals(s.profession) || !s.potions.isEmpty()
                 || hasTalent(s, "t_alchemist_grandbrew") || hasRelic(s, "alchemist_case") || hasRelic(s, "glass_vials"))) {
             return true;
         }
@@ -8078,7 +8224,7 @@ public final class GameCore {
                 || PROF_HEXER.equals(s.profession) || PROF_INSCRIBER.equals(s.profession) || PROF_ADJUDICATOR.equals(s.profession)
                 || PROF_PACTMAKER.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
-                || PROF_WITCH.equals(s.profession)
+                || PROF_WITCH.equals(s.profession) || PROF_PLAGUEDOCTOR.equals(s.profession)
                 || hasTalent(s, "t_merchant_monopoly") || hasTalent(s, "t_bloodbound_hemocraft")
                 || hasTalent(s, "t_hexer_darkdeal") || hasRelic(s, "bloodcoin_broach") || hasRelic(s, "kingmaker_seal"))) {
             return true;
@@ -8105,6 +8251,7 @@ public final class GameCore {
                 || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
                 || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession)
                 || PROF_TIDECALLER.equals(s.profession) || PROF_FROSTBINDER.equals(s.profession)
+                || PROF_PLAGUEDOCTOR.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear") || hasRelic(s, "resonance_prism")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
@@ -8123,6 +8270,7 @@ public final class GameCore {
                 || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
                 || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession)
                 || PROF_TIDECALLER.equals(s.profession) || PROF_FROSTBINDER.equals(s.profession)
+                || PROF_PLAGUEDOCTOR.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec) || "spec_pressure".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -8144,7 +8292,7 @@ public final class GameCore {
                 || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession)
                 || PROF_WITCH.equals(s.profession) || PROF_SHIFTER.equals(s.profession)
                 || PROF_FATESEER.equals(s.profession) || PROF_TIDECALLER.equals(s.profession)
-                || PROF_FROSTBINDER.equals(s.profession))) {
+                || PROF_FROSTBINDER.equals(s.profession) || PROF_PLAGUEDOCTOR.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -8181,7 +8329,9 @@ public final class GameCore {
                     || "chef_spice".equals(d.id) || "chef_sizzle".equals(d.id)
                     || "chef_overcook".equals(d.id) || "chef_grand_banquet".equals(d.id)
                     || "bard_note".equals(d.id) || "bard_discord".equals(d.id)
-                    || "bard_overcrescendo".equals(d.id) || "bard_grand_finale".equals(d.id))) return true;
+                    || "bard_overcrescendo".equals(d.id) || "bard_grand_finale".equals(d.id)
+                    || "plaguedoctor_lancet".equals(d.id) || "plaguedoctor_quarantine".equals(d.id)
+                    || "plaguedoctor_overdose".equals(d.id) || "plaguedoctor_grand_plague".equals(d.id))) return true;
             if (quest == QUEST_OVERLOAD && d.skillChargeGain > 0) return true;
         }
         return false;
@@ -9490,6 +9640,46 @@ public final class GameCore {
                 rime.temp = true;
                 rime.upgraded = true;
                 addToHand(s, rime);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_PLAGUEDOCTOR.equals(s.profession) && s.turn == 1) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, potionPulse / 2 + statuses + healingDeckCards(s) / 2
+                    + buildFocusDeckCards(s, BUILD_BREW) / 4);
+            gainBlock(s, 3 + s.act + Math.min(8, statuses * 3 + potionPulse * 2 + s.professionCharge));
+            s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, statuses + potionPulse + healingDeckCards(s) / 2));
+            if (s.potions.size() < potionLimit(s) && (potionPulse == 0 || hasTalent(s, "t_plaguedoctor_lancet"))) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "疫医开箱：" + p.name);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += 1 + s.burnPower / 2;
+                firstLiving(s).vulnerable += statuses > 0 || hasTalent(s, "t_plaguedoctor_quarantine") ? 1 : 0;
+                firstLiving(s).mark += hasTalent(s, "t_plaguedoctor_lancet") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_plaguedoctor_lancet")) {
+                Card lancet = new Card("plaguedoctor_lancet");
+                lancet.temp = true;
+                lancet.upgraded = true;
+                addToHand(s, lancet);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_plaguedoctor_mask")) {
+                if (statuses > 0) {
+                    removeStatusCard(s);
+                    s.energy++;
+                }
+                gainBlock(s, 4 + s.act);
+            }
+            if (hasTalent(s, "t_plaguedoctor_grand")) {
+                Card culture = new Card("plaguedoctor_culture");
+                culture.temp = true;
+                culture.upgraded = true;
+                addToHand(s, culture);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -12380,6 +12570,136 @@ public final class GameCore {
             }
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("plaguedoctor_lancet".equals(d.id) && target != null) {
+            int lesions = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            damage += Math.min(c.upgraded ? 34 : 24, lesions * 2 + statuses * 4
+                    + potionPulse * 3 + target.burn * 2 + target.vulnerable * 3);
+            target.burn += 1 + s.burnPower / 2;
+            target.mark += c.upgraded ? 2 : 1;
+            if (statuses > 0 || potionPulse > 0 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+        }
+        if ("plaguedoctor_mask".equals(d.id)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            block += Math.min(c.upgraded ? 36 : 25, s.professionCharge * 2 + statuses * 5
+                    + potionPulse * 4 + healingDeckCards(s) * 2);
+            if (statuses > 0) {
+                removeStatusCard(s);
+                heal += 2 + s.act;
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).vulnerable += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_HEX, 1);
+        }
+        if ("plaguedoctor_culture".equals(d.id)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            block += Math.min(c.upgraded ? 34 : 24, s.professionCharge * 2 + statuses * 4 + potionPulse * 3);
+            if (s.potions.size() < potionLimit(s) && (statuses > 0 || potionPulse <= 1 || c.upgraded)) {
+                PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                s.potions.add(p.id);
+                log(s, "培菌瓶调剂：" + p.name);
+                addQuestProgress(s, QUEST_BREW, 1);
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (potionPulse >= 2 || statuses >= 2 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, potionPulse / 2));
+            addQuestProgress(s, QUEST_BREW, 1);
+        }
+        if ("plaguedoctor_quarantine".equals(d.id) && target != null) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int pressure = target.burn * 4 + target.bind * 2 + target.vulnerable * 4 + target.mark * 2 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 52 : 38, pressure + statuses * 5
+                    + s.professionCharge * 2 + s.potions.size() * 4);
+            target.burn += 1 + s.burnPower / 2;
+            target.bind += 1 + s.bindPower / 2;
+            target.vulnerable += 1;
+            if (statuses > 0) {
+                removeStatusCard(s);
+            }
+            if (target.burn + target.vulnerable >= 4 || statuses >= 2 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+        }
+        if ("plaguedoctor_overdose".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            block += Math.min(c.upgraded ? 42 : 30, s.professionCharge * 2 + statuses * 5
+                    + potionPulse * 4 + overloadNow * 7);
+            if (target != null) {
+                target.burn += 2 + s.burnPower / 2 + (c.upgraded ? 1 : 0);
+                target.vulnerable += 1;
+                target.mark += c.upgraded ? 3 : 2;
+                damage += Math.min(c.upgraded ? 64 : 46, overloadNow * 8 + statuses * 5
+                        + potionPulse * 5 + target.burn * 2 + target.vulnerable * 3 + s.professionCharge * 2);
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                heal += 2 + s.act;
+            }
+            if (overloadNow >= 2 || potionPulse >= 2 || statuses >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_BREW, 1);
+        }
+        if ("plaguedoctor_grand_plague".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int potionPulse = s.potions.size() + potionCards(s);
+            int pressure = bestEnemyPressure(s);
+            damage += Math.min(c.upgraded ? 90 : 68, s.professionCharge * 4 + statuses * 7
+                    + potionPulse * 7 + healingDeckCards(s) * 3 + pressure + overloadNow * 9);
+            block += Math.min(c.upgraded ? 62 : 46, s.professionCharge * 3 + statuses * 6
+                    + potionPulse * 4 + overloadNow * 6);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.burn += 3 + s.burnPower / 2;
+                target.bind += 2 + s.bindPower / 2;
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                heal += 3 + s.act;
+            }
+            Card lancet = new Card("plaguedoctor_lancet");
+            lancet.temp = true;
+            lancet.upgraded = true;
+            addToHand(s, lancet);
+            if (potionPulse >= 3 || statuses >= 2 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
@@ -15769,6 +16089,106 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_PLAGUEDOCTOR.equals(s.profession) && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.createEcho
+                || d.createWound || d.exhaust || "wound".equals(c.id) || "daze".equals(c.id)
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            int statuses = Math.min(10, statusDeckCards(s) + statusHandCards(s));
+            int potionPulse = s.potions.size() + potionCards(s);
+            if (e != null) {
+                if (d.createPotion || d.burn > 0 || d.profession.equals(PROF_PLAGUEDOCTOR)) {
+                    e.burn += 1 + s.burnPower / 2;
+                }
+                if (d.bind > 0 || d.vulnerable > 0 || statuses > 0 || "wound".equals(c.id) || "daze".equals(c.id)) {
+                    e.vulnerable += 1;
+                }
+                if (s.professionCharge >= 4 || potionPulse >= 3 || statuses >= 2 || s.cardsPlayedThisTurn >= 3) {
+                    e.mark += 1;
+                    damageEnemy(s, e, 3 + s.act + Math.min(33, e.burn * 2 + e.bind * 2
+                            + e.vulnerable * 3 + statuses * 4 + potionPulse * 3 + s.professionCharge * 2), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(18, s.professionCharge + statuses * 3
+                        + potionPulse * 2 + healingDeckCards(s) * 2));
+                if (statuses > 0 && (s.cardsPlayedThisTurn <= 4 || hasTalent(s, "t_plaguedoctor_mask"))) {
+                    removeStatusCard(s);
+                    s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+                }
+                if (s.cardsPlayedThisTurn >= 3 || d.createPotion || hasTalent(s, "t_plaguedoctor_lancet")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_plaguedoctor_lancet") && (d.createPotion || d.cost == 0 || d.draw > 0
+                || d.burn > 0 || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(25, e.mark * 2 + e.burn * 2
+                        + s.professionCharge * 2 + s.potions.size() * 4), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || d.createPotion) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_plaguedoctor_mask") && (d.block > 0 || d.heal > 0 || d.type == 1
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            gainBlock(s, 4 + s.act + Math.min(16, s.professionCharge + statuses * 3
+                    + s.potions.size() * 2 + healingDeckCards(s)));
+            if (statuses > 0 && s.cardsPlayedThisTurn <= 3) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (s.cardsPlayedThisTurn == 3 || statuses > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_plaguedoctor_quarantine") && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || d.createWound || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 9 || s.cardsPlayedThisTurn >= 3) {
+                    e.mark += 1;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(28, bestEnemyPressure(s)
+                            + statusDeckCards(s) * 4 + s.professionCharge * 2 + s.potions.size() * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_plaguedoctor_grand") && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.createEcho || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2 || d.createWound
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || s.potions.size() >= 2 || statusDeckCards(s) + statusHandCards(s) > 0)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(35, e.mark * 2 + e.vulnerable * 2
+                        + e.bind + e.burn + s.professionCharge * 2 + s.potions.size() * 4
+                        + statusDeckCards(s) * 4), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                if (s.potions.size() < potionLimit(s)) {
+                    PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                    s.potions.add(p.id);
+                    log(s, "终局疫潮调剂：" + p.name);
+                }
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -16481,6 +16901,53 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 gainBlock(s, 3 + s.act);
+            }
+        }
+        if (hasRelic(s, "plague_case") && (d.createPotion || d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.createWound
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            addProfessionSkillCharge(s, 1);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(12, s.professionCharge + statuses * 4 + s.potions.size() * 3));
+                if (statuses > 0 && s.relicTriggersThisTurn == 0) {
+                    removeStatusCard(s);
+                    s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.burn += 1 + s.burnPower / 2;
+                if (d.createPotion || d.burn > 0 || statuses > 0 || s.potions.size() >= 2) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(26, e.mark * 2
+                            + e.burn * 2 + e.vulnerable * 2 + statuses * 4 + s.professionCharge * 2
+                            + s.potions.size() * 3), true);
+                }
+            }
+        }
+        if (hasRelic(s, "plague_crown") && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.heal > 0 || d.createWound
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || s.potions.size() >= 2
+                        || statusDeckCards(s) + statusHandCards(s) > 0) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(31, e.mark * 2 + e.vulnerable * 2
+                            + e.bind + e.burn + s.professionCharge + s.potions.size() * 4
+                            + statusDeckCards(s) * 4), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                if (s.potions.size() < potionLimit(s)) {
+                    PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
+                    s.potions.add(p.id);
+                    log(s, "疫冠补剂：" + p.name);
+                }
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -17933,6 +18400,9 @@ public final class GameCore {
         if (PROF_FROSTBINDER.equals(d.profession)) {
             return frostbinderFocusCardValue(d, focus);
         }
+        if (PROF_PLAGUEDOCTOR.equals(d.profession)) {
+            return plaguedoctorFocusCardValue(d, focus);
+        }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
@@ -18807,6 +19277,45 @@ public final class GameCore {
         return 0;
     }
 
+    private static int plaguedoctorFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + (d.createPotion ? 3 : 0)
+                    + ("plaguedoctor_lancet".equals(d.id) ? 8 : 0) + ("plaguedoctor_quarantine".equals(d.id) ? 9 : 0)
+                    + ("plaguedoctor_overdose".equals(d.id) ? 16 : 0) + ("plaguedoctor_grand_plague".equals(d.id) ? 15 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + d.draw * 3 + (d.exhaust ? 4 : 0) + (d.cost == 0 ? 5 : 0)
+                    + ("plaguedoctor_lancet".equals(d.id) ? 10 : 0) + ("plaguedoctor_culture".equals(d.id) ? 12 : 0)
+                    + ("plaguedoctor_grand_plague".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return (d.createPotion ? 14 : 0) + d.burn * 4 + d.bind * 3 + d.heal * 3
+                    + ("plaguedoctor_lancet".equals(d.id) ? 14 : 0) + ("plaguedoctor_culture".equals(d.id) ? 18 : 0)
+                    + ("plaguedoctor_overdose".equals(d.id) ? 16 : 0) + ("plaguedoctor_grand_plague".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return d.heal * 6 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0)
+                    + ("plaguedoctor_mask".equals(d.id) ? 12 : 0) + ("plaguedoctor_grand_plague".equals(d.id) ? 8 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 5 + d.bind * 5 + d.vulnerable * 7 + (d.createWound ? 9 : 0)
+                    + d.skillChargeGain * 2 + ("wound".equals(d.id) || "daze".equals(d.id) ? 5 : 0)
+                    + ("plaguedoctor_lancet".equals(d.id) ? 10 : 0) + ("plaguedoctor_quarantine".equals(d.id) ? 18 : 0)
+                    + ("plaguedoctor_overdose".equals(d.id) ? 16 : 0) + ("plaguedoctor_grand_plague".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 6 : 0) + d.skillChargeGain * 2
+                    + (d.createPotion ? 3 : 0) + ("plaguedoctor_lancet".equals(d.id) ? 15 : 0)
+                    + ("plaguedoctor_culture".equals(d.id) ? 14 : 0) + ("plaguedoctor_overdose".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.heal * 4 + d.draw * 2
+                    + ("plaguedoctor_mask".equals(d.id) ? 18 : 0) + ("plaguedoctor_culture".equals(d.id) ? 14 : 0)
+                    + ("plaguedoctor_overdose".equals(d.id) ? 16 : 0) + ("plaguedoctor_grand_plague".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -19210,6 +19719,18 @@ public final class GameCore {
                 + buildFocusDeckCards(s, BUILD_GUARD) + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_OVERLOAD)
                 + bindDeckCards(s) * 2;
+        else if ("t_plaguedoctor_lancet".equals(id)) bonus += potionCards(s) * 3 + status * 2
+                + buildFocusDeckCards(s, BUILD_BREW) + buildFocusDeckCards(s, BUILD_CYCLE)
+                + professionCards;
+        else if ("t_plaguedoctor_mask".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + status * 3 + healingDeckCards(s) * 2 + professionCards + (s.hp < s.maxHp * 0.85f ? 5 : 2);
+        else if ("t_plaguedoctor_quarantine".equals(id)) bonus += burnDeckCards(s) * 2 + bindDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_OVERLOAD)
+                + professionCards;
+        else if ("t_plaguedoctor_grand".equals(id)) bonus += professionCards + potionCards(s) * 3
+                + status * 2 + buildFocusDeckCards(s, BUILD_BREW) + buildFocusDeckCards(s, BUILD_STATUS)
+                + buildFocusDeckCards(s, BUILD_GUARD) + buildFocusDeckCards(s, BUILD_ECHO)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -19217,6 +19738,14 @@ public final class GameCore {
         int coreFocus = buildCoreFocus(id);
         if (coreFocus >= 0) {
             return coreFocus == focus ? 6 : 0;
+        }
+        if (isAny(id, "t_plaguedoctor_lancet", "t_plaguedoctor_mask", "t_plaguedoctor_quarantine", "t_plaguedoctor_grand")) {
+            if (focus == BUILD_BREW || focus == BUILD_STATUS) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_plaguedoctor_quarantine", "t_plaguedoctor_grand")) return 3;
+            if (focus == BUILD_ECHO && isAny(id, "t_plaguedoctor_lancet", "t_plaguedoctor_grand")) return 3;
+            if (focus == BUILD_CYCLE && isAny(id, "t_plaguedoctor_lancet", "t_plaguedoctor_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_plaguedoctor_mask", "t_plaguedoctor_grand")) return 3;
+            if (focus == BUILD_BLOOD && isAny(id, "t_plaguedoctor_mask", "t_plaguedoctor_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -19690,6 +20219,19 @@ public final class GameCore {
                 && (bindDeckCards(s) >= 2 || statusDeckCards(s) > 0 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
             return "碎霜压制";
         }
+        if (isAny(id, "t_plaguedoctor_lancet", "t_plaguedoctor_grand")
+                && (potionCards(s) >= 2 || buildFocusDeckCards(s, BUILD_BREW) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3)) {
+            return "疫血回路";
+        }
+        if (isAny(id, "t_plaguedoctor_mask", "t_plaguedoctor_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || statusDeckCards(s) > 0 || s.hp < s.maxHp)) {
+            return "鸟喙防线";
+        }
+        if (isAny(id, "t_plaguedoctor_quarantine", "t_plaguedoctor_grand")
+                && (burnDeckCards(s) + bindDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2
+                || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
+            return "隔离压制";
+        }
         return "";
     }
 
@@ -19917,6 +20459,11 @@ public final class GameCore {
     }
 
     private static int relicFocusValue(String id, int focus) {
+        if ("plague_case".equals(id) || "plague_crown".equals(id)) {
+            return focus == BUILD_BREW || focus == BUILD_STATUS || focus == BUILD_CYCLE
+                    || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_BLOOD
+                    || focus == BUILD_ECHO ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -20056,7 +20603,8 @@ public final class GameCore {
                 || (PROF_SHIFTER.equals(s.profession) && "phase_lens".equals(id))
                 || (PROF_FATESEER.equals(s.profession) && "fate_lantern".equals(id))
                 || (PROF_TIDECALLER.equals(s.profession) && "tide_shell".equals(id))
-                || (PROF_FROSTBINDER.equals(s.profession) && "frost_chain".equals(id));
+                || (PROF_FROSTBINDER.equals(s.profession) && "frost_chain".equals(id))
+                || (PROF_PLAGUEDOCTOR.equals(s.profession) && "plague_case".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -20107,6 +20655,7 @@ public final class GameCore {
                 || hasRelic(s, "fate_lantern") || hasRelic(s, "fate_crown")
                 || hasRelic(s, "tide_shell") || hasRelic(s, "tide_crown")
                 || hasRelic(s, "frost_chain") || hasRelic(s, "frost_crown")
+                || hasRelic(s, "plague_case") || hasRelic(s, "plague_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
@@ -20328,6 +20877,12 @@ public final class GameCore {
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FROSTBINDER))) {
             return 4;
         }
+        if (PROF_PLAGUEDOCTOR.equals(s.profession) && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.createEcho || d.createWound || "wound".equals(d.id) || "daze".equals(d.id)
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -20547,6 +21102,14 @@ public final class GameCore {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus) bonus += 1;
             if (salvageCardId(d.id)) bonus += 5;
         }
+        if (isAny(d.id, "plaguedoctor_lancet", "plaguedoctor_mask", "plaguedoctor_culture",
+                "plaguedoctor_quarantine", "plaguedoctor_overdose", "plaguedoctor_grand_plague")) {
+            if (isAny(spec.id, "spec_burst", "spec_control", "spec_pressure", "spec_mastery")) bonus += 4;
+            if (isAny(spec.id, "spec_tempo", "spec_echoflow")) bonus += isAny(d.id, "plaguedoctor_lancet",
+                    "plaguedoctor_culture", "plaguedoctor_overdose", "plaguedoctor_grand_plague") ? 4 : 2;
+            if (isAny(spec.id, "spec_sustain", "spec_bulwark", "spec_salvage")) bonus += isAny(d.id, "plaguedoctor_mask",
+                    "plaguedoctor_culture", "plaguedoctor_overdose", "plaguedoctor_grand_plague") ? 4 : 2;
+        }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
         }
@@ -20589,6 +21152,9 @@ public final class GameCore {
                 || "geomancer_grand_fault".equals(id) || "witch_brew".equals(id)
                 || "witch_ward".equals(id) || "witch_charm".equals(id)
                 || "witch_overbrew".equals(id) || "witch_grand_cauldron".equals(id)
+                || "plaguedoctor_lancet".equals(id) || "plaguedoctor_mask".equals(id)
+                || "plaguedoctor_culture".equals(id) || "plaguedoctor_overdose".equals(id)
+                || "plaguedoctor_grand_plague".equals(id)
                 || "fusion_spark".equals(id) || "echo_forge_loop".equals(id)
                 || "prism_guard_matrix".equals(id) || "apex_resonance".equals(id);
     }
@@ -20639,7 +21205,9 @@ public final class GameCore {
                 || "geomancer_quake".equals(id) || "geomancer_overquake".equals(id)
                 || "geomancer_grand_fault".equals(id) || "witch_brew".equals(id)
                 || "witch_curse".equals(id) || "witch_overbrew".equals(id)
-                || "witch_grand_cauldron".equals(id) || "shifter_anchor".equals(id)
+                || "witch_grand_cauldron".equals(id) || "plaguedoctor_lancet".equals(id)
+                || "plaguedoctor_quarantine".equals(id) || "plaguedoctor_overdose".equals(id)
+                || "plaguedoctor_grand_plague".equals(id) || "shifter_anchor".equals(id)
                 || "shifter_overblink".equals(id) || "shifter_grand_paradox".equals(id);
     }
 
@@ -20660,6 +21228,8 @@ public final class GameCore {
                 || "geomancer_mantle".equals(id) || "geomancer_geode".equals(id)
                 || "geomancer_grand_fault".equals(id) || "witch_ward".equals(id)
                 || "witch_charm".equals(id) || "witch_grand_cauldron".equals(id)
+                || "plaguedoctor_mask".equals(id) || "plaguedoctor_culture".equals(id)
+                || "plaguedoctor_overdose".equals(id) || "plaguedoctor_grand_plague".equals(id)
                 || "hybrid_coinwall".equals(id)
                 || "hybrid_spirit_anvil".equals(id) || "echo_forge_loop".equals(id)
                 || "apex_resonance".equals(id);
@@ -20684,7 +21254,9 @@ public final class GameCore {
                 || "lightkeeper_vigil".equals(id) || "lightkeeper_prism".equals(id)
                 || "lightkeeper_overflare".equals(id) || "lightkeeper_grand_beacon".equals(id)
                 || "witch_ward".equals(id) || "witch_charm".equals(id)
-                || "witch_grand_cauldron".equals(id);
+                || "witch_grand_cauldron".equals(id) || "plaguedoctor_lancet".equals(id)
+                || "plaguedoctor_mask".equals(id) || "plaguedoctor_culture".equals(id)
+                || "plaguedoctor_grand_plague".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -20961,6 +21533,16 @@ public final class GameCore {
                 || d.profession.equals(PROF_FROSTBINDER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "plague_case") && (d.createPotion || d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.createWound
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "plague_crown") && (d.createPotion || d.burn > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.heal > 0 || d.createWound
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -20998,7 +21580,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -21036,6 +21618,7 @@ public final class GameCore {
         if (PROF_FATESEER.equals(s.profession)) return "fate_lantern";
         if (PROF_TIDECALLER.equals(s.profession)) return "tide_shell";
         if (PROF_FROSTBINDER.equals(s.profession)) return "frost_chain";
+        if (PROF_PLAGUEDOCTOR.equals(s.profession)) return "plague_case";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -21425,6 +22008,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_FROSTBINDER.equals(s.profession) && "frost_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_PLAGUEDOCTOR.equals(s.profession) && ("plague_case".equals(id) || "glass_vials".equals(id)
+                || "hex_moon".equals(id) || "curse_censer".equals(id) || "bloodcoin_broach".equals(id)
+                || "emberroot_charm".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                || "overload_etch".equals(id) || "discipline_chart".equals(id) || "confluence_map".equals(id)
+                || "mosaic_core".equals(id) || "resonance_prism".equals(id) || "witch_bottle".equals(id)
+                || "witch_moon_crown".equals(id))) {
+            return 2;
+        }
+        if (PROF_PLAGUEDOCTOR.equals(s.profession) && "plague_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -21899,6 +22493,21 @@ public final class GameCore {
         } else if ("frost_crown".equals(id)) {
             addUpgradedDeckCard(s, "frostbinder_grand_winter");
             addUpgradedDeckCard(s, "frostbinder_shard");
+            removeStatusCard(s);
+            removeStatusCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("plague_case".equals(id)) {
+            addUpgradedDeckCard(s, "plaguedoctor_culture");
+            removeStatusCard(s);
+            while (s.potions.size() < Math.min(potionLimit(s), 3)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("plague_crown".equals(id)) {
+            addUpgradedDeckCard(s, "plaguedoctor_grand_plague");
+            addUpgradedDeckCard(s, "plaguedoctor_lancet");
             removeStatusCard(s);
             removeStatusCard(s);
             s.maxHp += 5;
@@ -22711,6 +23320,19 @@ public final class GameCore {
         c = addCard("frostbinder_grand_winter", "终局凛冬", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按霜纹、状态、束缚、守势和过载追加终局收益。", "更高伤害、格挡和凛冬返还。");
         c.profession = PROF_FROSTBINDER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "frostbinder_shard"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("plaguedoctor_lancet", "疫血柳叶", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加燃灼；病灶、药剂和状态牌会提高收益。", "更高伤害、燃灼和病灶。");
+        c.profession = PROF_PLAGUEDOCTOR; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("plaguedoctor_mask", "鸟喙面具", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌和治疗；状态压力越高防线越稳。", "更多格挡、治疗和净化收益。");
+        c.profession = PROF_PLAGUEDOCTOR; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.skillChargeGain = 1;
+        c = addCard("plaguedoctor_culture", "培菌瓶", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌并调制药剂；制造临时疫血柳叶。", "更多格挡、调剂和返能窗口。");
+        c.profession = PROF_PLAGUEDOCTOR; c.draw = c.drawUp = 1; c.createPotion = true; c.createEcho = true; c.echoCardId = "plaguedoctor_lancet"; c.skillChargeGain = 1;
+        c = addCard("plaguedoctor_quarantine", "隔离病房", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加燃灼、束缚和易伤；状态牌会转成隔离爆发。", "更高伤害、燃缚和压制。");
+        c.profession = PROF_PLAGUEDOCTOR; c.burn = 2; c.burnUp = 3; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("plaguedoctor_overdose", "过载疫剂", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌、调剂和充能；过载、药剂与状态会追加疫剂爆发。", "更多格挡、异常和充能。");
+        c.profession = PROF_PLAGUEDOCTOR; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.vulnerable = 1; c.createPotion = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("plaguedoctor_grand_plague", "终局疫潮", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按病灶、药剂、状态、治疗和过载追加终局收益。", "更高伤害、格挡和疫潮返还。");
+        c.profession = PROF_PLAGUEDOCTOR; c.draw = c.drawUp = 1; c.burn = 2; c.burnUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createPotion = true; c.createEcho = true; c.echoCardId = "plaguedoctor_lancet"; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -22998,6 +23620,8 @@ public final class GameCore {
         addRelicDef("tide_crown", "潮冠", "获得升级终局潮汐；潮汐使格挡、束缚、抽牌、充能和稀有牌会滚动束缚、抽牌与回潮追击。");
         addRelicDef("frost_chain", "霜链", "霜缚者状态、束缚、格挡、抽牌和职业牌更快推动职业技；释放后制造霜片并净化状态。");
         addRelicDef("frost_crown", "霜冠", "获得升级终局凛冬；霜缚者状态、束缚、抽牌、充能和稀有牌会滚动束缚、抽牌与碎霜追击。");
+        addRelicDef("plague_case", "疫医箱", "瘟疫医师药剂、状态、治疗、异常和职业牌更快推动职业技；释放后制造柳叶并净化病灶。");
+        addRelicDef("plague_crown", "疫冠", "获得升级终局疫潮；瘟疫医师药剂、状态、异常、治疗、充能和稀有牌会滚动标记、补药与疫潮追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -23249,6 +23873,9 @@ public final class GameCore {
         addTalent("t_frostbinder_shard", PROF_FROSTBINDER, "霜片回路", "获得升级霜片刻痕；低费、抽牌、束缚和状态牌追加印记，并把霜纹转成穿透追击。");
         addTalent("t_frostbinder_ward", PROF_FROSTBINDER, "霜幕防线", "获得生命和升级霜幕护印；格挡、技能、抽牌和状态牌提供额外防线，并在关键节奏净化状态。");
         addTalent("t_frostbinder_shatter", PROF_FROSTBINDER, "碎霜压制", "获得升级碎霜缚击；束缚、易伤、状态和充能牌会扩张控制压力并转成碎霜追击。");
+        addTalent("t_plaguedoctor_lancet", PROF_PLAGUEDOCTOR, "疫血回路", "获得升级疫血柳叶和药剂；低费、抽牌、制药和燃灼牌追加标记，并把病灶转成穿透追击。");
+        addTalent("t_plaguedoctor_mask", PROF_PLAGUEDOCTOR, "鸟喙防线", "获得生命和升级鸟喙面具；格挡、治疗、技能和状态牌提供额外防线，并在关键节奏净化状态。");
+        addTalent("t_plaguedoctor_quarantine", PROF_PLAGUEDOCTOR, "隔离压制", "获得升级隔离病房；燃灼、束缚、易伤和充能牌会扩张感染压力并转成疫潮追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -23286,6 +23913,7 @@ public final class GameCore {
         addTalent("t_fateseer_grand", PROF_FATESEER, "终局命图", "获得升级终局命图；检视、升级、汇流、抽牌与过载牌持续改写手牌并把预见印记转为改命裁切。");
         addTalent("t_tidecaller_grand", PROF_TIDECALLER, "终局潮汐", "获得升级终局潮汐；格挡、束缚、抽牌、连打与过载牌持续加固防线并把潮势印记转为回潮裁切。");
         addTalent("t_frostbinder_grand", PROF_FROSTBINDER, "终局凛冬", "获得升级终局凛冬；状态、束缚、格挡、消耗与过载牌持续加固防线并把霜纹印记转为凛冬裁切。");
+        addTalent("t_plaguedoctor_grand", PROF_PLAGUEDOCTOR, "终局疫潮", "获得升级终局疫潮；药剂、状态、治疗、异常与过载牌持续抽牌、补药并把病灶印记转为疫潮裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

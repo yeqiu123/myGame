@@ -236,6 +236,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_FATESEER.equals(s.profession) && isFateseerSignal(d)) score += 14;
             if (GameCore.PROF_TIDECALLER.equals(s.profession) && isTidecallerSignal(d)) score += 14;
             if (GameCore.PROF_FROSTBINDER.equals(s.profession) && isFrostbinderSignal(d)) score += 14;
+            if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && isPlaguedoctorSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -296,6 +297,7 @@ public final class SimulationHarness {
             if (isFateseerCard(d)) score += 14;
             if (isTidecallerCard(d)) score += 14;
             if (isFrostbinderCard(d)) score += 14;
+            if (isPlaguedoctorCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -373,6 +375,10 @@ public final class SimulationHarness {
                     || d.bind > 0 || d.draw > 0 || d.exhaust || d.createWound)) score += 18;
             if (s.relics.contains("frost_crown") && (isFrostbinderSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.block > 0 || d.bind > 0)) score += 20;
+            if (s.relics.contains("plague_case") && (isPlaguedoctorSignal(d) || d.createPotion
+                    || d.burn > 0 || d.bind > 0 || d.heal > 0 || d.createWound)) score += 18;
+            if (s.relics.contains("plague_crown") && (isPlaguedoctorSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.createPotion || d.burn > 0 || d.bind > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -546,6 +552,14 @@ public final class SimulationHarness {
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "echo_ledger".equals(id)
                     || "void_abacus".equals(id))) score += 36;
+            if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && ("plague_crown".equals(id) || "plague_case".equals(id)
+                    || "glass_vials".equals(id) || "cinder_spoon".equals(id) || "green_bell".equals(id)
+                    || "emberroot_charm".equals(id) || "stormglass_seal".equals(id) || "curse_censer".equals(id)
+                    || "echoflow_charm".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                    || "overload_etch".equals(id) || "discipline_chart".equals(id) || "salvage_hook".equals(id)
+                    || "bulwark_core".equals(id) || "hex_moon".equals(id) || "void_abacus".equals(id)
+                    || "echo_ledger".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
+                    || "mosaic_core".equals(id) || "starforge_lens".equals(id) || "resonance_prism".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -586,6 +600,7 @@ public final class SimulationHarness {
             if ("fate_lantern".equals(id) || "fate_crown".equals(id)) score += 20;
             if ("tide_shell".equals(id) || "tide_crown".equals(id)) score += 20;
             if ("frost_chain".equals(id) || "frost_crown".equals(id)) score += 20;
+            if ("plague_case".equals(id) || "plague_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -735,6 +750,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_FROSTBINDER.equals(s.profession) && ("pact_hex".equals(id) || "pact_guardian".equals(id)
                     || "pact_suppression".equals(id) || "pact_void".equals(id) || "pact_hunter".equals(id)
                     || "pact_confluence".equals(id))) score += 24;
+            if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && ("pact_brewer".equals(id) || "pact_hex".equals(id)
+                    || "pact_suppression".equals(id) || "pact_confluence".equals(id) || "pact_hunter".equals(id)
+                    || "pact_guardian".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -905,6 +923,10 @@ public final class SimulationHarness {
             if (GameCore.PROF_FROSTBINDER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_control".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id)
                     || "spec_echoflow".equals(id) || "spec_bulwark".equals(id) || "spec_sustain".equals(id))) score += 10;
+            if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
+                    || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id)
+                    || "spec_sustain".equals(id) || "spec_bulwark".equals(id))) score += 10;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -1233,6 +1255,19 @@ public final class SimulationHarness {
                     if (statusDeckCards(s) >= 1 && ("frostbinder_ward".equals(c.id) || "frostbinder_rime".equals(c.id)
                             || "frostbinder_grand_winter".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && (isPlaguedoctorSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.createPotion || d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.heal > 0
+                            || "wound".equals(c.id) || "daze".equals(c.id) || isPlaguedoctorCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isPlaguedoctorCard(d)
+                            || d.createPotion || d.heal > 0)) score += 6;
+                    if (plaguedoctorEnemyPressure(s) >= 8 && ("plaguedoctor_quarantine".equals(c.id)
+                            || "plaguedoctor_overdose".equals(c.id) || "plaguedoctor_grand_plague".equals(c.id))) score += 8;
+                    if ((s.potions.size() >= 2 || statusDeckCards(s) >= 1 || s.hp < s.maxHp || s.block >= 14)
+                            && (d.draw > 0 || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0 || isPlaguedoctorCard(d))) score += 5;
+                    if (statusDeckCards(s) >= 1 && ("plaguedoctor_mask".equals(c.id) || "plaguedoctor_culture".equals(c.id)
+                            || "plaguedoctor_grand_plague".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1399,6 +1434,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || "wound".equals(c.id) || "daze".equals(c.id) || isFrostbinderCard(d))) score += 12;
                 if (s.talents.contains("t_frostbinder_grand") && (d.block > 0 || d.bind > 0
                         || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isFrostbinderCard(d))) score += 14;
+                if (s.talents.contains("t_plaguedoctor_lancet") && (d.createPotion || d.cost == 0 || d.draw > 0
+                        || d.burn > 0 || isPlaguedoctorCard(d))) score += 12;
+                if (s.talents.contains("t_plaguedoctor_mask") && (d.block > 0 || d.heal > 0 || d.type == 1
+                        || "wound".equals(c.id) || "daze".equals(c.id) || isPlaguedoctorCard(d))) score += 12;
+                if (s.talents.contains("t_plaguedoctor_quarantine") && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                        || d.skillChargeGain > 0 || isPlaguedoctorCard(d))) score += 12;
+                if (s.talents.contains("t_plaguedoctor_grand") && (d.createPotion || d.burn > 0 || d.bind > 0
+                        || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isPlaguedoctorCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1474,6 +1517,9 @@ public final class SimulationHarness {
                 if ("frostbinder_grand_winter".equals(c.id) || "frostbinder_overfreeze".equals(c.id)) score += 18;
                 if ("frostbinder_shard".equals(c.id) || "frostbinder_ward".equals(c.id)
                         || "frostbinder_rime".equals(c.id) || "frostbinder_shatter".equals(c.id)) score += 14;
+                if ("plaguedoctor_grand_plague".equals(c.id) || "plaguedoctor_overdose".equals(c.id)) score += 18;
+                if ("plaguedoctor_lancet".equals(c.id) || "plaguedoctor_mask".equals(c.id)
+                        || "plaguedoctor_culture".equals(c.id) || "plaguedoctor_quarantine".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -1609,6 +1655,10 @@ public final class SimulationHarness {
                         || d.block > 0 || d.bind > 0 || d.draw > 0 || d.exhaust)) score += 14;
                 if (s.relics.contains("frost_crown") && (isFrostbinderSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.block > 0 || d.bind > 0)) score += 16;
+                if (s.relics.contains("plague_case") && (isPlaguedoctorSignal(d) || c.temp
+                        || d.createPotion || d.burn > 0 || d.bind > 0 || d.heal > 0)) score += 14;
+                if (s.relics.contains("plague_crown") && (isPlaguedoctorSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.createPotion || d.burn > 0 || d.bind > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -1841,6 +1891,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean plagueWindow = target >= 0 && (s.enemies.get(target).burn + s.enemies.get(target).bind >= 4
+                    || s.enemies.get(target).vulnerable > 0 || s.enemies.get(target).mark >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || plagueWindow || s.potions.size() >= 2
+                    || statusDeckCards(s) >= 1 || plaguedoctorEnemyPressure(s) >= 7
+                    || s.hp < s.maxHp * 0.75f || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -1858,7 +1918,8 @@ public final class SimulationHarness {
                 || "t_dreamwalker_drift".equals(id) || "t_gardener_sprout".equals(id)
                 || "t_chef_prep".equals(id) || "t_bard_chorus".equals(id)
                 || "t_mirrorist_reflect".equals(id) || "t_puppeteer_rehearse".equals(id)
-                || "t_scavenger_market".equals(id));
+                || "t_scavenger_market".equals(id) || "t_plaguedoctor_lancet".equals(id)
+                || "t_plaguedoctor_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -1932,7 +1993,7 @@ public final class SimulationHarness {
                     "chef_overcook", "bard_overcrescendo", "mirrorist_overimage",
                     "puppeteer_overpull", "scavenger_overhaul", "geomancer_overquake", "witch_overbrew",
                     "shifter_overblink", "fateseer_overfate", "tidecaller_overtide", "frostbinder_overfreeze",
-                    "fusion_spark",
+                    "plaguedoctor_overdose", "plaguedoctor_grand_plague", "fusion_spark",
                     "prism_guard_matrix", "apex_resonance") ? 12 : 0)
                     + (isAny(d.id, "hybrid_guard_conduit", "hybrid_bloodcharge", "hybrid_rift_engine",
                     "confluence_chord", "prism_anchor", "apex_confluence") ? 8 : 0);
@@ -1947,7 +2008,8 @@ public final class SimulationHarness {
                     "mirrorist_reflect", "puppeteer_rehearse", "echo_forge_loop",
                     "shifter_slip", "shifter_screen", "shifter_anchor", "shifter_grand_paradox",
                     "fateseer_omen", "fateseer_grand_design", "tidecaller_ripple", "tidecaller_current",
-                    "frostbinder_shard", "frostbinder_rime", "frostbinder_grand_winter", "apex_resonance") ? 10 : 0);
+                    "frostbinder_shard", "frostbinder_rime", "frostbinder_grand_winter",
+                    "plaguedoctor_culture", "plaguedoctor_grand_plague", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 6 : 0)
@@ -1955,7 +2017,9 @@ public final class SimulationHarness {
                     + (isAny(d.id, "brew_crucible", "hybrid_plague_brew", "hybrid_echo_vial",
                     "chef_prep", "chef_spice", "chef_sizzle", "chef_overcook", "chef_grand_banquet",
                     "alchemist_sunsteel", "witch_brew", "witch_charm", "witch_overbrew",
-                    "witch_grand_cauldron", "fusion_spark", "bloodcoin_catalyst") ? 10 : 0);
+                    "witch_grand_cauldron", "plaguedoctor_lancet", "plaguedoctor_culture",
+                    "plaguedoctor_overdose", "plaguedoctor_grand_plague", "fusion_spark",
+                    "bloodcoin_catalyst") ? 10 : 0);
         }
         if (focus == BUILD_GOLD) {
             return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0)
@@ -1995,7 +2059,9 @@ public final class SimulationHarness {
                     "shifter_grand_paradox", "fateseer_thread", "fateseer_overfate",
                     "fateseer_grand_design", "tidecaller_ripple", "tidecaller_surge",
                     "tidecaller_overtide", "tidecaller_grand_tide", "frostbinder_shard",
-                    "frostbinder_shatter", "frostbinder_overfreeze", "frostbinder_grand_winter", "fusion_spark",
+                    "frostbinder_shatter", "frostbinder_overfreeze", "frostbinder_grand_winter",
+                    "plaguedoctor_lancet", "plaguedoctor_quarantine", "plaguedoctor_overdose",
+                    "plaguedoctor_grand_plague", "fusion_spark",
                     "bloodcoin_catalyst", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_CYCLE) {
@@ -2011,7 +2077,8 @@ public final class SimulationHarness {
                     "fateseer_omen", "fateseer_wheel", "fateseer_overfate",
                     "tidecaller_ripple", "tidecaller_current", "tidecaller_overtide",
                     "frostbinder_shard", "frostbinder_rime", "frostbinder_overfreeze",
-                    "fusion_spark", "echo_forge_loop",
+                    "plaguedoctor_lancet", "plaguedoctor_culture", "plaguedoctor_overdose",
+                    "plaguedoctor_grand_plague", "fusion_spark", "echo_forge_loop",
                     "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_GUARD) {
@@ -2028,7 +2095,8 @@ public final class SimulationHarness {
                     "fateseer_veil", "fateseer_wheel", "fateseer_overfate", "fateseer_grand_design",
                     "tidecaller_breaker", "tidecaller_current", "tidecaller_overtide", "tidecaller_grand_tide",
                     "frostbinder_ward", "frostbinder_rime", "frostbinder_overfreeze", "frostbinder_grand_winter",
-                    "echo_forge_loop", "prism_guard_matrix", "apex_resonance") ? 10 : 0);
+                    "plaguedoctor_mask", "plaguedoctor_culture", "plaguedoctor_overdose",
+                    "plaguedoctor_grand_plague", "echo_forge_loop", "prism_guard_matrix", "apex_resonance") ? 10 : 0);
         }
         return 0;
     }
@@ -2045,7 +2113,7 @@ public final class SimulationHarness {
                     "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
                     "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
-                    "frost_chain", "frost_crown") ? 3 : 0;
+                    "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "void_abacus", "echo_prism", "singularity_orb",
@@ -2053,14 +2121,14 @@ public final class SimulationHarness {
                     "ancestral_planchette", "dreamcatcher_charm", "oneiric_crown", "songbook",
                     "finale_crown", "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "resonance_prism", "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "tide_shell", "tide_crown", "frost_chain", "frost_crown") ? 3 : 0;
+                    "tide_shell", "tide_crown", "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell",
                     "alchemist_case", "glass_vials", "catalyst_pump", "solar_crucible",
                     "emberroot_charm", "split_anvil", "bloodspark_contract", "recipe_book",
                     "banquet_crown", "seed_satchel", "verdant_crown", "resonance_prism",
-                    "witch_bottle", "witch_moon_crown", "phase_crown") ? 3 : 0;
+                    "witch_bottle", "witch_moon_crown", "phase_crown", "plague_case", "plague_crown") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
@@ -2072,7 +2140,7 @@ public final class SimulationHarness {
             return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
                     "bloodspark_contract", "crimson_seal", "blood_crown", "blood_contract",
                     "contract_stamp", "grand_ledger", "hex_moon", "vital_sprout",
-                    "resonance_prism", "witch_moon_crown", "phase_crown") ? 3 : 0;
+                    "resonance_prism", "witch_moon_crown", "phase_crown", "plague_crown") ? 3 : 0;
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
@@ -2081,7 +2149,7 @@ public final class SimulationHarness {
                     "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism",
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown",
                     "faultline_core", "tectonic_crown", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "fate_lantern", "fate_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "plague_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -2093,7 +2161,7 @@ public final class SimulationHarness {
                     "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
                     "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
-                    "frost_chain", "frost_crown") ? 3 : 0;
+                    "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum",
@@ -2104,7 +2172,7 @@ public final class SimulationHarness {
                     "songbook", "finale_crown", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
                     "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
-                    "frost_chain", "frost_crown") ? 3 : 0;
+                    "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -2116,7 +2184,7 @@ public final class SimulationHarness {
                     "starforge_lens", "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
                     "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
-                    "frost_chain", "frost_crown") ? 3 : 0;
+                    "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -2173,6 +2241,7 @@ public final class SimulationHarness {
                 || s.relics.contains("fate_lantern") || s.relics.contains("fate_crown")
                 || s.relics.contains("tide_shell") || s.relics.contains("tide_crown")
                 || s.relics.contains("frost_chain") || s.relics.contains("frost_crown")
+                || s.relics.contains("plague_case") || s.relics.contains("plague_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2432,6 +2501,29 @@ public final class SimulationHarness {
         return d != null && ("frostbinder_shard".equals(d.id) || "frostbinder_ward".equals(d.id)
                 || "frostbinder_rime".equals(d.id) || "frostbinder_shatter".equals(d.id)
                 || "frostbinder_overfreeze".equals(d.id) || "frostbinder_grand_winter".equals(d.id));
+    }
+
+    private static boolean isPlaguedoctorSignal(GameCore.CardDef d) {
+        return d != null && (d.createPotion || d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.heal > 0 || d.block > 0 || d.draw > 0 || d.createEcho || d.skillChargeGain > 0
+                || d.createWound || "wound".equals(d.id) || "daze".equals(d.id)
+                || isHybridCore(d) || GameCore.PROF_PLAGUEDOCTOR.equals(d.profession));
+    }
+
+    private static boolean isPlaguedoctorCard(GameCore.CardDef d) {
+        return d != null && ("plaguedoctor_lancet".equals(d.id) || "plaguedoctor_mask".equals(d.id)
+                || "plaguedoctor_culture".equals(d.id) || "plaguedoctor_quarantine".equals(d.id)
+                || "plaguedoctor_overdose".equals(d.id) || "plaguedoctor_grand_plague".equals(d.id));
+    }
+
+    private static int plaguedoctorEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.burn * 3 + e.bind * 3 + e.vulnerable * 2 + e.mark * 2;
+            }
+        }
+        return pressure;
     }
 
     private static int frostbinderEnemyPressure(GameCore.State s) {
