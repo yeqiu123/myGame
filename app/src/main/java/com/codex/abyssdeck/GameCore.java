@@ -125,6 +125,7 @@ public final class GameCore {
     public static final String PROF_WITCH = "药巫";
     public static final String PROF_SHIFTER = "移形师";
     public static final String PROF_FATESEER = "命轮师";
+    public static final String PROF_TIDECALLER = "潮汐使";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -133,7 +134,7 @@ public final class GameCore {
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
-            PROF_WITCH, PROF_SHIFTER, PROF_FATESEER
+            PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -824,6 +825,7 @@ public final class GameCore {
         if (PROF_WITCH.equals(profession)) return "巫酿";
         if (PROF_SHIFTER.equals(profession)) return "折跃";
         if (PROF_FATESEER.equals(profession)) return "改命";
+        if (PROF_TIDECALLER.equals(profession)) return "回潮";
         return "职业技";
     }
 
@@ -897,6 +899,7 @@ public final class GameCore {
         if (PROF_WITCH.equals(profession)) return "满充能：消耗药性发动巫酿，按药剂、状态、临时牌和异常压力造成穿透，治疗、抽牌并制造药灵牌。";
         if (PROF_SHIFTER.equals(profession)) return "满充能：消耗相位发动折跃，按低费连打、临时牌、弃牌、控制和过载造成穿透，获得格挡、抽牌并制造移形牌。";
         if (PROF_FATESEER.equals(profession)) return "满充能：消耗预见改命，按检视、升级牌、抽牌、汇流和过载造成穿透，升级手牌、获得格挡并制造命轮牌。";
+        if (PROF_TIDECALLER.equals(profession)) return "满充能：消耗潮势回潮，按格挡、束缚、抽牌、连打和过载造成穿透，获得格挡、抽牌并制造潮汐牌。";
         return "选择职业后可用。";
     }
 
@@ -1962,6 +1965,48 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, labels / 2)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, foresight / 2);
+        } else if (PROF_TIDECALLER.equals(s.profession)) {
+            int tide = Math.max(1, s.professionCharge);
+            int guard = Math.min(18, s.block / 4 + buildFocusDeckCards(s, BUILD_GUARD));
+            int binds = Math.min(16, bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS)
+                    + (target == null ? bestEnemyPressure(s) / 6 : target.bind + target.vulnerable));
+            int flow = Math.min(14, s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE)
+                    + zeroCostDeckCards(s) / 2);
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 2 + target.vulnerable * 3 + target.bind * 4 + target.burn;
+            int damage = 8 + s.act * 3 + Math.min(64, tide * 3 + guard * 3
+                    + binds * 4 + flow * 3 + pressure) + overload * 6;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.bind += 2 + Math.min(4, tide / 3 + guard / 4) + s.bindPower / 2 + overload / 2;
+                target.mark += 1 + Math.min(3, flow / 4 + overload / 3);
+                if (binds >= 4 || hasTalent(s, "t_tidecaller_surge")) {
+                    target.vulnerable += 1 + Math.min(2, overload / 4);
+                }
+            }
+            gainBlock(s, 6 + s.act * 2 + Math.min(36, tide * 2 + guard * 3 + binds * 2
+                    + flow) + overload * 3);
+            draw(s, 1 + Math.min(3, tide / 5 + flow / 5 + guard / 6) + overload / 4);
+            if (guard >= 5 || binds >= 5 || flow >= 6 || overload >= 3) {
+                s.energy++;
+            }
+            Card ripple = new Card(overload >= 4 || hasTalent(s, "t_tidecaller_grand")
+                    ? "tidecaller_grand_tide" : "tidecaller_ripple");
+            ripple.temp = true;
+            ripple.upgraded = tide >= 5 || hasTalent(s, "t_tidecaller_ripple");
+            addToHand(s, ripple);
+            if (hasTalent(s, "t_tidecaller_grand")) {
+                Card current = new Card("tidecaller_current");
+                current.temp = true;
+                current.upgraded = true;
+                addToHand(s, current);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, Math.max(1, pressure / 8)));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, flow / 3)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, tide / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3433,6 +3478,9 @@ public final class GameCore {
         if (PROF_FATESEER.equals(profession)) {
             return "用检视、升级、抽牌和汇流积累预见，把牌序规划转成改命爆发。适合工坊、循环、汇流、标链和过载构筑。";
         }
+        if (PROF_TIDECALLER.equals(profession)) {
+            return "用格挡、束缚、抽牌和连打积累潮势，把防线与控场转成回潮爆发。适合守势、异常、循环、标链和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3541,6 +3589,9 @@ public final class GameCore {
         }
         if (PROF_FATESEER.equals(profession)) {
             return 0xfff0c77b;
+        }
+        if (PROF_TIDECALLER.equals(profession)) {
+            return 0xff79d4e8;
         }
         return 0xffd6c07a;
     }
@@ -3918,6 +3969,13 @@ public final class GameCore {
             s.hp += 1;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_TIDECALLER.equals(profession)) {
+            s.deck.add(new Card("tidecaller_ripple"));
+            s.deck.add(new Card("tidecaller_breaker"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3974,6 +4032,7 @@ public final class GameCore {
         else if (PROF_WITCH.equals(profession)) upgradeDeckCard(s, "witch_brew");
         else if (PROF_SHIFTER.equals(profession)) upgradeDeckCard(s, "shifter_slip");
         else if (PROF_FATESEER.equals(profession)) upgradeDeckCard(s, "fateseer_omen");
+        else if (PROF_TIDECALLER.equals(profession)) upgradeDeckCard(s, "tidecaller_ripple");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4113,6 +4172,11 @@ public final class GameCore {
             addUpgradedDeckCard(s, "fateseer_wheel");
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_TIDECALLER.equals(profession)) {
+            addUpgradedDeckCard(s, "tidecaller_current");
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4152,6 +4216,7 @@ public final class GameCore {
         if (PROF_WITCH.equals(profession)) return "witch_overbrew";
         if (PROF_SHIFTER.equals(profession)) return "shifter_overblink";
         if (PROF_FATESEER.equals(profession)) return "fateseer_overfate";
+        if (PROF_TIDECALLER.equals(profession)) return "tidecaller_overtide";
         return "forge_signal";
     }
 
@@ -4669,6 +4734,19 @@ public final class GameCore {
         } else if ("t_fateseer_grand".equals(id)) {
             addUpgradedDeckCard(s, "fateseer_grand_design");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_tidecaller_ripple".equals(id)) {
+            addUpgradedDeckCard(s, "tidecaller_ripple");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_tidecaller_breaker".equals(id)) {
+            addUpgradedDeckCard(s, "tidecaller_breaker");
+            s.maxHp += 2;
+            s.hp += 2;
+        } else if ("t_tidecaller_surge".equals(id)) {
+            addUpgradedDeckCard(s, "tidecaller_surge");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_tidecaller_grand".equals(id)) {
+            addUpgradedDeckCard(s, "tidecaller_grand_tide");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5112,7 +5190,7 @@ public final class GameCore {
                 || "t_puppeteer_grand".equals(id) || "t_scavenger_grand".equals(id)
                 || "t_lightkeeper_grand".equals(id) || "t_geomancer_grand".equals(id)
                 || "t_witch_grand".equals(id) || "t_shifter_grand".equals(id)
-                || "t_fateseer_grand".equals(id);
+                || "t_fateseer_grand".equals(id) || "t_tidecaller_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5133,7 +5211,7 @@ public final class GameCore {
                 || "puppeteer_grand_stage".equals(id) || "scavenger_grand_foundry".equals(id)
                 || "lightkeeper_grand_beacon".equals(id) || "geomancer_grand_fault".equals(id)
                 || "witch_grand_cauldron".equals(id) || "shifter_grand_paradox".equals(id)
-                || "fateseer_grand_design".equals(id);
+                || "fateseer_grand_design".equals(id) || "tidecaller_grand_tide".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5154,7 +5232,7 @@ public final class GameCore {
                 || "marionette_crown".equals(id) || "scrap_king_crown".equals(id)
                 || "dawn_beacon".equals(id) || "tectonic_crown".equals(id)
                 || "witch_moon_crown".equals(id) || "phase_crown".equals(id)
-                || "fate_crown".equals(id);
+                || "fate_crown".equals(id) || "tide_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -5663,6 +5741,10 @@ public final class GameCore {
         else if (PROF_FATESEER.equals(s.profession) && d != null && (d.scry > 0 || d.upgradeRandom
                 || d.draw > 0 || d.skillChargeGain > 0 || d.energyGain > 0 || d.vulnerable > 0
                 || d.bind > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FATESEER))) amount++;
+        else if (PROF_TIDECALLER.equals(s.profession) && d != null && (d.block > 0 || d.type == 1
+                || d.bind > 0 || d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0
+                || d.cost == 0 || d.vulnerable > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_TIDECALLER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -7569,6 +7651,39 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "tide_shell") && PROF_TIDECALLER.equals(s.profession)) {
+            int tide = Math.max(1, s.professionCharge);
+            int guard = Math.min(16, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, tide / 3 + guard / 5 + bindDeckCards(s) / 3));
+            gainBlock(s, 6 + s.act + Math.min(17, tide * 2 + guard * 3 + bestEnemyPressure(s) / 3));
+            Card ripple = new Card("tidecaller_ripple");
+            ripple.temp = true;
+            ripple.upgraded = true;
+            addToHand(s, ripple);
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2;
+                target.mark += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(24, target.bind * 2
+                        + s.professionCharge * 2 + guard * 2 + s.block / 4), true);
+            }
+        }
+        if (hasRelic(s, "tide_crown") && PROF_TIDECALLER.equals(s.profession)) {
+            Card tide = new Card("tidecaller_overtide");
+            tide.temp = true;
+            tide.upgraded = true;
+            addToHand(s, tide);
+            draw(s, 1);
+            if (s.professionCharge >= 5 || s.block >= 18 || bindDeckCards(s) >= 3
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+                target.mark += 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -7641,6 +7756,9 @@ public final class GameCore {
         if (hasRelic(s, "fate_lantern") && PROF_FATESEER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || upgradedCardCount(s) >= 5 || s.confluenceChain >= 2
                 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "tide_shell") && PROF_TIDECALLER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.block >= 14 || bindDeckCards(s) >= 2
+                || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -7821,7 +7939,7 @@ public final class GameCore {
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || PROF_WITCH.equals(s.profession) || PROF_SHIFTER.equals(s.profession)
-                || PROF_FATESEER.equals(s.profession)
+                || PROF_FATESEER.equals(s.profession) || PROF_TIDECALLER.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec)
                 || hasTalent(s, "t_arcanist_singularity") || hasTalent(s, "t_summoner_overflow")
                 || hasRelic(s, "echo_prism") || hasRelic(s, "echoflow_charm")
@@ -7858,6 +7976,7 @@ public final class GameCore {
                 || PROF_MIRRORIST.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
                 || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession)
+                || PROF_TIDECALLER.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear") || hasRelic(s, "resonance_prism")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
@@ -7875,6 +7994,7 @@ public final class GameCore {
                 || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
                 || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
                 || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession)
+                || PROF_TIDECALLER.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec) || "spec_pressure".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -7895,7 +8015,7 @@ public final class GameCore {
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
                 || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession)
                 || PROF_WITCH.equals(s.profession) || PROF_SHIFTER.equals(s.profession)
-                || PROF_FATESEER.equals(s.profession))) {
+                || PROF_FATESEER.equals(s.profession) || PROF_TIDECALLER.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -9182,6 +9302,35 @@ public final class GameCore {
                 omen.upgraded = true;
                 addToHand(s, omen);
                 upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_TIDECALLER.equals(s.profession) && s.turn == 1) {
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            int binds = bindDeckCards(s);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, guard / 3 + binds / 2 + s.block / 12);
+            gainBlock(s, 4 + s.act + Math.min(8, guard * 2 + binds + s.professionCharge));
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2 + (hasTalent(s, "t_tidecaller_surge") ? 1 : 0);
+                firstLiving(s).mark += hasTalent(s, "t_tidecaller_ripple") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_tidecaller_ripple")) {
+                Card ripple = new Card("tidecaller_ripple");
+                ripple.temp = true;
+                ripple.upgraded = true;
+                addToHand(s, ripple);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_tidecaller_breaker")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_tidecaller_grand")) {
+                Card breaker = new Card("tidecaller_breaker");
+                breaker.temp = true;
+                breaker.upgraded = true;
+                addToHand(s, breaker);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -11855,6 +12004,109 @@ public final class GameCore {
             }
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("tidecaller_ripple".equals(d.id) && target != null) {
+            int tide = Math.max(0, s.professionCharge);
+            int guard = Math.min(14, s.block / 4 + buildFocusDeckCards(s, BUILD_GUARD));
+            damage += Math.min(c.upgraded ? 32 : 22, tide * 2 + guard * 2
+                    + s.cardsPlayedThisTurn * 3 + target.bind * 3);
+            target.bind += c.upgraded ? 2 : 1;
+            if (c.upgraded || s.cardsPlayedThisTurn <= 3 || target.bind >= 3) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_GUARD, 1);
+        }
+        if ("tidecaller_breaker".equals(d.id)) {
+            int tide = Math.max(0, s.professionCharge);
+            int binds = Math.min(14, bindDeckCards(s) + bestEnemyPressure(s) / 5);
+            block += Math.min(c.upgraded ? 34 : 24, tide * 2 + binds * 3
+                    + buildFocusDeckCards(s, BUILD_GUARD) * 2);
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            }
+            if (binds >= 3 || s.block >= 10 || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("tidecaller_current".equals(d.id)) {
+            int tide = Math.max(0, s.professionCharge);
+            int flow = Math.min(14, s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE)
+                    + zeroCostDeckCards(s) / 2);
+            block += Math.min(c.upgraded ? 35 : 24, tide * 2 + flow * 3 + s.block / 3);
+            if (flow >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, flow / 4));
+            addQuestProgress(s, QUEST_GUARD, 1);
+        }
+        if ("tidecaller_surge".equals(d.id) && target != null) {
+            int tide = Math.max(0, s.professionCharge);
+            int pressure = target.bind * 4 + target.vulnerable * 3 + target.mark * 2 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 50 : 36, pressure + tide * 2 + s.block / 3
+                    + s.cardsPlayedThisTurn * 3);
+            target.bind += 1 + s.bindPower / 2;
+            target.vulnerable += 1;
+            if (target.bind >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("tidecaller_overtide".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tide = Math.max(0, s.professionCharge);
+            int guard = Math.min(16, s.block / 4 + buildFocusDeckCards(s, BUILD_GUARD));
+            block += Math.min(c.upgraded ? 40 : 28, tide * 2 + overloadNow * 7
+                    + guard * 3 + bestEnemyPressure(s) / 3);
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 58 : 42, overloadNow * 8 + tide * 2
+                        + guard * 3 + target.bind * 4 + s.block / 3);
+            }
+            if (overloadNow >= 2 || guard >= 5 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_GUARD, 1);
+        }
+        if ("tidecaller_grand_tide".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tide = Math.max(0, s.professionCharge);
+            int guard = Math.min(18, s.block / 4 + buildFocusDeckCards(s, BUILD_GUARD));
+            int pressure = bestEnemyPressure(s);
+            damage += Math.min(c.upgraded ? 86 : 64, tide * 4 + guard * 5
+                    + bindDeckCards(s) * 5 + s.cardsPlayedThisTurn * 4 + pressure + overloadNow * 9);
+            block += Math.min(c.upgraded ? 60 : 44, tide * 3 + guard * 4
+                    + bindDeckCards(s) * 3 + overloadNow * 6);
+            if (target != null) {
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+                target.mark += c.upgraded ? 4 : 3;
+            }
+            Card ripple = new Card("tidecaller_ripple");
+            ripple.temp = true;
+            ripple.upgraded = true;
+            addToHand(s, ripple);
+            if (guard >= 5 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
@@ -15076,6 +15328,88 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_TIDECALLER.equals(s.profession) && (d.block > 0 || d.type == 1 || d.bind > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.energyGain > 0 || d.cost == 0
+                || d.vulnerable > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_TIDECALLER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            Enemy e = firstLiving(s);
+            int guard = Math.min(18, s.block / 4 + buildFocusDeckCards(s, BUILD_GUARD));
+            int flow = Math.min(10, s.cardsPlayedThisTurn + hybridFocusCount(d));
+            if (e != null) {
+                if (d.block > 0 || d.type == 1 || d.profession.equals(PROF_TIDECALLER)) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+                if (d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2) {
+                    e.mark += 1;
+                }
+                if (s.professionCharge >= 4 || guard >= 5 || e.bind >= 4 || s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(31, e.bind * 3 + e.mark * 2
+                            + s.professionCharge * 2 + guard * 2 + flow * 2), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 4 + s.act + Math.min(18, s.professionCharge + guard * 2
+                        + bindDeckCards(s) + s.cardsPlayedThisTurn));
+                if (s.cardsPlayedThisTurn >= 3 || d.draw > 0 || hasTalent(s, "t_tidecaller_ripple")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_tidecaller_ripple") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.bind > 0 || d.profession.equals(PROF_TIDECALLER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, e.bind * 2 + e.mark * 2
+                        + s.professionCharge * 2 + s.cardsPlayedThisTurn * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || d.cost == 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_tidecaller_breaker") && (d.block > 0 || d.type == 1 || d.bind > 0
+                || d.draw > 0 || d.profession.equals(PROF_TIDECALLER))) {
+            gainBlock(s, 4 + s.act + Math.min(16, s.professionCharge + s.block / 5
+                    + bindDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_GUARD)));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 18 || d.bind > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_tidecaller_surge") && (d.vulnerable > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.block > 0 || d.profession.equals(PROF_TIDECALLER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (e.bind >= 3 || s.block >= 14 || s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(26, e.bind * 3 + e.vulnerable * 3
+                            + s.professionCharge * 2 + s.block / 4), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_tidecaller_grand") && (d.block > 0 || d.bind > 0 || d.draw > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.cost == 0
+                || d.profession.equals(PROF_TIDECALLER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || s.block >= 18 || e.bind >= 4)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(33, e.bind * 3 + e.mark * 2
+                        + e.vulnerable * 2 + s.professionCharge * 2 + s.block / 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                gainBlock(s, 3 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -15720,6 +16054,39 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "tide_shell") && (d.block > 0 || d.type == 1 || d.bind > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_TIDECALLER))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 4 + s.act + Math.min(11, s.professionCharge + s.block / 5
+                        + bindDeckCards(s) * 2));
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                if (d.block > 0 || d.bind > 0 || s.block >= 16) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, e.bind * 3
+                            + s.professionCharge * 2 + s.block / 4), true);
+                }
+            }
+        }
+        if (hasRelic(s, "tide_crown") && (d.block > 0 || d.bind > 0 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.draw > 0 || d.profession.equals(PROF_TIDECALLER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (e.bind >= 4 || s.cardsPlayedThisTurn >= 4 || s.block >= 18) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(29, e.bind * 3
+                            + e.vulnerable * 2 + s.professionCharge + s.block / 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                gainBlock(s, 3 + s.act);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -17065,6 +17432,10 @@ public final class GameCore {
             return focus == BUILD_FORGE ? 18 : focus == BUILD_CYCLE ? 16 : focus == BUILD_OVERLOAD ? 14
                     : focus == BUILD_STATUS ? 12 : focus == BUILD_GUARD ? 10 : focus == BUILD_ECHO ? 6 : 0;
         }
+        if (PROF_TIDECALLER.equals(s.profession)) {
+            return focus == BUILD_GUARD ? 18 : focus == BUILD_STATUS ? 16 : focus == BUILD_CYCLE ? 14
+                    : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_ECHO ? 8 : focus == BUILD_FORGE ? 5 : 0;
+        }
         return 0;
     }
 
@@ -17157,6 +17528,9 @@ public final class GameCore {
         }
         if (PROF_FATESEER.equals(d.profession)) {
             return fateseerFocusCardValue(d, focus);
+        }
+        if (PROF_TIDECALLER.equals(d.profession)) {
+            return tidecallerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -17967,6 +18341,38 @@ public final class GameCore {
         return 0;
     }
 
+    private static int tidecallerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.bind * 2 + (d.energyGain > 0 ? 4 : 0)
+                    + ("tidecaller_ripple".equals(d.id) ? 8 : 0) + ("tidecaller_surge".equals(d.id) ? 8 : 0)
+                    + ("tidecaller_overtide".equals(d.id) ? 16 : 0) + ("tidecaller_grand_tide".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + d.draw * 3 + (d.cost == 0 ? 5 : 0)
+                    + ("tidecaller_ripple".equals(d.id) ? 10 : 0) + ("tidecaller_current".equals(d.id) ? 10 : 0)
+                    + ("tidecaller_grand_tide".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 7 + d.bind * 6 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("tidecaller_ripple".equals(d.id) ? 10 : 0) + ("tidecaller_surge".equals(d.id) ? 18 : 0)
+                    + ("tidecaller_overtide".equals(d.id) ? 16 : 0) + ("tidecaller_grand_tide".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 7 : 0) + d.skillChargeGain * 2
+                    + ("tidecaller_ripple".equals(d.id) ? 17 : 0) + ("tidecaller_current".equals(d.id) ? 16 : 0)
+                    + ("tidecaller_overtide".equals(d.id) ? 12 : 0) + ("tidecaller_grand_tide".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.draw * 2 + d.bind * 2
+                    + ("tidecaller_breaker".equals(d.id) ? 18 : 0) + ("tidecaller_current".equals(d.id) ? 16 : 0)
+                    + ("tidecaller_overtide".equals(d.id) ? 16 : 0) + ("tidecaller_grand_tide".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return d.scry * 2 + (d.upgradeRandom ? 6 : 0) + ("tidecaller_grand_tide".equals(d.id) ? 6 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -18350,6 +18756,15 @@ public final class GameCore {
         else if ("t_fateseer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_FORGE) * 2
                 + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_GUARD);
+        else if ("t_tidecaller_ripple".equals(id)) bonus += zeroCost * 3 + buildFocusDeckCards(s, BUILD_CYCLE) * 2
+                + bindDeckCards(s) + professionCards;
+        else if ("t_tidecaller_breaker".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 3
+                + bindDeckCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_tidecaller_surge".equals(id)) bonus += bindDeckCards(s) * 3 + buildFocusDeckCards(s, BUILD_STATUS) * 2
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_tidecaller_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_CYCLE)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -18377,7 +18792,7 @@ public final class GameCore {
                     "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
                     "t_geomancer_quake", "t_geomancer_grand", "t_witch_curse", "t_witch_grand",
                     "t_shifter_lance", "t_shifter_grand", "t_fateseer_thread", "t_fateseer_grand",
-                    "t_shared_longnight") ? 3 : 0;
+                    "t_tidecaller_surge", "t_tidecaller_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -18394,7 +18809,8 @@ public final class GameCore {
                     "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
                     "t_lightkeeper_keeper", "t_lightkeeper_vigil", "t_lightkeeper_grand",
                     "t_geomancer_rune", "t_geomancer_grand", "t_witch_brew", "t_witch_grand",
-                    "t_shifter_slip", "t_shifter_anchor", "t_shifter_grand", "t_fateseer_grand") ? 3 : 0;
+                    "t_shifter_slip", "t_shifter_anchor", "t_shifter_grand", "t_fateseer_grand",
+                    "t_tidecaller_ripple", "t_tidecaller_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -18450,7 +18866,7 @@ public final class GameCore {
                     "t_mirrorist_grand", "t_scavenger_salvage", "t_scavenger_patch",
                     "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
                     "t_geomancer_quake", "t_geomancer_grand", "t_witch_curse", "t_witch_grand",
-                    "t_fateseer_thread", "t_fateseer_grand",
+                    "t_fateseer_thread", "t_fateseer_grand", "t_tidecaller_surge", "t_tidecaller_grand",
                     "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
@@ -18475,7 +18891,7 @@ public final class GameCore {
                     "t_lightkeeper_keeper", "t_lightkeeper_prism", "t_lightkeeper_grand",
                     "t_geomancer_rune", "t_geomancer_grand", "t_witch_brew", "t_witch_grand",
                     "t_shifter_slip", "t_shifter_grand", "t_fateseer_omen", "t_fateseer_grand",
-                    "t_shared_longnight") ? 3 : 0;
+                    "t_tidecaller_ripple", "t_tidecaller_grand", "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "t_warden_bastion", "t_warden_counter", "t_warden_armory",
@@ -18492,7 +18908,8 @@ public final class GameCore {
                     "t_mirrorist_guard", "t_mirrorist_grand", "t_scavenger_patch",
                     "t_scavenger_grand", "t_lightkeeper_vigil", "t_lightkeeper_grand",
                     "t_geomancer_mantle", "t_geomancer_grand", "t_witch_ward", "t_witch_grand",
-                    "t_shifter_grand", "t_fateseer_veil", "t_fateseer_grand") ? 3 : 0;
+                    "t_shifter_grand", "t_fateseer_veil", "t_fateseer_grand",
+                    "t_tidecaller_breaker", "t_tidecaller_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -18801,6 +19218,18 @@ public final class GameCore {
                 && (bindDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
             return "断线裁命";
         }
+        if (isAny(id, "t_tidecaller_ripple", "t_tidecaller_grand")
+                && (zeroCostDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3 || bindDeckCards(s) >= 2)) {
+            return "潮涌循环";
+        }
+        if (isAny(id, "t_tidecaller_breaker", "t_tidecaller_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || s.hp < s.maxHp || s.block >= 12)) {
+            return "破浪防线";
+        }
+        if (isAny(id, "t_tidecaller_surge", "t_tidecaller_grand")
+                && (bindDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_STATUS) >= 2 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
+            return "涌潮压制";
+        }
         return "";
     }
 
@@ -19044,7 +19473,7 @@ public final class GameCore {
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
                     "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown",
-                    "fate_lantern", "fate_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
@@ -19055,7 +19484,8 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
-                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown") ? 3 : 0;
+                    "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown",
+                    "tide_shell", "tide_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
@@ -19097,7 +19527,7 @@ public final class GameCore {
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
                     "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown",
-                    "fate_lantern", "fate_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -19110,7 +19540,7 @@ public final class GameCore {
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
                     "faultline_core", "tectonic_crown", "witch_bottle", "witch_moon_crown",
-                    "fate_lantern", "fate_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "tide_shell", "tide_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -19123,7 +19553,8 @@ public final class GameCore {
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "scrap_magnet", "scrap_king_crown", "faultline_core", "tectonic_crown",
-                    "witch_bottle", "witch_moon_crown", "fate_lantern", "fate_crown") ? 3 : 0;
+                    "witch_bottle", "witch_moon_crown", "fate_lantern", "fate_crown",
+                    "tide_shell", "tide_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -19163,7 +19594,8 @@ public final class GameCore {
                 || (PROF_GEOMANCER.equals(s.profession) && "faultline_core".equals(id))
                 || (PROF_WITCH.equals(s.profession) && "witch_bottle".equals(id))
                 || (PROF_SHIFTER.equals(s.profession) && "phase_lens".equals(id))
-                || (PROF_FATESEER.equals(s.profession) && "fate_lantern".equals(id));
+                || (PROF_FATESEER.equals(s.profession) && "fate_lantern".equals(id))
+                || (PROF_TIDECALLER.equals(s.profession) && "tide_shell".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -19212,6 +19644,7 @@ public final class GameCore {
                 || hasRelic(s, "witch_bottle") || hasRelic(s, "witch_moon_crown")
                 || hasRelic(s, "phase_lens") || hasRelic(s, "phase_crown")
                 || hasRelic(s, "fate_lantern") || hasRelic(s, "fate_crown")
+                || hasRelic(s, "tide_shell") || hasRelic(s, "tide_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
@@ -19420,6 +19853,11 @@ public final class GameCore {
         if (PROF_FATESEER.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.block > 0
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FATESEER))) {
+            return 4;
+        }
+        if (PROF_TIDECALLER.equals(s.profession) && (d.block > 0 || d.type == 1 || d.bind > 0
+                || d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0 || d.cost == 0
+                || d.vulnerable > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_TIDECALLER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -20037,6 +20475,14 @@ public final class GameCore {
                 || d.rarity == 2 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_FATESEER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "tide_shell") && (d.block > 0 || d.type == 1 || d.bind > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_TIDECALLER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "tide_crown") && (d.block > 0 || d.bind > 0 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.draw > 0 || d.profession.equals(PROF_TIDECALLER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -20074,7 +20520,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -20110,6 +20556,7 @@ public final class GameCore {
         if (PROF_WITCH.equals(s.profession)) return "witch_bottle";
         if (PROF_SHIFTER.equals(s.profession)) return "phase_lens";
         if (PROF_FATESEER.equals(s.profession)) return "fate_lantern";
+        if (PROF_TIDECALLER.equals(s.profession)) return "tide_shell";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -20419,7 +20866,8 @@ public final class GameCore {
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
                 || PROF_SCAVENGER.equals(s.profession) || PROF_LIGHTKEEPER.equals(s.profession)
                 || PROF_GEOMANCER.equals(s.profession) || PROF_WITCH.equals(s.profession)
-                || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession))
+                || PROF_SHIFTER.equals(s.profession) || PROF_FATESEER.equals(s.profession)
+                || PROF_TIDECALLER.equals(s.profession))
                 && "pressure_gauge".equals(id)) {
             return 2;
         }
@@ -20476,6 +20924,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_FATESEER.equals(s.profession) && "fate_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_TIDECALLER.equals(s.profession) && ("tide_shell".equals(id) || "thorn_ring".equals(id)
+                || "stormglass_seal".equals(id) || "green_bell".equals(id) || "root_drum".equals(id)
+                || "bulwark_core".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                || "overload_etch".equals(id) || "discipline_chart".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                || "resonance_prism".equals(id) || "echo_ledger".equals(id) || "void_abacus".equals(id))) {
+            return 2;
+        }
+        if (PROF_TIDECALLER.equals(s.profession) && "tide_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -21722,6 +22181,18 @@ public final class GameCore {
         c.profession = PROF_FATESEER; c.draw = c.drawUp = 1; c.scry = 3; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("fateseer_grand_design", "终局命图", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按预见、检视、升级、汇流和过载追加终局收益。", "更高伤害、格挡和命兆返还。");
         c.profession = PROF_FATESEER; c.draw = c.drawUp = 1; c.scry = 4; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "fateseer_omen"; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("tidecaller_ripple", "回潮水刃", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加束缚；潮势、格挡和连打会提高收益。", "更高伤害、束缚和潮势。");
+        c.profession = PROF_TIDECALLER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("tidecaller_breaker", "破浪屏障", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌并施加束缚；敌方控制压力越高越稳。", "更多格挡、抽牌和束缚。");
+        c.profession = PROF_TIDECALLER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 1;
+        c = addCard("tidecaller_current", "暗流牵引", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌并返能；循环和连打会抬高潮势。", "更多格挡、抽牌和返能窗口。");
+        c.profession = PROF_TIDECALLER; c.draw = c.drawUp = 1; c.energyGain = 1; c.createEcho = true; c.echoCardId = "tidecaller_ripple"; c.skillChargeGain = 1;
+        c = addCard("tidecaller_surge", "涌潮缚击", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加束缚和易伤；敌方控制压力越高越强。", "更高伤害、束缚和压制。");
+        c.profession = PROF_TIDECALLER; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("tidecaller_overtide", "过载回潮", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌和充能；过载、格挡和束缚会追加回潮缚击。", "更多格挡、束缚和充能。");
+        c.profession = PROF_TIDECALLER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("tidecaller_grand_tide", "终局潮汐", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按潮势、格挡、束缚、连打和过载追加终局收益。", "更高伤害、格挡和潮汐返还。");
+        c.profession = PROF_TIDECALLER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "tidecaller_ripple"; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -22006,6 +22477,8 @@ public final class GameCore {
         addRelicDef("phase_crown", "悖跃冠冕", "获得升级终局悖跃；移形师低费、抽牌、临时牌、弃牌、充能和稀有牌会滚动印记、返能与折跃追击。");
         addRelicDef("fate_lantern", "命灯", "命轮师检视、升级、抽牌、汇流和职业牌更快推动职业技；释放后制造命兆并改写手牌。");
         addRelicDef("fate_crown", "命轮冠冕", "获得升级终局命图；命轮师检视、升级、汇流、充能和稀有牌会滚动印记、升级与改命追击。");
+        addRelicDef("tide_shell", "潮汐贝", "潮汐使格挡、束缚、抽牌和职业牌更快推动职业技；释放后制造水刃并加固防线。");
+        addRelicDef("tide_crown", "潮冠", "获得升级终局潮汐；潮汐使格挡、束缚、抽牌、充能和稀有牌会滚动束缚、抽牌与回潮追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -22251,6 +22724,9 @@ public final class GameCore {
         addTalent("t_fateseer_omen", PROF_FATESEER, "命兆回路", "获得升级命兆翻牌；检视、抽牌、升级和命轮牌追加印记，并把预见转成穿透追击。");
         addTalent("t_fateseer_veil", PROF_FATESEER, "命幕防线", "获得生命和升级命幕护身；格挡、检视、升级和技能牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_fateseer_thread", PROF_FATESEER, "断线裁命", "获得升级断命丝并升级牌组；易伤、束缚、检视和汇流牌会扩张控制压力并转成改命追击。");
+        addTalent("t_tidecaller_ripple", PROF_TIDECALLER, "潮涌回路", "获得升级回潮水刃；低费、抽牌、返能和束缚牌追加印记，并把潮势转成穿透追击。");
+        addTalent("t_tidecaller_breaker", PROF_TIDECALLER, "破浪防线", "获得生命和升级破浪屏障；格挡、技能、抽牌和潮汐牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_tidecaller_surge", PROF_TIDECALLER, "涌潮压制", "获得升级涌潮缚击；束缚、易伤、格挡和充能牌会扩张控制压力并转成回潮追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -22286,6 +22762,7 @@ public final class GameCore {
         addTalent("t_witch_grand", PROF_WITCH, "终局月锅", "获得升级终局月锅；药剂、状态、异常、临时药灵与过载牌持续抽牌、补药并把药性印记转为巫酿裁切。");
         addTalent("t_shifter_grand", PROF_SHIFTER, "终局悖跃", "获得升级终局悖跃；低费、抽牌、临时牌、弃牌与过载牌持续返能、抽牌并把相位印记转为折跃裁切。");
         addTalent("t_fateseer_grand", PROF_FATESEER, "终局命图", "获得升级终局命图；检视、升级、汇流、抽牌与过载牌持续改写手牌并把预见印记转为改命裁切。");
+        addTalent("t_tidecaller_grand", PROF_TIDECALLER, "终局潮汐", "获得升级终局潮汐；格挡、束缚、抽牌、连打与过载牌持续加固防线并把潮势印记转为回潮裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

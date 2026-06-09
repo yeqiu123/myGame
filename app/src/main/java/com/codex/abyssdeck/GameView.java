@@ -1433,6 +1433,22 @@ public final class GameView extends View {
             c.drawPath(star, p);
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx, cy, size * 0.13f, p);
+        } else if (GameCore.PROF_TIDECALLER.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            Path wave = new Path();
+            wave.moveTo(cx - size * 0.82f, cy + size * 0.16f);
+            wave.cubicTo(cx - size * 0.42f, cy - size * 0.24f, cx - size * 0.18f, cy + size * 0.48f, cx + size * 0.18f, cy + size * 0.08f);
+            wave.cubicTo(cx + size * 0.42f, cy - size * 0.18f, cx + size * 0.62f, cy - size * 0.1f, cx + size * 0.84f, cy + size * 0.16f);
+            c.drawPath(wave, p);
+            c.drawArc(new RectF(cx - size * 0.62f, cy - size * 0.56f,
+                    cx + size * 0.62f, cy + size * 0.68f), 210, 285, false, p);
+            p.setStyle(Paint.Style.FILL);
+            Path drop = new Path();
+            drop.moveTo(cx, cy - size * 0.72f);
+            drop.cubicTo(cx - size * 0.34f, cy - size * 0.22f, cx - size * 0.22f, cy + size * 0.18f, cx, cy + size * 0.18f);
+            drop.cubicTo(cx + size * 0.22f, cy + size * 0.18f, cx + size * 0.34f, cy - size * 0.22f, cx, cy - size * 0.72f);
+            c.drawPath(drop, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
