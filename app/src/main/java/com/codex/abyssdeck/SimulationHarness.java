@@ -175,12 +175,20 @@ public final class SimulationHarness {
                     + (d.upgradeRandom ? 8 : 0) + d.scry * 2 - d.cost * 2;
             if (d.profession.equals(s.profession)) score += 24;
             if (d.skillChargeGain > 0) score += 8;
-            score += GameCore.skillSpecCardBonus(s, d) * 5;
+            int specSignal = GameCore.skillSpecCardBonus(s, d);
+            score += specSignal * 5;
             int coreSignal = buildCoreCardSignal(s, d);
             if (coreSignal > 0) {
                 score += Math.min(36, coreSignal * 3);
                 if (coreSignal >= 8) score += 12;
                 if (d.rarity == 2) score += 4;
+            }
+            if (isResonanceBridgeCard(d)) {
+                // 共鸣桥接牌更适合专修、核心天赋和汇流任务成型时拿取。
+                score += 12;
+                if (s.skillSpec != null && s.skillSpec.length() > 0) score += 6 + Math.max(1, s.skillSpecLevel) * 2;
+                if (coreSignal > 0) score += 10;
+                if (s.combatQuest == GameCore.QUEST_CONFLUENCE) score += 10 + s.confluenceChain * 2;
             }
             if ("通用".equals(d.origin) || d.origin.equals(s.origin)) score += 4;
             if (d.rarity == 2 && d.profession.equals(s.profession)) score += 10;
@@ -334,6 +342,7 @@ public final class SimulationHarness {
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
             if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 20;
+            if (s.relics.contains("resonance_prism") && (isHybridCore(d) || isConfluenceCore(d) || specSignal >= 4)) score += 20;
             if (s.deck.size() > 34 && d.cost >= 2 && d.draw == 0) score -= 6;
             if (score > bestScore) {
                 bestScore = score;
@@ -462,7 +471,8 @@ public final class SimulationHarness {
                     || "pressure_gauge".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
                     || "salvage_hook".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
                     || "mosaic_core".equals(id))) score += 36;
-            if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)) score += 28;
+            if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
@@ -1236,6 +1246,8 @@ public final class SimulationHarness {
                 if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 14;
                 if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 14;
                 if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 16;
+                if (s.relics.contains("resonance_prism") && (isHybridCore(d) || isConfluenceCore(d)
+                        || GameCore.skillSpecCardBonus(s, d) >= 4)) score += 16;
                 if (s.relics.contains("aegis_throne") && d.type == 1) score += 9;
                 if (s.relics.contains("finale_rapier") && d.type == 0 && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.relics.contains("solar_crucible") && (d.createPotion || d.burn > 0 || d.bind > 0)) score += 10;
@@ -1568,7 +1580,8 @@ public final class SimulationHarness {
                     "runeblade_overglyph", "medium_overtrance", "tactician_overplan",
                     "prismist_overbeam", "dreamwalker_overdream", "gardener_overgrowth",
                     "chef_overcook", "bard_overcrescendo", "mirrorist_overimage",
-                    "puppeteer_overpull", "scavenger_overhaul") ? 12 : 0)
+                    "puppeteer_overpull", "scavenger_overhaul", "fusion_spark",
+                    "prism_guard_matrix", "apex_resonance") ? 12 : 0)
                     + (isAny(d.id, "hybrid_guard_conduit", "hybrid_bloodcharge", "hybrid_rift_engine",
                     "confluence_chord", "prism_anchor", "apex_confluence") ? 8 : 0);
         }
@@ -1579,34 +1592,37 @@ public final class SimulationHarness {
                     "hybrid_spirit_anvil", "tuner_loop", "astrologer_orbit", "machinist_cogcall",
                     "chronomancer_loop", "medium_whisper", "medium_veil", "medium_oracle",
                     "medium_overtrance", "medium_grand_seance", "shadowdancer_veil", "bard_chorus",
-                    "mirrorist_reflect", "puppeteer_rehearse") ? 10 : 0);
+                    "mirrorist_reflect", "puppeteer_rehearse", "echo_forge_loop",
+                    "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 6 : 0)
                     + (d.gainBurnPower + d.gainBindPower) * 3
                     + (isAny(d.id, "brew_crucible", "hybrid_plague_brew", "hybrid_echo_vial",
                     "chef_prep", "chef_spice", "chef_sizzle", "chef_overcook", "chef_grand_banquet",
-                    "alchemist_sunsteel") ? 10 : 0);
+                    "alchemist_sunsteel", "fusion_spark", "bloodcoin_catalyst") ? 10 : 0);
         }
         if (focus == BUILD_GOLD) {
             return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0)
                     + (isAny(d.id, "golden_engine", "hybrid_blood_tithe", "hybrid_coinwall",
                     "pactmaker_collection", "pactmaker_bloodnote", "pactmaker_overdeal",
                     "pactmaker_grand_contract", "merchant_kingmaker", "cursed_coin",
-                    "void_tithe", "scavenger_pick", "scavenger_sort") ? 10 : 0);
+                    "void_tithe", "scavenger_pick", "scavenger_sort", "bloodcoin_catalyst",
+                    "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_BLOOD) {
             return d.hpLoss * 4 + d.heal * 2 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0)
                     + (isAny(d.id, "crimson_loop", "hybrid_blood_tithe", "hybrid_bloodcharge",
                     "pactmaker_bloodnote", "blood_apotheosis", "gardener_sprout", "chef_stew",
-                    "scavenger_patch") ? 10 : 0);
+                    "scavenger_patch", "bloodcoin_catalyst", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_FORGE) {
             return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0)
                     + (isAny(d.id, "forge_blueprint", "hybrid_forgebrand", "hybrid_rift_engine",
                     "hybrid_spirit_anvil", "prism_anchor", "machinist_blueprint", "machinist_grand_engine",
                     "runeblade_inscribe", "tactician_map", "tactician_grand_strategy",
-                    "mirrorist_shard", "mirrorist_reflect") ? 10 : 0);
+                    "mirrorist_shard", "mirrorist_reflect", "echo_forge_loop",
+                    "prism_guard_matrix", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_STATUS) {
             return d.burn * 2 + d.bind * 2 + d.vulnerable * 5 + (d.addStatusToEnemy ? 7 : 0)
@@ -1615,7 +1631,8 @@ public final class SimulationHarness {
                     "hybrid_forgebrand", "tuner_harmonic", "adjudicator_clause", "pactmaker_witness",
                     "stormcaller_chain", "shadowdancer_mark", "runeblade_glyphcut", "medium_binding",
                     "tactician_flank", "prismist_spill", "dreamwalker_bind", "gardener_compost",
-                    "chef_spice", "bard_discord", "puppeteer_needle") ? 10 : 0);
+                    "chef_spice", "bard_discord", "puppeteer_needle", "fusion_spark",
+                    "bloodcoin_catalyst", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_CYCLE) {
             return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
@@ -1624,7 +1641,8 @@ public final class SimulationHarness {
                     "tuner_loop", "adjudicator_writ", "astrologer_chart", "astrologer_ephemeris",
                     "machinist_spanner", "machinist_cogcall", "chronomancer_tick", "chronomancer_loop",
                     "shadowdancer_step", "bard_note", "bard_chorus", "mirrorist_shard",
-                    "puppeteer_thread", "scavenger_sort") ? 10 : 0);
+                    "puppeteer_thread", "scavenger_sort", "fusion_spark", "echo_forge_loop",
+                    "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_GUARD) {
             return d.block * 2 + (d.type == 1 ? 3 : 0) + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0)
@@ -1633,7 +1651,8 @@ public final class SimulationHarness {
                     "hybrid_spirit_anvil", "prism_anchor", "adjudicator_bond", "machinist_spanner",
                     "machinist_overdrive", "chronomancer_anchor", "pactmaker_collection",
                     "warden_aegisline", "tactician_bulwark", "gardener_rootwall", "chef_stew",
-                    "bard_ballad", "mirrorist_guard", "puppeteer_screen", "scavenger_patch") ? 10 : 0);
+                    "bard_ballad", "mirrorist_guard", "puppeteer_screen", "scavenger_patch",
+                    "echo_forge_loop", "prism_guard_matrix", "apex_resonance") ? 10 : 0);
         }
         return 0;
     }
@@ -1646,36 +1665,39 @@ public final class SimulationHarness {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "mastery_badge", "resonance_lens", "tuning_fork", "conductor_baton", "overload_etch",
                     "pressure_gauge", "storm_rod", "tempest_crown", "ability_crown", "contract_stamp",
-                    "grand_ledger", "confluence_map", "prism_gear", "starforge_lens") ? 3 : 0;
+                    "grand_ledger", "confluence_map", "prism_gear", "starforge_lens",
+                    "resonance_prism") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "void_abacus", "echo_prism", "singularity_orb",
                     "echo_ledger", "void_anchor", "echoflow_charm", "echo_crown", "spirit_planchette",
                     "ancestral_planchette", "dreamcatcher_charm", "oneiric_crown", "songbook",
-                    "finale_crown", "mirror_lens", "mirror_crown", "string_spool", "marionette_crown") ? 3 : 0;
+                    "finale_crown", "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
+                    "resonance_prism") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell",
                     "alchemist_case", "glass_vials", "catalyst_pump", "solar_crucible",
                     "emberroot_charm", "split_anvil", "bloodspark_contract", "recipe_book",
-                    "banquet_crown", "seed_satchel", "verdant_crown") ? 3 : 0;
+                    "banquet_crown", "seed_satchel", "verdant_crown", "resonance_prism") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
                     "ledger_stamp", "kingmaker_seal", "bloodcoin_broach", "contract_stamp",
                     "grand_ledger", "golden_throne", "runic_shackle", "salvage_hook",
-                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "resonance_prism") ? 3 : 0;
         }
         if (focus == BUILD_BLOOD) {
             return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
                     "bloodspark_contract", "crimson_seal", "blood_crown", "blood_contract",
-                    "contract_stamp", "grand_ledger", "hex_moon", "vital_sprout") ? 3 : 0;
+                    "contract_stamp", "grand_ledger", "hex_moon", "vital_sprout",
+                    "resonance_prism") ? 3 : 0;
         }
         if (focus == BUILD_FORGE) {
             return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
                     "split_anvil", "pattern_spool", "engraver_stylus", "gyro_wrench", "clockwork_core",
                     "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
-                    "confluence_map", "prism_gear", "mosaic_core", "starforge_lens",
+                    "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism",
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
@@ -1684,14 +1706,16 @@ public final class SimulationHarness {
                     "split_anvil", "bloodspark_contract", "hawk_fletching", "solar_crucible",
                     "apex_compass", "fallen_crown", "hex_moon", "markchain_seal", "pressure_gauge",
                     "storm_rod", "tempest_crown", "war_table", "grand_war_room",
-                    "recipe_book", "banquet_crown", "songbook", "finale_crown") ? 3 : 0;
+                    "recipe_book", "banquet_crown", "songbook", "finale_crown",
+                    "resonance_prism") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum",
                     "cracked_compass", "moon_lantern", "tempo_metronome", "tempo_spindle",
                     "flash_heel", "finale_rapier", "tuning_fork", "conductor_baton",
                     "hourglass_charm", "time_engine", "echo_ledger", "confluence_map",
-                    "prism_gear", "mosaic_core", "starforge_lens", "songbook", "finale_crown") ? 3 : 0;
+                    "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism",
+                    "songbook", "finale_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -1700,7 +1724,7 @@ public final class SimulationHarness {
                     "forge_heart", "discipline_chart", "trial_ledger", "war_table",
                     "grand_war_room", "seed_satchel", "verdant_crown", "string_spool",
                     "marionette_crown", "confluence_map", "prism_gear", "mosaic_core",
-                    "starforge_lens") ? 3 : 0;
+                    "starforge_lens", "resonance_prism") ? 3 : 0;
         }
         return 0;
     }
@@ -1731,7 +1755,7 @@ public final class SimulationHarness {
                 || s.relics.contains("engraver_stylus") || s.relics.contains("living_codex")
                 || s.relics.contains("split_anvil") || s.relics.contains("echo_ledger")
                 || s.relics.contains("bloodspark_contract") || s.relics.contains("confluence_map") || s.relics.contains("prism_gear")
-                || s.relics.contains("mosaic_core") || s.relics.contains("starforge_lens")
+                || s.relics.contains("mosaic_core") || s.relics.contains("starforge_lens") || s.relics.contains("resonance_prism")
                 || s.relics.contains("tuning_fork") || s.relics.contains("conductor_baton")
                 || s.relics.contains("verdict_seal") || s.relics.contains("judgment_codex")
                 || s.relics.contains("star_compass") || s.relics.contains("celestial_orrery")
@@ -2118,18 +2142,28 @@ public final class SimulationHarness {
         return offOrigin || offProfession;
     }
 
+    private static boolean isResonanceBridgeCard(GameCore.CardDef d) {
+        return d != null && ("fusion_spark".equals(d.id) || "echo_forge_loop".equals(d.id)
+                || "bloodcoin_catalyst".equals(d.id) || "prism_guard_matrix".equals(d.id)
+                || "apex_resonance".equals(d.id));
+    }
+
     private static boolean isHybridCore(GameCore.CardDef d) {
         return d != null && ("hybrid_forgebrand".equals(d.id) || "hybrid_echo_step".equals(d.id)
                 || "hybrid_blood_tithe".equals(d.id) || "hybrid_guard_conduit".equals(d.id)
                 || "hybrid_plague_brew".equals(d.id) || "hybrid_coinwall".equals(d.id)
                 || "hybrid_bloodcharge".equals(d.id) || "hybrid_echo_vial".equals(d.id)
                 || "hybrid_hexdance".equals(d.id) || "hybrid_spirit_anvil".equals(d.id)
-                || "hybrid_rift_engine".equals(d.id));
+                || "hybrid_rift_engine".equals(d.id) || "fusion_spark".equals(d.id)
+                || "echo_forge_loop".equals(d.id) || "bloodcoin_catalyst".equals(d.id)
+                || "prism_guard_matrix".equals(d.id) || "apex_resonance".equals(d.id));
     }
 
     private static boolean isConfluenceCore(GameCore.CardDef d) {
         return d != null && ("confluence_chord".equals(d.id) || "prism_anchor".equals(d.id)
-                || "apex_confluence".equals(d.id));
+                || "apex_confluence".equals(d.id) || "fusion_spark".equals(d.id)
+                || "echo_forge_loop".equals(d.id) || "bloodcoin_catalyst".equals(d.id)
+                || "prism_guard_matrix".equals(d.id) || "apex_resonance".equals(d.id));
     }
 
     private static int firstEnemy(GameCore.State s) {
