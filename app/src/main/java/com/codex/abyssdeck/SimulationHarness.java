@@ -3,6 +3,16 @@ package com.codex.abyssdeck;
 import java.util.ArrayList;
 
 public final class SimulationHarness {
+    private static final int BUILD_OVERLOAD = 0;
+    private static final int BUILD_ECHO = 1;
+    private static final int BUILD_BREW = 2;
+    private static final int BUILD_GOLD = 3;
+    private static final int BUILD_BLOOD = 4;
+    private static final int BUILD_FORGE = 5;
+    private static final int BUILD_STATUS = 6;
+    private static final int BUILD_CYCLE = 7;
+    private static final int BUILD_GUARD = 8;
+
     private SimulationHarness() {
     }
 
@@ -164,6 +174,12 @@ public final class SimulationHarness {
             if (d.profession.equals(s.profession)) score += 24;
             if (d.skillChargeGain > 0) score += 8;
             score += GameCore.skillSpecCardBonus(s, d) * 5;
+            int coreSignal = buildCoreCardSignal(s, d);
+            if (coreSignal > 0) {
+                score += Math.min(36, coreSignal * 3);
+                if (coreSignal >= 8) score += 12;
+                if (d.rarity == 2) score += 4;
+            }
             if ("通用".equals(d.origin) || d.origin.equals(s.origin)) score += 4;
             if (d.rarity == 2 && d.profession.equals(s.profession)) score += 10;
             if (GameCore.PROF_WARDEN.equals(s.profession) && (d.block > 0 || d.blockToDamage || d.gainSteelEngine > 0)) score += 12;
@@ -330,6 +346,11 @@ public final class SimulationHarness {
         for (int i = 0; i < s.relicRewards.size(); i++) {
             String id = s.relicRewards.get(i);
             int score = 12;
+            int coreFocus = activeBuildCoreFocus(s);
+            int coreRelicSignal = buildCoreRelicSignal(coreFocus, id);
+            if (coreRelicSignal > 0) {
+                score += 12 + coreRelicSignal * 7;
+            }
             if ("sapphire_cell".equals(id) || "ink_fountain".equals(id) || "obsidian_core".equals(id)) score += 26;
             else if ("cracked_compass".equals(id) || "scarlet_dice".equals(id) || "runic_shackle".equals(id)) score += 20;
             else if ("ruby_branch".equals(id) || "black_bread".equals(id) || "blood_contract".equals(id)) score += 16;
@@ -773,6 +794,11 @@ public final class SimulationHarness {
                         + (d.createEcho ? 6 : 0) + (d.createWound ? 4 : 0) + (d.aoe ? 8 : 0)
                         + (d.spreadStatus ? 10 : 0) + (d.bindToDraw ? 8 : 0) + (d.burnToBlock ? 7 : 0)
                         - d.hpLoss * 2;
+                int coreSignal = buildCoreCardSignal(s, d);
+                if (coreSignal > 0) {
+                    score += Math.min(32, coreSignal * 3);
+                    if (coreSignal >= 8) score += 12;
+                }
                 if (s.combatQuest == GameCore.QUEST_BREW && d.createPotion) score += 22;
                 if (s.combatQuest == GameCore.QUEST_SKILL && d.skillChargeGain > 0) score += 18;
                 if (s.combatQuest == GameCore.QUEST_ECHO && (d.exhaust || d.createEcho || c.temp)) score += 18;
@@ -1395,6 +1421,224 @@ public final class SimulationHarness {
             return true;
         }
         return hasSkillRelic(s) || s.turn >= 2 || s.enemies.size() > 1 || s.combatKind == 'E' || s.combatKind == 'B';
+    }
+
+    private static int buildCoreFocus(String id) {
+        if ("t_core_overload".equals(id)) return BUILD_OVERLOAD;
+        if ("t_core_echo".equals(id)) return BUILD_ECHO;
+        if ("t_core_brew".equals(id)) return BUILD_BREW;
+        if ("t_core_gold".equals(id)) return BUILD_GOLD;
+        if ("t_core_blood".equals(id)) return BUILD_BLOOD;
+        if ("t_core_forge".equals(id)) return BUILD_FORGE;
+        if ("t_core_status".equals(id)) return BUILD_STATUS;
+        if ("t_core_cycle".equals(id)) return BUILD_CYCLE;
+        if ("t_core_guard".equals(id)) return BUILD_GUARD;
+        return -1;
+    }
+
+    private static boolean hasBuildCoreTalent(GameCore.State s) {
+        return activeBuildCoreFocus(s) >= 0;
+    }
+
+    private static int activeBuildCoreFocus(GameCore.State s) {
+        if (s == null || s.talents == null) {
+            return -1;
+        }
+        int bestFocus = -1;
+        int bestScore = -9999;
+        for (String id : s.talents) {
+            int focus = buildCoreFocus(id);
+            if (focus < 0) continue;
+            int score = buildCoreDeckSignal(s, focus);
+            if (score > bestScore) {
+                bestScore = score;
+                bestFocus = focus;
+            }
+        }
+        return bestFocus;
+    }
+
+    private static int buildCoreDeckSignal(GameCore.State s, int focus) {
+        int score = 0;
+        if (s == null) return score;
+        for (GameCore.Card c : s.deck) {
+            GameCore.CardDef d = GameCore.card(c.id);
+            score += buildCoreCardSignal(focus, d);
+            if (c.upgraded && focus == BUILD_FORGE) score += 2;
+        }
+        if (focus == BUILD_GOLD) score += Math.min(12, s.gold / 25);
+        if (focus == BUILD_BLOOD && s.hp < s.maxHp) score += 6;
+        if (focus == BUILD_GUARD) score += Math.min(8, s.maxHp / 12);
+        return score;
+    }
+
+    private static int buildCoreCardSignal(GameCore.State s, GameCore.CardDef d) {
+        int focus = activeBuildCoreFocus(s);
+        if (focus < 0) {
+            return 0;
+        }
+        return buildCoreCardSignal(focus, d);
+    }
+
+    private static int buildCoreCardSignal(int focus, GameCore.CardDef d) {
+        if (d == null) {
+            return 0;
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
+                    + (isAny(d.id, "overload_conduit", "tuner_overclock", "adjudicator_overrule",
+                    "astrologer_overstar", "machinist_overdrive", "chronomancer_overloop",
+                    "pactmaker_overdeal", "stormcaller_overstorm", "shadowdancer_overstrike",
+                    "runeblade_overglyph", "medium_overtrance", "tactician_overplan",
+                    "prismist_overbeam", "dreamwalker_overdream", "gardener_overgrowth",
+                    "chef_overcook", "bard_overcrescendo", "mirrorist_overimage",
+                    "puppeteer_overpull", "scavenger_overhaul") ? 12 : 0)
+                    + (isAny(d.id, "hybrid_guard_conduit", "hybrid_bloodcharge", "hybrid_rift_engine",
+                    "confluence_chord", "prism_anchor", "apex_confluence") ? 8 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 9 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
+                    + (d.exhaustForDamage ? 6 : 0)
+                    + (isAny(d.id, "echo_matrix", "hybrid_echo_step", "hybrid_echo_vial",
+                    "hybrid_spirit_anvil", "tuner_loop", "astrologer_orbit", "machinist_cogcall",
+                    "chronomancer_loop", "medium_whisper", "medium_veil", "medium_oracle",
+                    "medium_overtrance", "medium_grand_seance", "shadowdancer_veil", "bard_chorus",
+                    "mirrorist_reflect", "puppeteer_rehearse") ? 10 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 6 : 0)
+                    + (d.gainBurnPower + d.gainBindPower) * 3
+                    + (isAny(d.id, "brew_crucible", "hybrid_plague_brew", "hybrid_echo_vial",
+                    "chef_prep", "chef_spice", "chef_sizzle", "chef_overcook", "chef_grand_banquet",
+                    "alchemist_sunsteel") ? 10 : 0);
+        }
+        if (focus == BUILD_GOLD) {
+            return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0)
+                    + (isAny(d.id, "golden_engine", "hybrid_blood_tithe", "hybrid_coinwall",
+                    "pactmaker_collection", "pactmaker_bloodnote", "pactmaker_overdeal",
+                    "pactmaker_grand_contract", "merchant_kingmaker", "cursed_coin",
+                    "void_tithe", "scavenger_pick", "scavenger_sort") ? 10 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return d.hpLoss * 4 + d.heal * 2 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0)
+                    + (isAny(d.id, "crimson_loop", "hybrid_blood_tithe", "hybrid_bloodcharge",
+                    "pactmaker_bloodnote", "blood_apotheosis", "gardener_sprout", "chef_stew",
+                    "scavenger_patch") ? 10 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 10 : 0) + d.scry * 2 + d.upgradeCostDrop * 3 + (d.rarity == 2 ? 2 : 0)
+                    + (isAny(d.id, "forge_blueprint", "hybrid_forgebrand", "hybrid_rift_engine",
+                    "hybrid_spirit_anvil", "prism_anchor", "machinist_blueprint", "machinist_grand_engine",
+                    "runeblade_inscribe", "tactician_map", "tactician_grand_strategy",
+                    "mirrorist_shard", "mirrorist_reflect") ? 10 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 2 + d.bind * 2 + d.vulnerable * 5 + (d.addStatusToEnemy ? 7 : 0)
+                    + (d.spreadStatus ? 8 : 0) + (d.createWound ? 4 : 0)
+                    + (isAny(d.id, "plague_vector", "hybrid_plague_brew", "hybrid_hexdance",
+                    "hybrid_forgebrand", "tuner_harmonic", "adjudicator_clause", "pactmaker_witness",
+                    "stormcaller_chain", "shadowdancer_mark", "runeblade_glyphcut", "medium_binding",
+                    "tactician_flank", "prismist_spill", "dreamwalker_bind", "gardener_compost",
+                    "chef_spice", "bard_discord", "puppeteer_needle") ? 10 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.comboDamage / 2
+                    + (isAny(d.id, "cycle_metronome", "hybrid_echo_step", "hybrid_hexdance",
+                    "hybrid_rift_engine", "confluence_chord", "tuner_note", "tuner_pulse",
+                    "tuner_loop", "adjudicator_writ", "astrologer_chart", "astrologer_ephemeris",
+                    "machinist_spanner", "machinist_cogcall", "chronomancer_tick", "chronomancer_loop",
+                    "shadowdancer_step", "bard_note", "bard_chorus", "mirrorist_shard",
+                    "puppeteer_thread", "scavenger_sort") ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 3 : 0) + (d.blockToDamage ? 8 : 0) + (d.retainBlock ? 6 : 0)
+                    + d.gainSteelEngine * 5 + (d.burnToBlock ? 4 : 0)
+                    + (isAny(d.id, "aegis_engine", "hybrid_guard_conduit", "hybrid_coinwall",
+                    "hybrid_spirit_anvil", "prism_anchor", "adjudicator_bond", "machinist_spanner",
+                    "machinist_overdrive", "chronomancer_anchor", "pactmaker_collection",
+                    "warden_aegisline", "tactician_bulwark", "gardener_rootwall", "chef_stew",
+                    "bard_ballad", "mirrorist_guard", "puppeteer_screen", "scavenger_patch") ? 10 : 0);
+        }
+        return 0;
+    }
+
+    private static int buildCoreRelicSignal(int focus, String id) {
+        if (focus < 0 || id == null) {
+            return 0;
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
+                    "mastery_badge", "resonance_lens", "tuning_fork", "conductor_baton", "overload_etch",
+                    "pressure_gauge", "storm_rod", "tempest_crown", "ability_crown", "contract_stamp",
+                    "grand_ledger", "confluence_map", "prism_gear", "starforge_lens") ? 3 : 0;
+        }
+        if (focus == BUILD_ECHO) {
+            return isAny(id, "void_lens", "arcane_ink", "void_abacus", "echo_prism", "singularity_orb",
+                    "echo_ledger", "void_anchor", "echoflow_charm", "echo_crown", "spirit_planchette",
+                    "ancestral_planchette", "dreamcatcher_charm", "oneiric_crown", "songbook",
+                    "finale_crown", "mirror_lens", "mirror_crown", "string_spool", "marionette_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_BREW) {
+            return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell",
+                    "alchemist_case", "glass_vials", "catalyst_pump", "solar_crucible",
+                    "emberroot_charm", "split_anvil", "bloodspark_contract", "recipe_book",
+                    "banquet_crown", "seed_satchel", "verdant_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_GOLD) {
+            return isAny(id, "hunter_mark", "empty_coin", "merchant_key", "merchant_scale", "tithe_box",
+                    "ledger_stamp", "kingmaker_seal", "bloodcoin_broach", "contract_stamp",
+                    "grand_ledger", "golden_throne", "runic_shackle", "salvage_hook",
+                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_BLOOD) {
+            return isAny(id, "silver_suture", "cup_of_mist", "scar_talisman", "bloodcoin_broach",
+                    "bloodspark_contract", "crimson_seal", "blood_crown", "blood_contract",
+                    "contract_stamp", "grand_ledger", "hex_moon", "vital_sprout") ? 3 : 0;
+        }
+        if (focus == BUILD_FORGE) {
+            return isAny(id, "glass_anvil", "polished_cog", "loom_shuttle", "mirror_anvil",
+                    "split_anvil", "pattern_spool", "engraver_stylus", "gyro_wrench", "clockwork_core",
+                    "assembly_frame", "clockwork_loom", "living_codex", "forge_heart",
+                    "confluence_map", "prism_gear", "mosaic_core", "starforge_lens",
+                    "war_table", "grand_war_room", "refraction_dial", "spectrum_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_STATUS) {
+            return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
+                    "ranger_map", "glass_vials", "emberroot_charm", "stormglass_seal", "curse_censer",
+                    "split_anvil", "bloodspark_contract", "hawk_fletching", "solar_crucible",
+                    "apex_compass", "fallen_crown", "hex_moon", "markchain_seal", "pressure_gauge",
+                    "storm_rod", "tempest_crown", "war_table", "grand_war_room",
+                    "recipe_book", "banquet_crown", "songbook", "finale_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_CYCLE) {
+            return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum",
+                    "cracked_compass", "moon_lantern", "tempo_metronome", "tempo_spindle",
+                    "flash_heel", "finale_rapier", "tuning_fork", "conductor_baton",
+                    "hourglass_charm", "time_engine", "echo_ledger", "confluence_map",
+                    "prism_gear", "mosaic_core", "starforge_lens", "songbook", "finale_crown") ? 3 : 0;
+        }
+        if (focus == BUILD_GUARD) {
+            return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
+                    "vital_sprout", "polished_cog", "stormglass_seal", "bloodcoin_broach",
+                    "mirror_anvil", "command_banner", "aegis_throne", "vigil_bloom",
+                    "forge_heart", "discipline_chart", "trial_ledger", "war_table",
+                    "grand_war_room", "seed_satchel", "verdant_crown", "string_spool",
+                    "marionette_crown", "confluence_map", "prism_gear", "mosaic_core",
+                    "starforge_lens") ? 3 : 0;
+        }
+        return 0;
+    }
+
+    private static boolean isAny(String id, String... values) {
+        if (id == null) {
+            return false;
+        }
+        for (String value : values) {
+            if (id.equals(value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasSkillRelic(GameCore.State s) {

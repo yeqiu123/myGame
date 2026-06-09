@@ -2700,6 +2700,10 @@ public final class GameCore {
             String chain = "汇流链 " + s.confluenceChain + "/" + Math.max(1, focusMaskCount(s.confluenceMask));
             text += (text.length() == 0 ? "" : "  ") + chain;
         }
+        int coreFocus = activeBuildCoreFocus(s);
+        if (coreFocus >= 0 && coreFocus < BUILD_FOCUS_NAMES.length) {
+            text += (text.length() == 0 ? "" : "  ") + BUILD_FOCUS_NAMES[coreFocus] + "核心";
+        }
         return text;
     }
 
@@ -3719,7 +3723,10 @@ public final class GameCore {
     }
 
     private static void applyTalentPickup(State s, String id) {
-        if ("t_shared_masterwork".equals(id)) {
+        int coreFocus = buildCoreFocus(id);
+        if (coreFocus >= 0) {
+            applyBuildCorePickup(s, coreFocus);
+        } else if ("t_shared_masterwork".equals(id)) {
             upgradeRandomDeckCard(s);
             upgradeRandomDeckCard(s);
         } else if ("t_shared_hunter".equals(id)) {
@@ -4166,8 +4173,231 @@ public final class GameCore {
         s.deck.add(c);
     }
 
+    private static int buildCoreFocus(String id) {
+        if ("t_core_overload".equals(id)) return BUILD_OVERLOAD;
+        if ("t_core_echo".equals(id)) return BUILD_ECHO;
+        if ("t_core_brew".equals(id)) return BUILD_BREW;
+        if ("t_core_gold".equals(id)) return BUILD_GOLD;
+        if ("t_core_blood".equals(id)) return BUILD_BLOOD;
+        if ("t_core_forge".equals(id)) return BUILD_FORGE;
+        if ("t_core_status".equals(id)) return BUILD_STATUS;
+        if ("t_core_cycle".equals(id)) return BUILD_CYCLE;
+        if ("t_core_guard".equals(id)) return BUILD_GUARD;
+        return -1;
+    }
+
+    private static boolean isBuildCoreTalent(String id) {
+        return buildCoreFocus(id) >= 0;
+    }
+
+    private static boolean hasBuildCoreTalent(State s) {
+        if (s == null || s.talents == null) {
+            return false;
+        }
+        for (String id : s.talents) {
+            if (isBuildCoreTalent(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int activeBuildCoreFocus(State s) {
+        if (s == null || s.talents == null) {
+            return -1;
+        }
+        int bestFocus = -1;
+        int bestScore = -9999;
+        for (String id : s.talents) {
+            int focus = buildCoreFocus(id);
+            if (focus < 0) {
+                continue;
+            }
+            int score = buildScoutFocusScore(s, focus) + buildFocusDeckCards(s, focus) * 4;
+            if (score > bestScore) {
+                bestScore = score;
+                bestFocus = focus;
+            }
+        }
+        return bestFocus;
+    }
+
+    private static int buildCoreTier(State s, int focus) {
+        int score = buildScoutFocusScore(s, focus);
+        if (score >= 80) return 3;
+        if (score >= 55) return 2;
+        return 1;
+    }
+
+    private static void applyBuildCorePickup(State s, int focus) {
+        CardDef reward = buildCoreRewardCard(focus);
+        if (reward != null) {
+            addUpgradedDeckCard(s, reward.id);
+        }
+        s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        if (focus == BUILD_OVERLOAD) {
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if (focus == BUILD_ECHO) {
+            addUpgradedDeckCard(s, "hybrid_echo_step");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (focus == BUILD_BREW) {
+            while (s.potions.size() < Math.min(potionLimit(s), 2)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if (focus == BUILD_GOLD) {
+            s.gold += 90;
+        } else if (focus == BUILD_BLOOD) {
+            s.maxHp += 7;
+            s.hp += 7;
+        } else if (focus == BUILD_FORGE) {
+            upgradeRandomDeckCard(s);
+            upgradeRandomDeckCard(s);
+        } else if (focus == BUILD_STATUS) {
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if (focus == BUILD_CYCLE) {
+            addUpgradedDeckCard(s, "confluence_chord");
+        } else if (focus == BUILD_GUARD) {
+            s.maxHp += 6;
+            s.hp += 6;
+        }
+        log(s, "构筑核心锚定：" + BUILD_FOCUS_NAMES[focus] + "。");
+    }
+
+    private static int buildCoreCardBonus(State s, CardDef d) {
+        int focus = activeBuildCoreFocus(s);
+        if (focus < 0 || d == null) {
+            return 0;
+        }
+        int value = buildFocusCardValue(d, focus);
+        if (value <= 0) {
+            return 0;
+        }
+        int bonus = 2 + Math.min(16, value / 2) + buildCoreTier(s, focus) * 2;
+        if (value >= 8) {
+            bonus += 6;
+        }
+        if (d.rarity == 2) {
+            bonus += 2;
+        }
+        return bonus;
+    }
+
+    private static int buildCoreRelicBonus(State s, String id) {
+        int focus = activeBuildCoreFocus(s);
+        if (focus < 0 || id == null) {
+            return 0;
+        }
+        int value = relicFocusValue(id, focus);
+        return value <= 0 ? 0 : value * 3 + buildCoreTier(s, focus);
+    }
+
+    private static void triggerBuildCoreAfterPlay(State s, Card c, CardDef d) {
+        int focus = activeBuildCoreFocus(s);
+        if (focus < 0 || c == null || d == null) {
+            return;
+        }
+        int value = buildFocusCardValue(d, focus);
+        if (value < 8) {
+            return;
+        }
+        int tier = buildCoreTier(s, focus);
+        int limit = 1 + tier;
+        if (s.buildCoreTriggersThisTurn >= limit) {
+            return;
+        }
+        s.buildCoreTriggersThisTurn++;
+        addProfessionSkillCharge(s, 1);
+        if (focus == BUILD_OVERLOAD) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 3 + s.act * 2 + Math.min(12, value / 2 + s.professionSkillCharge / 2), true);
+            }
+            if (s.professionSkillCharge >= PROF_SKILL_MAX && s.buildCoreTriggersThisTurn == limit) {
+                gainBlock(s, 2 + s.act + tier);
+            }
+        } else if (focus == BUILD_ECHO) {
+            s.voidEngine++;
+            if (s.buildCoreTriggersThisTurn == 1 || (tier >= 3 && s.cardsPlayedThisTurn >= 3)) {
+                Card echo = new Card(d.createEcho || c.temp ? "quick_cut" : "void_echo");
+                echo.temp = true;
+                addToHand(s, echo);
+            }
+            if (tier >= 2 && (c.temp || d.createEcho)) {
+                draw(s, 1);
+            }
+        } else if (focus == BUILD_BREW) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + tier + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+                if (d.createPotion || d.spreadStatus) {
+                    e.vulnerable += 1;
+                }
+            }
+            if (d.createPotion && s.potions.size() < potionLimit(s) && s.buildCoreTriggersThisTurn == 1) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if (focus == BUILD_GOLD) {
+            int income = 2 + tier + Math.min(6, value / 5);
+            s.gold += income;
+            gainBlock(s, 2 + tier + Math.min(7, s.gold / 100));
+            if ((d.goldGain > 0 || d.goldDamage || d.goldBlock) && s.buildCoreTriggersThisTurn == limit) {
+                draw(s, 1);
+            }
+        } else if (focus == BUILD_BLOOD) {
+            if (s.hp > 1 && (d.hpLoss > 0 || d.createWound || "wound".equals(c.id))) {
+                gainBlock(s, 3 + tier + Math.min(8, Math.max(0, s.maxHp - s.hp) / 6));
+            } else {
+                s.hp = Math.min(s.maxHp, s.hp + 1 + tier / 2);
+            }
+            Enemy e = firstLiving(s);
+            if (e != null && (s.hp <= s.maxHp * 2 / 3 || d.createWound || "wound".equals(c.id))) {
+                e.vulnerable += 1;
+                damageEnemy(s, e, 3 + s.act + Math.min(12, Math.max(0, s.maxHp - s.hp) / 5), true);
+            }
+        } else if (focus == BUILD_FORGE) {
+            gainBlock(s, 2 + s.act + tier);
+            if (d.upgradeRandom || c.upgraded || s.buildCoreTriggersThisTurn == limit) {
+                upgradeRandomHandCard(s);
+            }
+            if (tier >= 3 && (d.scry > 0 || d.upgradeRandom)) {
+                draw(s, 1);
+            }
+        } else if (focus == BUILD_STATUS) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 3 + s.act * 2 + Math.min(14, bestEnemyPressure(s) / 3 + value / 3), true);
+            }
+            if (tier >= 2 && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0)) {
+                gainBlock(s, 2 + s.act);
+            }
+        } else if (focus == BUILD_CYCLE) {
+            if (s.buildCoreTriggersThisTurn == 1 || s.cardsPlayedThisTurn >= 4) {
+                draw(s, 1);
+            }
+            if (tier >= 2 && (d.cost == 0 || d.energyGain > 0 || s.cardsPlayedThisTurn >= 4)) {
+                s.energy++;
+            }
+        } else if (focus == BUILD_GUARD) {
+            gainBlock(s, 4 + s.act + tier + Math.min(8, Math.max(d.block, s.block / 6)));
+            Enemy e = firstLiving(s);
+            if (e != null && (d.type == 1 || s.block >= 18)) {
+                damageEnemy(s, e, 3 + s.act * 2 + Math.min(12, s.block / 8), true);
+            }
+        }
+        if (s.buildCoreTriggersThisTurn == 1) {
+            log(s, "核心响应：" + BUILD_FOCUS_NAMES[focus] + "。");
+        }
+    }
+
     private static boolean isAdvancedTalent(String id) {
-        return "t_warden_vanguard".equals(id) || "t_duelist_masterstep".equals(id)
+        return isBuildCoreTalent(id) || "t_warden_vanguard".equals(id) || "t_duelist_masterstep".equals(id)
                 || "t_alchemist_grandbrew".equals(id) || "t_ranger_apex".equals(id)
                 || "t_arcanist_singularity".equals(id) || "t_merchant_monopoly".equals(id)
                 || "t_bloodbound_hemocraft".equals(id) || "t_weaver_grandpattern".equals(id)
@@ -4377,6 +4607,19 @@ public final class GameCore {
         if (focus == BUILD_CYCLE) return card("cycle_metronome");
         if (focus == BUILD_GUARD) return card("aegis_engine");
         return randomOverloadCard(s, true);
+    }
+
+    private static CardDef buildCoreRewardCard(int focus) {
+        if (focus == BUILD_OVERLOAD) return card("overload_conduit");
+        if (focus == BUILD_ECHO) return card("echo_matrix");
+        if (focus == BUILD_BREW) return card("brew_crucible");
+        if (focus == BUILD_GOLD) return card("golden_engine");
+        if (focus == BUILD_BLOOD) return card("crimson_loop");
+        if (focus == BUILD_FORGE) return card("forge_blueprint");
+        if (focus == BUILD_STATUS) return card("plague_vector");
+        if (focus == BUILD_CYCLE) return card("cycle_metronome");
+        if (focus == BUILD_GUARD) return card("aegis_engine");
+        return null;
     }
 
     private static void removeStarterJunk(State s) {
@@ -6245,6 +6488,7 @@ public final class GameCore {
         s.confluenceMask = 0;
         s.confluenceChain = 0;
         s.confluenceBurstThisTurn = 0;
+        s.buildCoreTriggersThisTurn = 0;
         s.vulnerable = 0;
         s.nextEnergyPenalty = 0;
         s.professionCharge = 0;
@@ -6957,6 +7201,7 @@ public final class GameCore {
         s.confluenceMask = 0;
         s.confluenceChain = 0;
         s.confluenceBurstThisTurn = 0;
+        s.buildCoreTriggersThisTurn = 0;
         s.professionSkillUsedThisTurn = false;
         if (hasRelic(s, "amber_quill") && s.turn == 1) {
             s.energy++;
@@ -7663,6 +7908,7 @@ public final class GameCore {
             upgradeRandomHandCard(s);
             upgradeRandomHandCard(s);
         }
+        applyBuildCoreStart(s);
         if (hasRelic(s, "hex_moon") && s.turn > 1 && s.turn % 2 == 0) {
             addStatusCard(s, "daze");
         }
@@ -7749,6 +7995,77 @@ public final class GameCore {
             gainBlock(s, 6 + tier * 3);
         }
         log(s, "构筑共鸣：" + BUILD_FOCUS_NAMES[focus] + " " + buildFocusRank(s.buildResonanceScore) + "。");
+    }
+
+    private static void applyBuildCoreStart(State s) {
+        int focus = activeBuildCoreFocus(s);
+        if (focus < 0) {
+            return;
+        }
+        int tier = buildCoreTier(s, focus);
+        if (s.turn == 1) {
+            gainBlock(s, 2 + tier);
+            addProfessionSkillCharge(s, 1);
+            log(s, "构筑核心启动：" + BUILD_FOCUS_NAMES[focus] + "。");
+        }
+        if (focus == BUILD_OVERLOAD) {
+            addProfessionSkillCharge(s, 1 + (s.turn == 1 ? tier : 0));
+            if (s.turn == 1 && tier >= 2) {
+                s.energy++;
+            }
+        } else if (focus == BUILD_ECHO) {
+            if (s.turn == 1 || (tier >= 2 && s.turn % 3 == 0)) {
+                Card echo = new Card(PROF_SUMMONER.equals(s.profession) ? "summoner_sprite" : "quick_cut");
+                echo.temp = true;
+                addToHand(s, echo);
+            }
+            if (tier >= 3 && s.turn == 1) {
+                draw(s, 1);
+            }
+        } else if (focus == BUILD_BREW) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + tier + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+            }
+            if (s.turn == 1 && s.potions.size() < potionLimit(s)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if (focus == BUILD_GOLD) {
+            s.gold += 2 + tier;
+            gainBlock(s, 2 + tier + Math.min(6, s.gold / 100));
+        } else if (focus == BUILD_BLOOD) {
+            if (s.hp < s.maxHp) {
+                s.hp = Math.min(s.maxHp, s.hp + 1 + tier);
+            }
+            if (s.hp <= s.maxHp / 2) {
+                s.energy++;
+            }
+            gainBlock(s, 2 + tier);
+        } else if (focus == BUILD_FORGE) {
+            if (s.turn == 1 || (tier >= 2 && s.turn % 3 == 0)) {
+                upgradeRandomHandCard(s);
+            }
+            gainBlock(s, 2 + tier);
+        } else if (focus == BUILD_STATUS) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.bind += tier;
+                if (tier >= 3) {
+                    e.mark += 1;
+                }
+            }
+        } else if (focus == BUILD_CYCLE) {
+            if (s.turn == 1 || tier >= 2) {
+                draw(s, 1);
+            }
+            if (tier >= 3 && s.turn == 1) {
+                s.energy++;
+            }
+        } else if (focus == BUILD_GUARD) {
+            s.steelEngine++;
+            gainBlock(s, 4 + tier * 2);
+        }
     }
 
     private static void rollEnemyIntents(State s) {
@@ -10489,6 +10806,7 @@ public final class GameCore {
 
     private static void triggerAfterPlay(State s, Card c, CardDef d) {
         triggerConfluenceChain(s, c, d);
+        triggerBuildCoreAfterPlay(s, c, d);
         if (hasRelic(s, "thorn_ring") && d.type == 1) {
             Enemy e = firstLiving(s);
             if (e != null) {
@@ -13611,6 +13929,9 @@ public final class GameCore {
             if (s.act < 2 && isAdvancedTalent(t.id)) {
                 continue;
             }
+            if (hasBuildCoreTalent(s) && isBuildCoreTalent(t.id)) {
+                continue;
+            }
             if (!s.talents.contains(t.id) && (t.profession.length() == 0 || t.profession.equals(s.profession))) {
                 pool.add(t);
             }
@@ -13751,6 +14072,7 @@ public final class GameCore {
             }
             weight += professionCardBonus(s, d);
             weight += skillSpecCardBonus(s, d);
+            weight += buildCoreCardBonus(s, d);
             for (int i = 0; i < weight; i++) {
                 pool.add(d);
             }
@@ -13784,6 +14106,7 @@ public final class GameCore {
             if (d.skillChargeGain > 0) {
                 weight += 2;
             }
+            weight += buildCoreCardBonus(s, d);
             for (int i = 0; i < weight; i++) {
                 pool.add(d);
             }
@@ -13832,6 +14155,7 @@ public final class GameCore {
             weight += professionCardBonus(s, d);
             weight += relicCardBonus(s, d);
             weight += skillSpecCardBonus(s, d);
+            weight += buildCoreCardBonus(s, d);
             for (int i = 0; i < weight; i++) {
                 pool.add(d);
             }
@@ -13880,6 +14204,7 @@ public final class GameCore {
             weight += professionCardBonus(s, d);
             weight += relicCardBonus(s, d);
             weight += skillSpecCardBonus(s, d);
+            weight += buildCoreCardBonus(s, d);
             if (weight <= 0) {
                 continue;
             }
@@ -14980,7 +15305,21 @@ public final class GameCore {
         int zeroCost = zeroCostDeckCards(s);
         int professionCards = professionDeckCards(s);
         int potionsOpen = potionLimit(s) - s.potions.size();
-        if ("t_shared_masterwork".equals(id)) bonus += upgraded < 4 ? 12 : 5;
+        int coreFocus = buildCoreFocus(id);
+        if (coreFocus >= 0) {
+            int cards = buildFocusDeckCards(s, coreFocus);
+            int score = buildScoutFocusScore(s, coreFocus);
+            bonus += Math.min(36, cards * 4 + score / 6);
+            if (topBuildFocuses(s, 1)[0] == coreFocus) {
+                bonus += 8;
+            }
+            if (score >= 55) {
+                bonus += 6;
+            }
+            if (hasBuildCoreTalent(s)) {
+                bonus -= 36;
+            }
+        } else if ("t_shared_masterwork".equals(id)) bonus += upgraded < 4 ? 12 : 5;
         else if ("t_shared_hunter".equals(id)) bonus += professionCards >= 5 ? 9 : 4;
         else if ("t_shared_longnight".equals(id)) bonus += s.deck.size() >= 24 ? 10 : 3;
         else if ("t_shared_wayfarer".equals(id)) bonus += s.hp < s.maxHp * 0.7f ? 8 : 5;
@@ -15137,6 +15476,10 @@ public final class GameCore {
     }
 
     private static int talentFocusValue(String id, int focus) {
+        int coreFocus = buildCoreFocus(id);
+        if (coreFocus >= 0) {
+            return coreFocus == focus ? 6 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
                     "t_arcanist_singularity", "t_merchant_monopoly", "t_weaver_grandpattern",
@@ -15259,6 +15602,15 @@ public final class GameCore {
     }
 
     private static String talentReason(State s, String id) {
+        int coreFocus = buildCoreFocus(id);
+        if (coreFocus >= 0) {
+            int cards = buildFocusDeckCards(s, coreFocus);
+            int score = buildScoutFocusScore(s, coreFocus);
+            if (score >= 55 || cards >= 4) {
+                return BUILD_FOCUS_NAMES[coreFocus] + "成型";
+            }
+            return BUILD_FOCUS_NAMES[coreFocus] + "锚定";
+        }
         if (isAny(id, "t_shared_masterwork", "t_weaver_mastery", "t_weaver_grandpattern",
                 "t_inscriber_rubbing", "t_inscriber_grandcodex") && upgradedDeckCards(s) >= 4) {
             return "升级牌多";
@@ -15653,6 +16005,9 @@ public final class GameCore {
         if (skillSpecCardBonus(s, d) >= 4) {
             hint += (hint.length() == 0 ? "" : "  ") + skillSpecName(s) + "适配";
         }
+        if (buildCoreCardBonus(s, d) >= 8) {
+            hint += (hint.length() == 0 ? "" : "  ") + "核心适配";
+        }
         if (d.rarity == 2) {
             hint += (hint.length() == 0 ? "" : "  ") + "稀有";
         }
@@ -15687,6 +16042,9 @@ public final class GameCore {
         }
         if (skillSpecRelicBonus(s, id) > 0) {
             hint = appendHint(hint, "专修契合");
+        }
+        if (buildCoreRelicBonus(s, id) > 0) {
+            hint = appendHint(hint, "核心适配");
         }
         if (r.boss) {
             hint = appendHint(hint, "Boss");
@@ -16568,7 +16926,7 @@ public final class GameCore {
                 if (s.act < 2 && isCapstoneRelic(r.id)) {
                     continue;
                 }
-                int weight = 1 + professionRelicBonus(s, r.id) + skillSpecRelicBonus(s, r.id);
+                int weight = 1 + professionRelicBonus(s, r.id) + skillSpecRelicBonus(s, r.id) + buildCoreRelicBonus(s, r.id);
                 for (int i = 0; i < weight; i++) {
                     pool.add(r);
                 }
@@ -18434,6 +18792,15 @@ public final class GameCore {
         addTalent("t_shared_longnight", "", "长夜储备", "每场战斗第4回合获得1能量并抽1张。");
         addTalent("t_shared_wayfarer", "", "旅人本能", "事件前整理资源；普通战斗偶尔多一张卡牌奖励。");
         addTalent("t_shared_apothecary", "", "随行药师", "获得时装满药剂；药剂与制药牌提供额外资源。");
+        addTalent("t_core_overload", "", "权能核心", "进阶构筑核心。获得升级过载导管；每场战斗按过载牌启动充能，过载牌每回合有限次追加标记与穿透。");
+        addTalent("t_core_echo", "", "回声核心", "进阶构筑核心。获得升级回声矩阵和回声步；回声牌会制造临时牌、提高回声势并续接抽牌。");
+        addTalent("t_core_brew", "", "炼调核心", "进阶构筑核心。获得升级反应釜并补药剂；制药与异常牌会额外扩散燃灼、束缚和易伤。");
+        addTalent("t_core_gold", "", "裂币核心", "进阶构筑核心。获得升级黄金引擎和金币；金币牌会入账、加固，并在成型时续抽。");
+        addTalent("t_core_blood", "", "血契核心", "进阶构筑核心。获得升级猩红循环和生命；血契与状态牌会治疗、加固并把失血转成追击。");
+        addTalent("t_core_forge", "", "工坊核心", "进阶构筑核心。获得升级工坊蓝图并升级牌组；升级、检视和工坊牌会加固并继续升级手牌。");
+        addTalent("t_core_status", "", "异常核心", "进阶构筑核心。获得升级疫病向量并净化状态；异常牌会铺开标记、束缚和穿透追击。");
+        addTalent("t_core_cycle", "", "循环核心", "进阶构筑核心。获得升级节拍器与汇流和弦；抽牌、低费和返能牌会续抽并返还能量。");
+        addTalent("t_core_guard", "", "壁垒核心", "进阶构筑核心。获得升级护盾引擎和生命；防御牌会获得额外格挡并把高格挡转成反击。");
         addTalent("t_warden_bastion", PROF_WARDEN, "不破壁垒", "每场战斗首回合获得守势与额外格挡。");
         addTalent("t_warden_counter", PROF_WARDEN, "反击纪律", "每两张技能牌的反击更强，并额外抽1张。");
         addTalent("t_warden_armory", PROF_WARDEN, "移动军械", "首回合获得守势并升级手牌；高格挡技能追加穿透伤害。");
@@ -18657,6 +19024,7 @@ public final class GameCore {
         public int confluenceMask;
         public int confluenceChain;
         public int confluenceBurstThisTurn;
+        public int buildCoreTriggersThisTurn;
         public int runGuardMilestone;
         public int runComboMilestone;
         public int runHexMilestone;
