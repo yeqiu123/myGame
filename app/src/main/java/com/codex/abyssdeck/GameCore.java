@@ -2793,6 +2793,11 @@ public final class GameCore {
         int coreFocus = activeBuildCoreFocus(s);
         if (coreFocus >= 0 && coreFocus < BUILD_FOCUS_NAMES.length) {
             text += (text.length() == 0 ? "" : "  ") + BUILD_FOCUS_NAMES[coreFocus] + "核心";
+            SkillSpecDef spec = skillSpec(s.skillSpec);
+            if (s.mode == MODE_COMBAT && spec != null) {
+                int limit = coreFusionTriggerLimit(s, Math.max(1, s.skillSpecLevel), buildCoreTier(s, coreFocus));
+                text += " 融合" + s.coreFusionTriggersThisTurn + "/" + limit;
+            }
         }
         return text;
     }
@@ -4484,6 +4489,193 @@ public final class GameCore {
         if (s.buildCoreTriggersThisTurn == 1) {
             log(s, "核心响应：" + BUILD_FOCUS_NAMES[focus] + "。");
         }
+    }
+
+    private static void triggerCoreFusionAfterPlay(State s, Card c, CardDef d) {
+        SkillSpecDef spec = skillSpec(s.skillSpec);
+        int focus = activeBuildCoreFocus(s);
+        if (spec == null || focus < 0 || c == null || d == null) {
+            return;
+        }
+        int specValue = skillSpecCardBonus(s, d);
+        int coreValue = buildFocusCardValue(d, focus);
+        if (specValue < 4 || coreValue < 6) {
+            return;
+        }
+        int level = Math.max(1, s.skillSpecLevel);
+        int tier = buildCoreTier(s, focus);
+        int limit = coreFusionTriggerLimit(s, level, tier);
+        if (s.coreFusionTriggersThisTurn >= limit) {
+            return;
+        }
+        s.coreFusionTriggersThisTurn++;
+        int pulse = 1 + level + tier + Math.min(3, specValue / 5 + coreValue / 8);
+        applyCoreFusionCardSpecPulse(s, spec.id, pulse, d);
+        applyCoreFusionCardFocusPulse(s, focus, pulse, d);
+        addProfessionSkillCharge(s, 1 + (pulse >= 7 ? 1 : 0));
+        if (s.coreFusionTriggersThisTurn == 1) {
+            log(s, "融合牌响应：" + spec.name + " / " + BUILD_FOCUS_NAMES[focus] + "。");
+        }
+    }
+
+    private static void applyCoreFusionCardSpecPulse(State s, String specId, int pulse, CardDef d) {
+        Enemy target = firstLiving(s);
+        if ("spec_burst".equals(specId)) {
+            if (target != null) {
+                target.mark += 1;
+                damageEnemy(s, target, 2 + s.act + Math.min(14, pulse * 2 + s.cardsPlayedThisTurn), true);
+            }
+        } else if ("spec_tempo".equals(specId)) {
+            if (s.cardsPlayedThisTurn >= 3 || pulse >= 6) {
+                draw(s, 1);
+            }
+            if (pulse >= 7) {
+                s.energy++;
+            }
+        } else if ("spec_sustain".equals(specId)) {
+            gainBlock(s, 2 + s.act + pulse * 2);
+            if (s.hp < s.maxHp && pulse >= 5) {
+                s.hp = Math.min(s.maxHp, s.hp + 1 + pulse / 3);
+            }
+        } else if ("spec_resonance".equals(specId)) {
+            addProfessionSkillCharge(s, 1 + Math.min(2, pulse / 3));
+            if ((d.createEcho || d.draw > 0 || d.energyGain > 0) && pulse >= 6) {
+                draw(s, 1);
+            }
+        } else if ("spec_mastery".equals(specId)) {
+            if (pulse >= 6) {
+                CardDef reward = randomOverloadCard(s, false);
+                if (reward != null) {
+                    Card c = new Card(reward.id);
+                    c.temp = true;
+                    c.upgraded = pulse >= 8;
+                    addToHand(s, c);
+                }
+            } else {
+                addProfessionSkillCharge(s, 1);
+            }
+        } else if ("spec_control".equals(specId)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += pulse >= 6 ? 1 : 0;
+            }
+            gainBlock(s, 2 + s.act + Math.min(8, bestEnemyPressure(s) / 4 + pulse));
+        } else if ("spec_assembly".equals(specId)) {
+            upgradeRandomHandCard(s);
+            gainBlock(s, 2 + s.act + pulse);
+        } else if ("spec_echoflow".equals(specId)) {
+            s.voidEngine++;
+            if (pulse >= 5) {
+                Card echo = new Card(d.createEcho ? "quick_cut" : "void_echo");
+                echo.temp = true;
+                echo.upgraded = pulse >= 7;
+                addToHand(s, echo);
+            }
+        } else if ("spec_markchain".equals(specId)) {
+            if (target != null) {
+                target.mark += 1 + pulse / 5;
+                if (target.mark >= 4 || pulse >= 6) {
+                    damageEnemy(s, target, 2 + s.act + Math.min(16, target.mark * 2 + pulse), true);
+                }
+            }
+        } else if ("spec_pressure".equals(specId)) {
+            int pressure = bestEnemyPressure(s);
+            if (target != null) {
+                target.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, target, 2 + s.act + Math.min(14, pressure / 3 + pulse), true);
+            }
+            if (pressure >= 9 || pulse >= 7) {
+                draw(s, 1);
+            }
+        } else if ("spec_salvage".equals(specId)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            gainBlock(s, 2 + s.act + Math.min(10, s.discard.size() / 3 + statuses * 3 + pulse));
+            s.gold += 2 + s.act + Math.min(8, statuses * 2 + s.discard.size() / 6 + s.exhaust.size() / 3);
+            if (statuses > 0 && pulse >= 6) {
+                removeStatusCard(s);
+            }
+        }
+    }
+
+    private static void applyCoreFusionCardFocusPulse(State s, int focus, int pulse, CardDef d) {
+        Enemy target = firstLiving(s);
+        if (focus == BUILD_OVERLOAD) {
+            addProfessionSkillCharge(s, 1 + Math.min(2, pulse / 4));
+            if (target != null) {
+                target.mark += 1;
+                damageEnemy(s, target, 2 + s.act + Math.min(14, pulse * 2 + s.professionSkillCharge / 3), true);
+            }
+        } else if (focus == BUILD_ECHO) {
+            s.voidEngine++;
+            if (d.createEcho || pulse >= 6) {
+                Card echo = new Card("quick_cut");
+                echo.temp = true;
+                echo.upgraded = pulse >= 7;
+                addToHand(s, echo);
+            }
+        } else if (focus == BUILD_BREW) {
+            if (target != null) {
+                target.burn += 1 + pulse / 3 + s.burnPower / 2;
+                target.bind += 1 + s.bindPower / 2;
+            }
+            if (d.createPotion && s.potions.size() < potionLimit(s) && pulse >= 7) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if (focus == BUILD_GOLD) {
+            int income = 3 + s.act + Math.min(10, pulse * 2 + d.goldGain / 4);
+            s.gold += income;
+            gainBlock(s, 2 + s.act + Math.min(8, income / 2 + s.gold / 120));
+        } else if (focus == BUILD_BLOOD) {
+            int missing = Math.max(0, s.maxHp - s.hp);
+            if (s.hp < s.maxHp) {
+                s.hp = Math.min(s.maxHp, s.hp + 1 + pulse / 3);
+            }
+            if (target != null) {
+                target.vulnerable += 1;
+                damageEnemy(s, target, 2 + s.act + Math.min(16, missing / 4 + pulse * 2), true);
+            }
+        } else if (focus == BUILD_FORGE) {
+            upgradeRandomHandCard(s);
+            gainBlock(s, 2 + s.act + pulse);
+        } else if (focus == BUILD_STATUS) {
+            if (target != null) {
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+                target.mark += 1;
+                damageEnemy(s, target, 2 + s.act + Math.min(16, bestEnemyPressure(s) / 4 + pulse * 2), true);
+            }
+        } else if (focus == BUILD_CYCLE) {
+            if (s.cardsPlayedThisTurn >= 3 || pulse >= 6) {
+                draw(s, 1);
+            }
+            if (d.cost == 0 || d.energyGain > 0 || pulse >= 7) {
+                s.energy++;
+            }
+        } else if (focus == BUILD_GUARD) {
+            gainBlock(s, 3 + s.act + pulse * 2 + Math.min(8, s.block / 8));
+            if (target != null && (d.type == 1 || s.block >= 18)) {
+                damageEnemy(s, target, 2 + s.act + Math.min(14, s.block / 8 + pulse), true);
+            }
+        }
+    }
+
+    private static boolean coreFusionCardReady(State s, CardDef d) {
+        if (s == null || d == null || skillSpec(s.skillSpec) == null) {
+            return false;
+        }
+        int focus = activeBuildCoreFocus(s);
+        if (focus < 0) {
+            return false;
+        }
+        return skillSpecCardBonus(s, d) >= 4 && buildFocusCardValue(d, focus) >= 6;
+    }
+
+    private static int coreFusionTriggerLimit(State s, int level, int tier) {
+        int limit = 1 + (level >= 2 ? 1 : 0) + (tier >= 3 ? 1 : 0);
+        if (s != null && hasRelic(s, "resonance_lens") && "spec_resonance".equals(s.skillSpec)) {
+            limit++;
+        }
+        return Math.min(4, limit);
     }
 
     private static boolean isAdvancedTalent(String id) {
@@ -6772,6 +6964,7 @@ public final class GameCore {
         s.confluenceChain = 0;
         s.confluenceBurstThisTurn = 0;
         s.buildCoreTriggersThisTurn = 0;
+        s.coreFusionTriggersThisTurn = 0;
         s.vulnerable = 0;
         s.nextEnergyPenalty = 0;
         s.professionCharge = 0;
@@ -7485,6 +7678,7 @@ public final class GameCore {
         s.confluenceChain = 0;
         s.confluenceBurstThisTurn = 0;
         s.buildCoreTriggersThisTurn = 0;
+        s.coreFusionTriggersThisTurn = 0;
         s.professionSkillUsedThisTurn = false;
         if (hasRelic(s, "amber_quill") && s.turn == 1) {
             s.energy++;
@@ -11090,6 +11284,7 @@ public final class GameCore {
     private static void triggerAfterPlay(State s, Card c, CardDef d) {
         triggerConfluenceChain(s, c, d);
         triggerBuildCoreAfterPlay(s, c, d);
+        triggerCoreFusionAfterPlay(s, c, d);
         if (hasRelic(s, "thorn_ring") && d.type == 1) {
             Enemy e = firstLiving(s);
             if (e != null) {
@@ -16291,6 +16486,9 @@ public final class GameCore {
         if (buildCoreCardBonus(s, d) >= 8) {
             hint += (hint.length() == 0 ? "" : "  ") + "核心适配";
         }
+        if (coreFusionCardReady(s, d)) {
+            hint += (hint.length() == 0 ? "" : "  ") + "融合适配";
+        }
         if (d.rarity == 2) {
             hint += (hint.length() == 0 ? "" : "  ") + "稀有";
         }
@@ -19308,6 +19506,7 @@ public final class GameCore {
         public int confluenceChain;
         public int confluenceBurstThisTurn;
         public int buildCoreTriggersThisTurn;
+        public int coreFusionTriggersThisTurn;
         public int runGuardMilestone;
         public int runComboMilestone;
         public int runHexMilestone;
