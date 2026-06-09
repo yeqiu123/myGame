@@ -624,7 +624,14 @@ public final class SimulationHarness {
         int best = 0;
         int bestScore = -9999;
         for (int i = 0; i < s.talentChoices.size(); i++) {
-            int score = GameCore.talentSynergyScore(s, s.talentChoices.get(i));
+            String id = s.talentChoices.get(i);
+            int score = GameCore.talentSynergyScore(s, id);
+            if (s.skillSpec != null && s.skillSpec.length() > 0 && buildCoreFocus(id) >= 0) {
+                score += 10 + Math.max(1, s.skillSpecLevel) * 4;
+            }
+            if (hasBuildCoreTalent(s) && isSpecFriendlyTalent(id)) {
+                score += 4;
+            }
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
@@ -1279,6 +1286,10 @@ public final class SimulationHarness {
     private static boolean shouldUseProfessionSkill(GameCore.State s) {
         if (!GameCore.professionSkillReady(s)) return false;
         int overload = GameCore.professionSkillOverload(s);
+        if (hasBuildCoreTalent(s) && s.skillSpec != null && s.skillSpec.length() > 0
+                && (overload >= 1 || s.turn >= 2 || s.combatKind == 'E' || s.combatKind == 'B')) {
+            return true;
+        }
         if (s.combatQuest == GameCore.QUEST_SKILL) {
             return true;
         }
@@ -1421,6 +1432,20 @@ public final class SimulationHarness {
             return true;
         }
         return hasSkillRelic(s) || s.turn >= 2 || s.enemies.size() > 1 || s.combatKind == 'E' || s.combatKind == 'B';
+    }
+
+    private static boolean isSpecFriendlyTalent(String id) {
+        return id != null && (id.endsWith("_grand") || id.startsWith("t_core_")
+                || "t_tuner_resonance".equals(id) || "t_adjudicator_docket".equals(id)
+                || "t_astrologer_ephemeris".equals(id) || "t_machinist_foundry".equals(id)
+                || "t_chronomancer_clockwork".equals(id) || "t_pactmaker_notary".equals(id)
+                || "t_stormcaller_pressure".equals(id) || "t_shadowdancer_vanish".equals(id)
+                || "t_runeblade_stylus".equals(id) || "t_medium_oracle".equals(id)
+                || "t_tactician_map".equals(id) || "t_prismist_lens".equals(id)
+                || "t_dreamwalker_drift".equals(id) || "t_gardener_sprout".equals(id)
+                || "t_chef_prep".equals(id) || "t_bard_chorus".equals(id)
+                || "t_mirrorist_reflect".equals(id) || "t_puppeteer_rehearse".equals(id)
+                || "t_scavenger_market".equals(id));
     }
 
     private static int buildCoreFocus(String id) {

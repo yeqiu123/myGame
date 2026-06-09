@@ -821,12 +821,15 @@ public final class GameCore {
         String text = professionSkillTextFor(profession);
         int overload = professionSkillOverload(s);
         String resonance = professionSkillResonanceText(s);
+        String fusion = skillSpecCoreFusionText(s);
         SkillSpecDef specDef = s == null ? null : skillSpec(s.skillSpec);
         String spec = specDef == null ? "" : specDef.text;
         if (overload > 0) {
-            return text + " 当前过载+" + overload + "。" + (spec.length() > 0 ? " " + spec : "") + (resonance.length() > 0 ? " " + resonance : "");
+            return text + " 当前过载+" + overload + "。" + (spec.length() > 0 ? " " + spec : "")
+                    + (resonance.length() > 0 ? " " + resonance : "") + (fusion.length() > 0 ? " " + fusion : "");
         }
-        return text + " 满充能后可继续积蓄过载。" + (spec.length() > 0 ? " " + spec : "") + (resonance.length() > 0 ? " " + resonance : "");
+        return text + " 满充能后可继续积蓄过载。" + (spec.length() > 0 ? " " + spec : "")
+                + (resonance.length() > 0 ? " " + resonance : "") + (fusion.length() > 0 ? " " + fusion : "");
     }
 
     public static String professionSkillResonanceText(State s) {
@@ -1730,6 +1733,7 @@ public final class GameCore {
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
+        applySkillSpecCoreFusion(s, target, overload);
         applyProfessionSkillRelics(s, target);
         log(s, "释放职业技：" + professionSkillName(s.profession) + (overload > 0 ? " 过载+" + overload : ""));
         updateQuestProgress(s);
@@ -5020,6 +5024,199 @@ public final class GameCore {
             tier = Math.min(3, tier + 1);
         }
         return tier;
+    }
+
+    private static String skillSpecCoreFusionText(State s) {
+        SkillSpecDef spec = s == null ? null : skillSpec(s.skillSpec);
+        int focus = activeBuildCoreFocus(s);
+        if (spec == null || focus < 0 || focus >= BUILD_FOCUS_NAMES.length) {
+            return "";
+        }
+        int tier = buildCoreTier(s, focus);
+        return "核心融合：" + spec.name + "会在释放职业技后引动" + BUILD_FOCUS_NAMES[focus]
+                + "核心" + (tier >= 3 ? "III" : tier == 2 ? "II" : "I") + "。";
+    }
+
+    private static void applySkillSpecCoreFusion(State s, Enemy chosenTarget, int overload) {
+        SkillSpecDef spec = skillSpec(s.skillSpec);
+        int focus = activeBuildCoreFocus(s);
+        if (spec == null || focus < 0) {
+            return;
+        }
+        int level = Math.max(1, s.skillSpecLevel);
+        int tier = buildCoreTier(s, focus);
+        int pulse = 1 + level + tier + overload / 2;
+        Enemy target = chosenTarget != null && chosenTarget.hp > 0 ? chosenTarget : firstLiving(s);
+        applySkillSpecFusionPulse(s, spec.id, target, pulse, overload);
+        applyBuildCoreFusionPulse(s, focus, target, pulse, overload);
+        addProfessionSkillCharge(s, Math.min(4, level + tier / 2 + overload / 3));
+        if (level >= 3 && tier >= 3) {
+            s.energy++;
+        }
+        log(s, "核心融合：" + spec.name + " / " + BUILD_FOCUS_NAMES[focus] + "。");
+    }
+
+    private static void applySkillSpecFusionPulse(State s, String specId, Enemy target, int pulse, int overload) {
+        if ("spec_burst".equals(specId)) {
+            if (target != null) {
+                damageEnemy(s, target, 6 + s.act * 2 + pulse * 4 + overload * 2, true);
+                target.mark += 1 + pulse / 4;
+            }
+        } else if ("spec_tempo".equals(specId)) {
+            draw(s, 1 + (pulse >= 6 ? 1 : 0));
+            if (pulse >= 5) {
+                Card cut = new Card("quick_cut");
+                cut.temp = true;
+                cut.upgraded = pulse >= 7;
+                addToHand(s, cut);
+            }
+        } else if ("spec_sustain".equals(specId)) {
+            gainBlock(s, 4 + s.act + pulse * 3);
+            s.hp = Math.min(s.maxHp, s.hp + 1 + pulse / 2 + overload / 2);
+        } else if ("spec_resonance".equals(specId)) {
+            int focus = activeBuildCoreFocus(s);
+            if (focus >= 0) {
+                CardDef d = buildCoreRewardCard(focus);
+                if (d != null && pulse >= 6) {
+                    Card c = new Card(d.id);
+                    c.temp = true;
+                    c.upgraded = true;
+                    addToHand(s, c);
+                }
+            }
+            addProfessionSkillCharge(s, 1 + Math.min(3, pulse / 3));
+        } else if ("spec_mastery".equals(specId)) {
+            CardDef d = randomOverloadCard(s, true);
+            if (d != null) {
+                Card c = new Card(d.id);
+                c.temp = true;
+                c.upgraded = pulse >= 6;
+                addToHand(s, c);
+            }
+        } else if ("spec_control".equals(specId)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1 + overload / 4;
+            }
+            gainBlock(s, 2 + s.act + Math.min(12, bestEnemyPressure(s) / 4 + pulse));
+        } else if ("spec_assembly".equals(specId)) {
+            upgradeRandomHandCard(s);
+            if (pulse >= 6) {
+                upgradeRandomHandCard(s);
+            }
+            gainBlock(s, 3 + s.act + pulse * 2);
+        } else if ("spec_echoflow".equals(specId)) {
+            Card echo = new Card(pulse >= 6 ? "hybrid_echo_step" : "quick_cut");
+            echo.temp = true;
+            echo.upgraded = pulse >= 7;
+            addToHand(s, echo);
+            s.voidEngine++;
+            if (pulse >= 6) {
+                draw(s, 1);
+            }
+        } else if ("spec_markchain".equals(specId)) {
+            for (Enemy e : livingEnemies(s)) {
+                e.mark += 1 + pulse / 4;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 3 + s.act + Math.min(18, e.mark * 2 + pulse), true);
+            }
+        } else if ("spec_pressure".equals(specId)) {
+            int pressure = bestEnemyPressure(s);
+            for (Enemy e : livingEnemies(s)) {
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += pressure >= 8 ? 1 : 0;
+                damageEnemy(s, e, 2 + s.act + Math.min(18, pressure / 2 + pulse), true);
+            }
+            if (pressure >= 10) {
+                draw(s, 1);
+            }
+        } else if ("spec_salvage".equals(specId)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            draw(s, 1);
+            gainBlock(s, 3 + s.act + Math.min(16, s.discard.size() / 2 + s.exhaust.size() + statuses * 3 + pulse));
+            s.gold += 4 + s.act + Math.min(16, statuses * 4 + s.discard.size() / 3 + s.exhaust.size());
+            if (statuses > 0 && pulse >= 5) {
+                removeStatusCard(s);
+            }
+        }
+    }
+
+    private static void applyBuildCoreFusionPulse(State s, int focus, Enemy target, int pulse, int overload) {
+        if (focus == BUILD_OVERLOAD) {
+            addProfessionSkillCharge(s, 1 + Math.min(3, pulse / 3));
+            if (target != null) {
+                target.mark += 1 + overload / 3;
+                damageEnemy(s, target, 5 + s.act * 2 + pulse * 3 + overload * 2, true);
+            }
+        } else if (focus == BUILD_ECHO) {
+            Card echo = new Card(pulse >= 6 ? "void_glimpse" : "quick_cut");
+            echo.temp = true;
+            echo.upgraded = pulse >= 7;
+            addToHand(s, echo);
+            s.voidEngine++;
+            if (pulse >= 6) {
+                draw(s, 1);
+            }
+        } else if (focus == BUILD_BREW) {
+            for (Enemy e : livingEnemies(s)) {
+                e.burn += 1 + pulse / 3 + s.burnPower / 2;
+                e.bind += 1 + s.bindPower / 2;
+                if (pulse >= 6) {
+                    e.vulnerable += 1;
+                }
+            }
+            if (s.potions.size() < potionLimit(s) && pulse >= 7) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            addQuestProgress(s, QUEST_BREW, 1);
+        } else if (focus == BUILD_GOLD) {
+            int income = 5 + s.act * 2 + pulse * 3 + overload;
+            s.gold += income;
+            gainBlock(s, 3 + s.act + Math.min(14, income / 2 + s.gold / 100));
+            if (target != null && pulse >= 6) {
+                damageEnemy(s, target, 4 + Math.min(24, income + s.gold / 40), false);
+            }
+        } else if (focus == BUILD_BLOOD) {
+            int missing = Math.max(0, s.maxHp - s.hp);
+            s.hp = Math.min(s.maxHp, s.hp + 2 + pulse / 2 + overload);
+            gainBlock(s, 3 + s.act + Math.min(16, missing / 5 + pulse * 2));
+            if (target != null) {
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(28, missing / 3 + pulse * 3), true);
+            }
+        } else if (focus == BUILD_FORGE) {
+            upgradeRandomHandCard(s);
+            if (pulse >= 6) {
+                upgradeRandomHandCard(s);
+            }
+            gainBlock(s, 4 + s.act + pulse * 2);
+            if (pulse >= 7) {
+                draw(s, 1);
+            }
+            addQuestProgress(s, QUEST_FORGE, 1);
+        } else if (focus == BUILD_STATUS) {
+            for (Enemy e : livingEnemies(s)) {
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1 + pulse / 4;
+                damageEnemy(s, e, 3 + s.act * 2 + Math.min(24, bestEnemyPressure(s) / 3 + pulse * 2), true);
+            }
+            addQuestProgress(s, QUEST_HEX, 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        } else if (focus == BUILD_CYCLE) {
+            draw(s, 1 + (pulse >= 7 ? 1 : 0));
+            if (pulse >= 5) {
+                s.energy++;
+            }
+            addProfessionSkillCharge(s, 1 + Math.min(2, pulse / 4));
+        } else if (focus == BUILD_GUARD) {
+            s.steelEngine++;
+            gainBlock(s, 6 + s.act + pulse * 3 + s.steelEngine);
+            if (target != null) {
+                damageEnemy(s, target, Math.min(36, s.block / 4 + pulse * 3 + overload * 2), true);
+            }
+        }
     }
 
     private static void applySkillSpecOnUse(State s, Enemy chosenTarget, int overload) {
