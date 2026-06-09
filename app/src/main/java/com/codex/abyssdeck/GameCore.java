@@ -120,6 +120,7 @@ public final class GameCore {
     public static final String PROF_MIRRORIST = "镜术师";
     public static final String PROF_PUPPETEER = "傀儡师";
     public static final String PROF_SCAVENGER = "拾荒者";
+    public static final String PROF_LIGHTKEEPER = "守灯人";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -127,7 +128,7 @@ public final class GameCore {
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
-            PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER
+            PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -813,6 +814,7 @@ public final class GameCore {
         if (PROF_MIRRORIST.equals(profession)) return "万镜";
         if (PROF_PUPPETEER.equals(profession)) return "牵丝";
         if (PROF_SCAVENGER.equals(profession)) return "归炉";
+        if (PROF_LIGHTKEEPER.equals(profession)) return "照夜";
         return "职业技";
     }
 
@@ -881,6 +883,7 @@ public final class GameCore {
         if (PROF_MIRRORIST.equals(profession)) return "满充能：消耗镜纹万镜，按检视、升级牌、临时牌、汇流、印记和过载造成穿透，抽牌、格挡、升级并制造镜像牌。";
         if (PROF_PUPPETEER.equals(profession)) return "满充能：消耗丝线牵丝，按束缚、临时傀儡、回声、格挡和过载造成穿透，施加控制、抽牌并制造傀儡牌。";
         if (PROF_SCAVENGER.equals(profession)) return "满充能：消耗废料归炉，按弃牌、状态牌、消耗、金币和过载造成穿透，回收状态、抽牌、治疗并制造拾荒牌。";
+        if (PROF_LIGHTKEEPER.equals(profession)) return "满充能：消耗灯火照夜，按消耗、回声、检视和净化造成穿透，获得格挡、抽牌并制造灯牌。";
         return "选择职业后可用。";
     }
 
@@ -1730,6 +1733,49 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, scrap / 2);
+        } else if (PROF_LIGHTKEEPER.equals(s.profession)) {
+            int light = Math.max(1, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int exhausted = Math.min(20, s.exhaust.size());
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int scryPulse = buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_CYCLE);
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 2 + target.vulnerable * 3 + target.bind * 2 + target.burn / 2;
+            int damage = 8 + s.act * 3 + Math.min(56, light * 3 + echoes * 4 + exhausted * 3
+                    + statuses * 4 + scryPulse * 2 + pressure) + overload * 6;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, light / 3) + Math.min(3, echoes / 2) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, exhausted / 6 + overload / 4);
+                target.bind += 1 + Math.min(3, statuses + s.bindPower / 2);
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                gainBlock(s, 3 + s.act + Math.min(12, statuses * 3 + light));
+                s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(6, statuses * 2 + overload));
+            }
+            draw(s, 1 + Math.min(2, light / 5 + echoes / 3) + overload / 4);
+            gainBlock(s, 6 + s.act * 2 + Math.min(30, light * 2 + echoes * 3 + exhausted * 2 + scryPulse) + overload * 3);
+            if (light >= 5 || echoes >= 3 || exhausted >= 6 || overload >= 3) {
+                s.energy++;
+            }
+            Card lantern = new Card(overload >= 4 || hasTalent(s, "t_lightkeeper_grand") ? "lightkeeper_grand_beacon" : "lightkeeper_glimmer");
+            lantern.temp = true;
+            lantern.upgraded = light >= 5 || hasTalent(s, "t_lightkeeper_keeper");
+            addToHand(s, lantern);
+            if (hasTalent(s, "t_lightkeeper_grand")) {
+                Card vigil = new Card("lightkeeper_vigil");
+                vigil.temp = true;
+                vigil.upgraded = true;
+                addToHand(s, vigil);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.max(1, echoes));
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, Math.max(1, statuses)));
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(2, scryPulse / 5));
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, light / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3186,6 +3232,9 @@ public final class GameCore {
         if (PROF_SCAVENGER.equals(profession)) {
             return "用弃牌堆、状态牌、消耗和金币积累废料，把杂牌回收成治疗、抽牌、标记和归炉爆发。适合状态转化、回声、金币、循环和过载构筑。";
         }
+        if (PROF_LIGHTKEEPER.equals(profession)) {
+            return "用消耗、回声、检视和状态净化积累灯火，把牌序维护转成格挡、抽牌、标记和照夜爆发。适合回声、循环、工坊、异常和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3279,6 +3328,9 @@ public final class GameCore {
         }
         if (PROF_SCAVENGER.equals(profession)) {
             return 0xffc4d28a;
+        }
+        if (PROF_LIGHTKEEPER.equals(profession)) {
+            return 0xffffe08a;
         }
         return 0xffd6c07a;
     }
@@ -3617,6 +3669,13 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_LIGHTKEEPER.equals(profession)) {
+            s.deck.add(new Card("lightkeeper_glimmer"));
+            s.deck.add(new Card("lightkeeper_vigil"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3668,6 +3727,7 @@ public final class GameCore {
         else if (PROF_MIRRORIST.equals(profession)) upgradeDeckCard(s, "mirrorist_shard");
         else if (PROF_PUPPETEER.equals(profession)) upgradeDeckCard(s, "puppeteer_thread");
         else if (PROF_SCAVENGER.equals(profession)) upgradeDeckCard(s, "scavenger_pick");
+        else if (PROF_LIGHTKEEPER.equals(profession)) upgradeDeckCard(s, "lightkeeper_glimmer");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3780,6 +3840,12 @@ public final class GameCore {
             removeStatusCard(s);
             s.gold += 25;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_LIGHTKEEPER.equals(profession)) {
+            addUpgradedDeckCard(s, "lightkeeper_prism");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3814,6 +3880,7 @@ public final class GameCore {
         if (PROF_MIRRORIST.equals(profession)) return "mirrorist_overimage";
         if (PROF_PUPPETEER.equals(profession)) return "puppeteer_overpull";
         if (PROF_SCAVENGER.equals(profession)) return "scavenger_overhaul";
+        if (PROF_LIGHTKEEPER.equals(profession)) return "lightkeeper_overflare";
         return "forge_signal";
     }
 
@@ -4259,6 +4326,21 @@ public final class GameCore {
         } else if ("t_scavenger_grand".equals(id)) {
             addUpgradedDeckCard(s, "scavenger_grand_foundry");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_lightkeeper_keeper".equals(id)) {
+            addUpgradedDeckCard(s, "lightkeeper_glimmer");
+            draw(s, s.mode == MODE_COMBAT ? 1 : 0);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_lightkeeper_vigil".equals(id)) {
+            addUpgradedDeckCard(s, "lightkeeper_vigil");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_lightkeeper_prism".equals(id)) {
+            addUpgradedDeckCard(s, "lightkeeper_prism");
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_lightkeeper_grand".equals(id)) {
+            addUpgradedDeckCard(s, "lightkeeper_grand_beacon");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -4693,7 +4775,8 @@ public final class GameCore {
                 || "t_prismist_grand".equals(id) || "t_dreamwalker_grand".equals(id)
                 || "t_gardener_grand".equals(id) || "t_chef_grand".equals(id)
                 || "t_bard_grand".equals(id) || "t_mirrorist_grand".equals(id)
-                || "t_puppeteer_grand".equals(id) || "t_scavenger_grand".equals(id);
+                || "t_puppeteer_grand".equals(id) || "t_scavenger_grand".equals(id)
+                || "t_lightkeeper_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -4711,7 +4794,8 @@ public final class GameCore {
                 || "prismist_grand_spectrum".equals(id) || "dreamwalker_grand_dream".equals(id)
                 || "gardener_grand_grove".equals(id) || "chef_grand_banquet".equals(id)
                 || "bard_grand_finale".equals(id) || "mirrorist_grand_mirror".equals(id)
-                || "puppeteer_grand_stage".equals(id) || "scavenger_grand_foundry".equals(id);
+                || "puppeteer_grand_stage".equals(id) || "scavenger_grand_foundry".equals(id)
+                || "lightkeeper_grand_beacon".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -4729,7 +4813,8 @@ public final class GameCore {
                 || "spectrum_crown".equals(id) || "oneiric_crown".equals(id)
                 || "verdant_crown".equals(id) || "banquet_crown".equals(id)
                 || "finale_crown".equals(id) || "mirror_crown".equals(id)
-                || "marionette_crown".equals(id) || "scrap_king_crown".equals(id);
+                || "marionette_crown".equals(id) || "scrap_king_crown".equals(id)
+                || "dawn_beacon".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -5208,6 +5293,10 @@ public final class GameCore {
                 || d.createWound || d.exhaust || d.exhaustTopDiscard || d.skillChargeGain > 0
                 || d.heal > 0 || d.vulnerable > 0 || "wound".equals(d.id) || "daze".equals(d.id)
                 || d.profession.equals(PROF_SCAVENGER))) amount++;
+        else if (PROF_LIGHTKEEPER.equals(s.profession) && d != null && (d.exhaust || d.createEcho
+                || d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || d.cost == 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_LIGHTKEEPER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -6882,6 +6971,44 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "lantern_wick") && PROF_LIGHTKEEPER.equals(s.profession)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int echoes = tempOrEchoHandCount(s);
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + echoes / 2 + statuses));
+            gainBlock(s, 5 + s.act + Math.min(16, s.professionCharge + echoes * 3 + s.exhaust.size() * 2 + statuses * 4));
+            Card glimmer = new Card("lightkeeper_glimmer");
+            glimmer.temp = true;
+            glimmer.upgraded = true;
+            addToHand(s, glimmer);
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(23, target.mark * 2
+                        + s.professionCharge * 2 + echoes * 3 + s.exhaust.size() * 2 + statuses * 4), true);
+            }
+        }
+        if (hasRelic(s, "dawn_beacon") && PROF_LIGHTKEEPER.equals(s.profession)) {
+            Card flare = new Card("lightkeeper_overflare");
+            flare.temp = true;
+            flare.upgraded = true;
+            addToHand(s, flare);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || tempOrEchoHandCount(s) >= 3 || s.exhaust.size() >= 5
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -8286,6 +8413,46 @@ public final class GameCore {
                 pick.temp = true;
                 pick.upgraded = true;
                 addToHand(s, pick);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_LIGHTKEEPER.equals(s.profession) && s.turn == 1) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int echoes = tempOrEchoHandCount(s);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, statuses + echoes + s.exhaust.size() / 4
+                    + upgradedCardCount(s) / 6 + buildFocusDeckCards(s, BUILD_ECHO) / 4);
+            gainBlock(s, 3 + s.act + Math.min(7, statuses * 2 + echoes * 2));
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1 + (hasTalent(s, "t_lightkeeper_keeper") ? 1 : 0);
+                firstLiving(s).vulnerable += hasTalent(s, "t_lightkeeper_prism") ? 1 : 0;
+                firstLiving(s).bind += hasTalent(s, "t_lightkeeper_grand") ? 1 + s.bindPower / 2 : 0;
+            }
+            if (hasTalent(s, "t_lightkeeper_keeper")) {
+                Card glimmer = new Card("lightkeeper_glimmer");
+                glimmer.temp = true;
+                glimmer.upgraded = true;
+                addToHand(s, glimmer);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_lightkeeper_vigil")) {
+                gainBlock(s, 4 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_lightkeeper_prism")) {
+                if (statuses > 0) {
+                    removeStatusCard(s);
+                    s.energy++;
+                } else {
+                    upgradeRandomHandCard(s);
+                }
+            }
+            if (hasTalent(s, "t_lightkeeper_grand")) {
+                Card glimmer = new Card("lightkeeper_glimmer");
+                glimmer.temp = true;
+                glimmer.upgraded = true;
+                addToHand(s, glimmer);
+                upgradeRandomHandCard(s);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -10434,6 +10601,99 @@ public final class GameCore {
             }
             if (overloadNow >= 2 || statuses >= 2 || s.discard.size() >= 12 || c.upgraded) {
                 draw += 1;
+            }
+        }
+        if ("lightkeeper_glimmer".equals(d.id) && target != null) {
+            int light = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + (c.temp ? 1 : 0);
+            int exhausted = s.exhaust.size();
+            damage += Math.min(c.upgraded ? 25 : 17, light * 2 + echoes * 3 + exhausted * 2
+                    + statusDeckCards(s) * 3);
+            target.mark += 1 + (c.upgraded ? 1 : 0);
+            if (exhausted >= 3 || echoes >= 2 || c.temp || c.upgraded) {
+                target.vulnerable += 1;
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("lightkeeper_vigil".equals(d.id)) {
+            int light = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            block += Math.min(c.upgraded ? 27 : 18, light * 2 + echoes * 4 + statuses * 5 + s.exhaust.size());
+            if (statuses > 0 && (s.cardsPlayedThisTurn <= 2 || c.upgraded || hasTalent(s, "t_lightkeeper_vigil"))) {
+                removeStatusCard(s);
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+            if (echoes >= 2 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("lightkeeper_prism".equals(d.id)) {
+            int light = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int upgraded = upgradedCardCount(s);
+            block += Math.min(c.upgraded ? 31 : 21, light * 2 + upgraded / 2 + statuses * 6 + s.exhaust.size() * 2);
+            if (statuses > 0) {
+                removeStatusCard(s);
+                s.energy++;
+                s.professionCharge += 2;
+                addProfessionSkillCharge(s, 1);
+            }
+            if (s.exhaust.size() >= 4 || upgraded >= 6 || c.upgraded) {
+                draw += 1;
+                upgradeRandomHandCard(s);
+            }
+        }
+        if ("lightkeeper_brand".equals(d.id) && target != null) {
+            int light = Math.max(0, s.professionCharge);
+            int pressure = target.mark * 3 + target.vulnerable * 3 + target.bind * 2 + target.burn;
+            damage += Math.min(c.upgraded ? 42 : 29, pressure + light * 2 + s.exhaust.size() * 3
+                    + tempOrEchoHandCount(s) * 3);
+            target.mark += c.upgraded ? 3 : 2;
+            if (target.mark >= 4 || s.exhaust.size() >= 5 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("lightkeeper_overflare".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int light = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + (c.temp ? 1 : 0);
+            block += Math.min(c.upgraded ? 34 : 23, light * 2 + overloadNow * 7 + echoes * 4
+                    + s.exhaust.size() * 2 + statusDeckCards(s) * 4);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 48 : 34, overloadNow * 8 + light * 2 + echoes * 5
+                        + target.mark * 3 + s.exhaust.size() * 3);
+            }
+            if (overloadNow >= 2 || echoes >= 2 || s.exhaust.size() >= 5 || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("lightkeeper_grand_beacon".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int light = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + (c.temp ? 1 : 0);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int upgraded = upgradedCardCount(s);
+            damage += Math.min(c.upgraded ? 74 : 54, light * 4 + s.exhaust.size() * 5 + echoes * 6
+                    + upgraded + statuses * 7 + overloadNow * 9 + bestEnemyPressure(s));
+            block += Math.min(c.upgraded ? 52 : 38, light * 3 + s.exhaust.size() * 3 + echoes * 5
+                    + statuses * 6 + overloadNow * 6 + upgraded / 2);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+                heal += 2 + s.act;
+            }
+            if (light >= 5 || echoes >= 3 || s.exhaust.size() >= 6 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                upgradeRandomHandCard(s);
             }
         }
         if ("hybrid_coinwall".equals(d.id)) {
@@ -13203,6 +13463,96 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_LIGHTKEEPER.equals(s.profession) && (d.exhaust || c.temp || d.createEcho
+                || d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_LIGHTKEEPER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int echoes = tempOrEchoHandCount(s);
+            int exhausted = s.exhaust.size();
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.profession.equals(PROF_LIGHTKEEPER)) {
+                    e.mark += 1;
+                }
+                if (d.vulnerable > 0 || d.bind > 0 || "wound".equals(c.id) || "daze".equals(c.id)) {
+                    e.vulnerable += 1;
+                }
+                if (d.exhaust || c.temp || d.createEcho) {
+                    e.bind += 1 + s.bindPower / 2;
+                }
+                if (s.professionCharge >= 4 || exhausted >= 5 || echoes >= 3 || statuses > 0 || e.mark >= 3) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(27, e.mark * 2 + e.vulnerable * 2
+                            + e.bind + s.professionCharge * 2 + exhausted * 2 + echoes * 3 + statuses * 4), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 3 + s.act + Math.min(16, s.professionCharge + exhausted * 2 + echoes * 3 + statuses * 3));
+                if (statuses > 0 && (s.cardsPlayedThisTurn <= 3 || hasTalent(s, "t_lightkeeper_prism"))) {
+                    removeStatusCard(s);
+                    s.energy += hasTalent(s, "t_lightkeeper_prism") ? 1 : 0;
+                }
+                if (s.cardsPlayedThisTurn >= 3 || echoes >= 2 || hasTalent(s, "t_lightkeeper_keeper")) {
+                    draw(s, 1);
+                }
+                if (d.upgradeRandom || d.scry > 0 || hasTalent(s, "t_lightkeeper_prism")) {
+                    upgradeRandomHandCard(s);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_lightkeeper_keeper") && (d.cost == 0 || d.draw > 0 || c.temp
+                || d.createEcho || d.profession.equals(PROF_LIGHTKEEPER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(22, e.mark * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + s.exhaust.size()), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || c.temp) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_lightkeeper_vigil") && (d.block > 0 || d.type == 1 || d.createEcho
+                || c.temp || d.profession.equals(PROF_LIGHTKEEPER))) {
+            gainBlock(s, 3 + s.act + Math.min(13, s.professionCharge + tempOrEchoHandCount(s) * 2
+                    + statusDeckCards(s) * 3 + s.exhaust.size()));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 20 + s.act * 3 || tempOrEchoHandCount(s) >= 2) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_lightkeeper_prism") && (d.exhaust || d.scry > 0 || d.upgradeRandom
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_LIGHTKEEPER))) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            if (statuses > 0 && s.cardsPlayedThisTurn <= 4) {
+                removeStatusCard(s);
+                s.energy++;
+            } else if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || d.upgradeRandom) {
+                upgradeRandomHandCard(s);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.exhaust.size() >= 5 || d.scry > 0) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_lightkeeper_grand") && (d.exhaust || c.temp || d.createEcho || d.scry > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_LIGHTKEEPER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || tempOrEchoHandCount(s) >= 2 || s.exhaust.size() >= 5)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(30, e.mark * 2 + e.vulnerable * 2 + e.bind
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -13658,6 +14008,43 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
+            }
+        }
+        if (hasRelic(s, "lantern_wick") && (d.exhaust || d.createEcho || c.temp || d.scry > 0
+                || d.upgradeRandom || d.draw > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_LIGHTKEEPER))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                int statuses = statusDeckCards(s) + statusHandCards(s);
+                gainBlock(s, 3 + s.act + Math.min(9, s.professionCharge + tempOrEchoHandCount(s) * 2
+                        + s.exhaust.size() + statuses * 3));
+                if (statuses > 0 && s.relicTriggersThisTurn == 0) {
+                    removeStatusCard(s);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.exhaust || c.temp || e.mark >= 4 || tempOrEchoHandCount(s) >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(23, e.mark * 2
+                            + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "dawn_beacon") && (d.exhaust || d.createEcho || c.temp || d.scry > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_LIGHTKEEPER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || tempOrEchoHandCount(s) >= 3) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(26, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -14962,6 +15349,10 @@ public final class GameCore {
                     : focus == BUILD_ECHO ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 10
                     : focus == BUILD_BLOOD ? 8 : focus == BUILD_FORGE ? 6 : 0;
         }
+        if (PROF_LIGHTKEEPER.equals(s.profession)) {
+            return focus == BUILD_ECHO ? 18 : focus == BUILD_CYCLE ? 16 : focus == BUILD_FORGE ? 14
+                    : focus == BUILD_STATUS ? 14 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 10 : 0;
+        }
         return 0;
     }
 
@@ -15039,6 +15430,9 @@ public final class GameCore {
         }
         if (PROF_SCAVENGER.equals(d.profession)) {
             return scavengerFocusCardValue(d, focus);
+        }
+        if (PROF_LIGHTKEEPER.equals(d.profession)) {
+            return lightkeeperFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -15643,6 +16037,48 @@ public final class GameCore {
         return 0;
     }
 
+    private static int lightkeeperFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + (d.exhaust ? 4 : 0) + (d.createEcho ? 3 : 0)
+                    + ("lightkeeper_glimmer".equals(d.id) ? 6 : 0) + ("lightkeeper_brand".equals(d.id) ? 8 : 0)
+                    + ("lightkeeper_overflare".equals(d.id) ? 16 : 0) + ("lightkeeper_grand_beacon".equals(d.id) ? 13 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 13 : 0) + d.draw * 3 + (d.cost == 0 ? 6 : 0) + (d.exhaust ? 4 : 0)
+                    + ("lightkeeper_glimmer".equals(d.id) ? 14 : 0) + ("lightkeeper_vigil".equals(d.id) ? 16 : 0)
+                    + ("lightkeeper_overflare".equals(d.id) ? 14 : 0) + ("lightkeeper_grand_beacon".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return d.scry * 3 + (d.upgradeRandom ? 12 : 0) + d.skillChargeGain * 2 + (d.rarity == 2 ? 2 : 0)
+                    + ("lightkeeper_prism".equals(d.id) ? 18 : 0) + ("lightkeeper_grand_beacon".equals(d.id) ? 8 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 7 + d.bind * 5 + d.skillChargeGain * 2 + d.draw * 2 + (d.exhaust ? 3 : 0)
+                    + ("lightkeeper_glimmer".equals(d.id) ? 8 : 0) + ("lightkeeper_prism".equals(d.id) ? 12 : 0)
+                    + ("lightkeeper_brand".equals(d.id) ? 18 : 0) + ("lightkeeper_overflare".equals(d.id) ? 16 : 0)
+                    + ("lightkeeper_grand_beacon".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 7 : 0) + d.scry * 2 + d.skillChargeGain * 2
+                    + (d.createEcho ? 5 : 0) + (d.exhaust ? 4 : 0)
+                    + ("lightkeeper_glimmer".equals(d.id) ? 16 : 0) + ("lightkeeper_vigil".equals(d.id) ? 12 : 0)
+                    + ("lightkeeper_prism".equals(d.id) ? 12 : 0) + ("lightkeeper_overflare".equals(d.id) ? 12 : 0)
+                    + ("lightkeeper_grand_beacon".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 4 : 0) + d.draw * 2 + d.scry * 2 + (d.upgradeRandom ? 3 : 0)
+                    + ("lightkeeper_vigil".equals(d.id) ? 16 : 0) + ("lightkeeper_prism".equals(d.id) ? 16 : 0)
+                    + ("lightkeeper_overflare".equals(d.id) ? 14 : 0) + ("lightkeeper_grand_beacon".equals(d.id) ? 15 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return ("lightkeeper_prism".equals(d.id) ? 4 : 0) + ("lightkeeper_grand_beacon".equals(d.id) ? 4 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return ("lightkeeper_brand".equals(d.id) ? 3 : 0) + ("lightkeeper_grand_beacon".equals(d.id) ? 3 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -15950,6 +16386,16 @@ public final class GameCore {
         else if ("t_scavenger_grand".equals(id)) bonus += professionCards + status * 2
                 + buildFocusDeckCards(s, BUILD_STATUS) * 2 + buildFocusDeckCards(s, BUILD_GOLD)
                 + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_lightkeeper_keeper".equals(id)) bonus += zeroCost * 2 + tempOrEchoDeckCards(s) * 3
+                + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_ECHO) + professionCards;
+        else if ("t_lightkeeper_vigil".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + tempOrEchoDeckCards(s) * 2 + status * 2 + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_lightkeeper_prism".equals(id)) bonus += status * 4 + exhaustDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_FORGE) * 2 + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
+        else if ("t_lightkeeper_grand".equals(id)) bonus += professionCards + tempOrEchoDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_ECHO) * 2 + buildFocusDeckCards(s, BUILD_CYCLE)
+                + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -15974,7 +16420,8 @@ public final class GameCore {
                     "t_dreamwalker_grand", "t_gardener_compost", "t_gardener_grand",
                     "t_chef_spice", "t_chef_grand", "t_bard_chorus", "t_bard_grand",
                     "t_mirrorist_reflect", "t_mirrorist_grand", "t_scavenger_market",
-                    "t_scavenger_grand", "t_shared_longnight") ? 3 : 0;
+                    "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
+                    "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "t_arcanist_rewrite", "t_arcanist_overflow", "t_arcanist_archive",
@@ -15988,7 +16435,8 @@ public final class GameCore {
                     "t_dreamwalker_veil", "t_dreamwalker_lucid", "t_dreamwalker_grand",
                     "t_gardener_sprout", "t_gardener_grand", "t_chef_stew",
                     "t_chef_grand", "t_bard_ballad", "t_bard_chorus", "t_bard_grand",
-                    "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand") ? 3 : 0;
+                    "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
+                    "t_lightkeeper_keeper", "t_lightkeeper_vigil", "t_lightkeeper_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
@@ -16017,7 +16465,8 @@ public final class GameCore {
                     "t_prismist_grand", "t_dreamwalker_lucid", "t_dreamwalker_grand",
                     "t_gardener_compost", "t_gardener_grand", "t_chef_spice",
                     "t_chef_grand", "t_bard_grand", "t_mirrorist_guard",
-                    "t_mirrorist_reflect", "t_mirrorist_grand") ? 3 : 0;
+                    "t_mirrorist_reflect", "t_mirrorist_grand", "t_lightkeeper_prism",
+                    "t_lightkeeper_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -16038,7 +16487,8 @@ public final class GameCore {
                     "t_gardener_grand", "t_chef_prep", "t_chef_spice", "t_chef_grand",
                     "t_bard_note", "t_bard_grand", "t_mirrorist_shard",
                     "t_mirrorist_grand", "t_scavenger_salvage", "t_scavenger_patch",
-                    "t_scavenger_grand", "t_duelist_execution") ? 3 : 0;
+                    "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
+                    "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "t_duelist_tempo", "t_duelist_gambit", "t_duelist_masterstep",
@@ -16059,6 +16509,7 @@ public final class GameCore {
                     "t_bard_note", "t_bard_chorus", "t_bard_grand",
                     "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
                     "t_scavenger_salvage", "t_scavenger_market", "t_scavenger_grand",
+                    "t_lightkeeper_keeper", "t_lightkeeper_prism", "t_lightkeeper_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -16074,7 +16525,7 @@ public final class GameCore {
                     "t_dreamwalker_grand", "t_gardener_rootwall", "t_gardener_grand",
                     "t_chef_stew", "t_chef_grand", "t_bard_ballad", "t_bard_grand",
                     "t_mirrorist_guard", "t_mirrorist_grand", "t_scavenger_patch",
-                    "t_scavenger_grand") ? 3 : 0;
+                    "t_scavenger_grand", "t_lightkeeper_vigil", "t_lightkeeper_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -16323,6 +16774,18 @@ public final class GameCore {
                 && (s.gold >= 100 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3 || buildFocusDeckCards(s, BUILD_GOLD) >= 2)) {
             return "黑摊循环";
         }
+        if (isAny(id, "t_lightkeeper_keeper", "t_lightkeeper_grand")
+                && (tempOrEchoDeckCards(s) >= 2 || zeroCostDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_ECHO) >= 2)) {
+            return "灯火回声";
+        }
+        if (isAny(id, "t_lightkeeper_vigil", "t_lightkeeper_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || tempOrEchoDeckCards(s) >= 2 || s.hp < s.maxHp)) {
+            return "守夜防线";
+        }
+        if (isAny(id, "t_lightkeeper_prism", "t_lightkeeper_grand")
+                && (statusDeckCards(s) > 0 || exhaustDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_FORGE) >= 2)) {
+            return "净灯转写";
+        }
         return "";
     }
 
@@ -16564,7 +17027,7 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
@@ -16574,7 +17037,7 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
@@ -16600,7 +17063,7 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -16612,7 +17075,7 @@ public final class GameCore {
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -16623,7 +17086,7 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -16670,7 +17133,8 @@ public final class GameCore {
                 || (PROF_BARD.equals(s.profession) && "songbook".equals(id))
                 || (PROF_MIRRORIST.equals(s.profession) && "mirror_lens".equals(id))
                 || (PROF_PUPPETEER.equals(s.profession) && "string_spool".equals(id))
-                || (PROF_SCAVENGER.equals(s.profession) && "scrap_magnet".equals(id));
+                || (PROF_SCAVENGER.equals(s.profession) && "scrap_magnet".equals(id))
+                || (PROF_LIGHTKEEPER.equals(s.profession) && "lantern_wick".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -16714,6 +17178,7 @@ public final class GameCore {
                 || hasRelic(s, "mirror_lens") || hasRelic(s, "mirror_crown")
                 || hasRelic(s, "string_spool") || hasRelic(s, "marionette_crown")
                 || hasRelic(s, "scrap_magnet") || hasRelic(s, "scrap_king_crown")
+                || hasRelic(s, "lantern_wick") || hasRelic(s, "dawn_beacon")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
@@ -16896,6 +17361,12 @@ public final class GameCore {
                 || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_SCAVENGER))) {
             return 4;
         }
+        if (PROF_LIGHTKEEPER.equals(s.profession) && (d.exhaust || d.createEcho || d.scry > 0
+                || d.upgradeRandom || d.draw > 0 || d.skillChargeGain > 0 || d.vulnerable > 0
+                || d.bind > 0 || d.block > 0 || d.cost == 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || d.profession.equals(PROF_LIGHTKEEPER))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -16950,7 +17421,9 @@ public final class GameCore {
                     || "chef_overcook".equals(d.id) || "bard_note".equals(d.id)
                     || "bard_chorus".equals(d.id) || "bard_overcrescendo".equals(d.id)
                     || "mirrorist_shard".equals(d.id) || "mirrorist_reflect".equals(d.id)
-                    || "mirrorist_overimage".equals(d.id)) bonus += 4;
+                    || "mirrorist_overimage".equals(d.id) || "lightkeeper_glimmer".equals(d.id)
+                    || "lightkeeper_vigil".equals(d.id) || "lightkeeper_prism".equals(d.id)
+                    || "lightkeeper_overflare".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -16969,7 +17442,9 @@ public final class GameCore {
                     || "bard_chorus".equals(d.id) || "bard_overcrescendo".equals(d.id)
                     || "bard_grand_finale".equals(d.id) || "mirrorist_guard".equals(d.id)
                     || "mirrorist_reflect".equals(d.id) || "mirrorist_overimage".equals(d.id)
-                    || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
+                    || "mirrorist_grand_mirror".equals(d.id) || "lightkeeper_vigil".equals(d.id)
+                    || "lightkeeper_prism".equals(d.id) || "lightkeeper_overflare".equals(d.id)
+                    || "lightkeeper_grand_beacon".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -17005,7 +17480,9 @@ public final class GameCore {
                     || "chef_grand_banquet".equals(d.id) || "bard_note".equals(d.id)
                     || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)
                     || "mirrorist_shard".equals(d.id) || "mirrorist_prismcut".equals(d.id)
-                    || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
+                    || "mirrorist_grand_mirror".equals(d.id) || "lightkeeper_glimmer".equals(d.id)
+                    || "lightkeeper_brand".equals(d.id) || "lightkeeper_overflare".equals(d.id)
+                    || "lightkeeper_grand_beacon".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -17022,7 +17499,8 @@ public final class GameCore {
                     || "chef_spice".equals(d.id) || "chef_grand_banquet".equals(d.id)
                     || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)
                     || "mirrorist_guard".equals(d.id) || "mirrorist_reflect".equals(d.id)
-                    || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
+                    || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)
+                    || "lightkeeper_prism".equals(d.id) || "lightkeeper_grand_beacon".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -17040,7 +17518,10 @@ public final class GameCore {
                     || "bard_note".equals(d.id) || "bard_ballad".equals(d.id)
                     || "bard_chorus".equals(d.id) || "bard_overcrescendo".equals(d.id)
                     || "mirrorist_shard".equals(d.id) || "mirrorist_guard".equals(d.id)
-                    || "mirrorist_reflect".equals(d.id) || "mirrorist_overimage".equals(d.id)) bonus += 4;
+                    || "mirrorist_reflect".equals(d.id) || "mirrorist_overimage".equals(d.id)
+                    || "lightkeeper_glimmer".equals(d.id) || "lightkeeper_vigil".equals(d.id)
+                    || "lightkeeper_prism".equals(d.id) || "lightkeeper_overflare".equals(d.id)
+                    || "lightkeeper_grand_beacon".equals(d.id)) bonus += 4;
         } else if ("spec_markchain".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -17114,7 +17595,9 @@ public final class GameCore {
                 || "mirrorist_guard".equals(id) || "mirrorist_reflect".equals(id)
                 || "mirrorist_overimage".equals(id)
                 || "scavenger_pick".equals(id) || "scavenger_sort".equals(id)
-                || "scavenger_patch".equals(id) || "scavenger_overhaul".equals(id);
+                || "scavenger_patch".equals(id) || "scavenger_overhaul".equals(id)
+                || "lightkeeper_glimmer".equals(id) || "lightkeeper_vigil".equals(id)
+                || "lightkeeper_prism".equals(id) || "lightkeeper_overflare".equals(id);
     }
 
     private static boolean pressureCardId(String id) {
@@ -17155,7 +17638,9 @@ public final class GameCore {
                 || "puppeteer_thread".equals(id) || "puppeteer_needle".equals(id)
                 || "puppeteer_overpull".equals(id) || "puppeteer_grand_stage".equals(id)
                 || "scavenger_pick".equals(id) || "scavenger_magnet".equals(id)
-                || "scavenger_overhaul".equals(id) || "scavenger_grand_foundry".equals(id);
+                || "scavenger_overhaul".equals(id) || "scavenger_grand_foundry".equals(id)
+                || "lightkeeper_glimmer".equals(id) || "lightkeeper_brand".equals(id)
+                || "lightkeeper_overflare".equals(id) || "lightkeeper_grand_beacon".equals(id);
     }
 
     private static boolean salvageCardId(String id) {
@@ -17173,7 +17658,9 @@ public final class GameCore {
                 || "hexer_pact".equals(id) || "hexer_purge".equals(id)
                 || "inscriber_palimp".equals(id)
                 || "dreamwalker_lucid".equals(id) || "gardener_compost".equals(id)
-                || "chef_stew".equals(id);
+                || "chef_stew".equals(id) || "lightkeeper_glimmer".equals(id)
+                || "lightkeeper_vigil".equals(id) || "lightkeeper_prism".equals(id)
+                || "lightkeeper_overflare".equals(id) || "lightkeeper_grand_beacon".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -17383,6 +17870,14 @@ public final class GameCore {
                 || d.bind > 0 || d.rarity == 2 || d.profession.equals(PROF_SCAVENGER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "lantern_wick") && (d.exhaust || d.createEcho || d.scry > 0 || d.upgradeRandom
+                || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_LIGHTKEEPER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "dawn_beacon") && (d.exhaust || d.createEcho || d.scry > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.vulnerable > 0 || d.profession.equals(PROF_LIGHTKEEPER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -17420,7 +17915,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -17451,6 +17946,7 @@ public final class GameCore {
         if (PROF_MIRRORIST.equals(s.profession)) return "mirror_lens";
         if (PROF_PUPPETEER.equals(s.profession)) return "string_spool";
         if (PROF_SCAVENGER.equals(s.profession)) return "scrap_magnet";
+        if (PROF_LIGHTKEEPER.equals(s.profession)) return "lantern_wick";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -17756,9 +18252,20 @@ public final class GameCore {
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
-                || PROF_SCAVENGER.equals(s.profession))
+                || PROF_SCAVENGER.equals(s.profession) || PROF_LIGHTKEEPER.equals(s.profession))
                 && "pressure_gauge".equals(id)) {
             return 2;
+        }
+        if (PROF_LIGHTKEEPER.equals(s.profession) && ("lantern_wick".equals(id) || "hollow_crown".equals(id)
+                || "void_abacus".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
+                || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "starforge_lens".equals(id)
+                || "stormglass_seal".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                || "overload_etch".equals(id) || "discipline_chart".equals(id) || "salvage_hook".equals(id)
+                || "confluence_map".equals(id) || "prism_gear".equals(id))) {
+            return 2;
+        }
+        if (PROF_LIGHTKEEPER.equals(s.profession) && "dawn_beacon".equals(id)) {
+            return 4;
         }
         if ("rift_compass".equals(id)) {
             return 1;
@@ -18171,6 +18678,20 @@ public final class GameCore {
             s.gold += 50;
             s.maxHp += 5;
             s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("lantern_wick".equals(id)) {
+            addUpgradedDeckCard(s, "lightkeeper_prism");
+            removeStatusCard(s);
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("dawn_beacon".equals(id)) {
+            addUpgradedDeckCard(s, "lightkeeper_grand_beacon");
+            addUpgradedDeckCard(s, "lightkeeper_glimmer");
+            removeStatusCard(s);
+            upgradeRandomDeckCard(s);
+            s.maxHp += 4;
+            s.hp += 4;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -18872,6 +19393,19 @@ public final class GameCore {
         c = addCard("scavenger_grand_foundry", "终局回收炉", "通用", 2, 2, 0, 10, 14, 8, 12, "造成伤害并获得格挡；按废料、状态、弃牌、消耗和金币追加终局收益。", "更高伤害、格挡和回收返还。");
         c.profession = PROF_SCAVENGER; c.draw = c.drawUp = 1; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.createEcho = true; c.echoCardId = "scavenger_pick"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("lightkeeper_glimmer", "灯火微明", "通用", 0, 0, 0, 3, 5, 0, 0, "造成伤害，抽1张并检视；消耗、回声和灯火会追加照夜收益。", "更高伤害、更多检视和充能。");
+        c.profession = PROF_LIGHTKEEPER; c.draw = c.drawUp = 1; c.scry = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("lightkeeper_vigil", "守夜帷灯", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌并制造临时灯火；状态牌会被灯光转成防线。", "更多格挡、抽牌和灯火。");
+        c.profession = PROF_LIGHTKEEPER; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "lightkeeper_glimmer"; c.skillChargeGain = 1;
+        c = addCard("lightkeeper_prism", "净灯棱镜", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、检视并升级手牌；净化状态时返还能量和灯火。", "更多格挡、检视和净化收益。");
+        c.profession = PROF_LIGHTKEEPER; c.scry = 3; c.draw = c.drawUp = 1; c.upgradeRandom = true; c.skillChargeGain = 1; c.exhaust = true;
+        c = addCard("lightkeeper_brand", "照夜烙印", "通用", 1, 1, 0, 6, 9, 0, 0, "造成伤害，施加易伤、束缚和印记；目标压力越高越明亮。", "更高伤害、控制和灯火收益。");
+        c.profession = PROF_LIGHTKEEPER; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("lightkeeper_overflare", "过载明焰", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌和职业技充能；制造临时照夜烙印，过载会放大灯火。", "更多格挡、抽牌和职业技充能。");
+        c.profession = PROF_LIGHTKEEPER; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "lightkeeper_brand"; c.skillChargeGain = 3; c.exhaust = true; c.targetEnemy = true;
+        c = addCard("lightkeeper_grand_beacon", "终局灯塔", "通用", 2, 2, 0, 9, 13, 10, 14, "造成伤害并获得格挡；按灯火、消耗、回声、检视和过载追加终局收益。", "更高伤害、格挡和灯牌返还。");
+        c.profession = PROF_LIGHTKEEPER; c.draw = c.drawUp = 1; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.createEcho = true; c.echoCardId = "lightkeeper_glimmer"; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -19113,6 +19647,7 @@ public final class GameCore {
         addRelicDef("mirror_lens", "映镜透镜", "镜术师检视、升级、临时和汇流牌更快推动职业技；释放后制造碎片、升级手牌并把镜纹转为标记。");
         addRelicDef("string_spool", "操线轴", "傀儡师束缚、临时、回声和格挡牌更快推动职业技；释放后制造牵线并把丝线转为束缚与标记。");
         addRelicDef("scrap_magnet", "废料磁芯", "拾荒者弃牌、状态、金币、消耗和回收牌更快推动职业技；释放后制造挑拣并把废料转为治疗、格挡与标记。");
+        addRelicDef("lantern_wick", "照夜灯芯", "守灯人消耗、临时、检视、升级和灯牌更快推动职业技；释放后制造灯火、净化状态并加固防线。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -19143,6 +19678,7 @@ public final class GameCore {
         addRelicDef("mirror_crown", "万镜冠", "获得升级终局万镜；镜术师检视、升级、临时、汇流、充能和稀有牌会滚动印记、抽牌、升级与万镜追击。");
         addRelicDef("marionette_crown", "牵丝冠", "获得升级终局傀儡台；傀儡师束缚、临时、回声、格挡、充能和稀有牌会滚动束缚、抽牌与牵丝追击。");
         addRelicDef("scrap_king_crown", "拾荒王冠", "获得升级终局回收炉；拾荒者状态、弃牌、消耗、金币、充能和稀有牌会滚动标记、治疗、抽牌与归炉追击。");
+        addRelicDef("dawn_beacon", "曦明灯塔", "获得升级终局灯塔；守灯人临时、消耗、检视、升级、充能和稀有牌会滚动印记、抽牌、升级与照夜追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -19372,6 +19908,9 @@ public final class GameCore {
         addTalent("t_scavenger_salvage", PROF_SCAVENGER, "废堆寻宝", "获得升级废堆挑拣；弃牌、状态、金币和拾荒牌追加标记，并把废料转成穿透追击。");
         addTalent("t_scavenger_patch", PROF_SCAVENGER, "补丁工坊", "获得生命和升级补丁缝合；格挡、治疗、状态和回收牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_scavenger_market", PROF_SCAVENGER, "黑摊倒卖", "获得金币和升级废料分拣；金币、抽牌、消耗和充能牌会转成抽牌、金币与废料。");
+        addTalent("t_lightkeeper_keeper", PROF_LIGHTKEEPER, "灯火回游", "获得升级灯火微明；低费、抽牌、临时和灯牌追加印记，并把灯火转成穿透追击。");
+        addTalent("t_lightkeeper_vigil", PROF_LIGHTKEEPER, "守夜防线", "获得生命和升级守夜帷灯；格挡、技能、临时和灯牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_lightkeeper_prism", PROF_LIGHTKEEPER, "净灯转写", "获得升级净灯棱镜并净化状态；消耗、检视、升级和状态牌会转成抽牌、能量和灯火。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -19402,6 +19941,7 @@ public final class GameCore {
         addTalent("t_mirrorist_grand", PROF_MIRRORIST, "终局万镜", "获得升级终局万镜；检视、升级、临时、汇流与过载牌持续抽牌、升级并把镜纹印记转为万镜裁切。");
         addTalent("t_puppeteer_grand", PROF_PUPPETEER, "终局傀儡台", "获得升级终局傀儡台；束缚、临时、回声、格挡与过载牌持续抽牌并把丝线印记转为傀儡裁切。");
         addTalent("t_scavenger_grand", PROF_SCAVENGER, "终局回收炉", "获得升级终局回收炉；状态、弃牌、消耗、金币与过载牌持续抽牌、治疗并把废料印记转为归炉裁切。");
+        addTalent("t_lightkeeper_grand", PROF_LIGHTKEEPER, "终局灯塔", "获得升级终局灯塔；临时、回声、消耗、检视与过载牌持续抽牌、升级并把灯火印记转为照夜裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
