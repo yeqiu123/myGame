@@ -121,6 +121,7 @@ public final class GameCore {
     public static final String PROF_PUPPETEER = "傀儡师";
     public static final String PROF_SCAVENGER = "拾荒者";
     public static final String PROF_LIGHTKEEPER = "守灯人";
+    public static final String PROF_GEOMANCER = "地脉师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -128,7 +129,7 @@ public final class GameCore {
             PROF_ADJUDICATOR, PROF_ASTROLOGER, PROF_MACHINIST, PROF_CHRONOMANCER,
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
-            PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER
+            PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -815,6 +816,7 @@ public final class GameCore {
         if (PROF_PUPPETEER.equals(profession)) return "牵丝";
         if (PROF_SCAVENGER.equals(profession)) return "归炉";
         if (PROF_LIGHTKEEPER.equals(profession)) return "照夜";
+        if (PROF_GEOMANCER.equals(profession)) return "地鸣";
         return "职业技";
     }
 
@@ -884,6 +886,7 @@ public final class GameCore {
         if (PROF_PUPPETEER.equals(profession)) return "满充能：消耗丝线牵丝，按束缚、临时傀儡、回声、格挡和过载造成穿透，施加控制、抽牌并制造傀儡牌。";
         if (PROF_SCAVENGER.equals(profession)) return "满充能：消耗废料归炉，按弃牌、状态牌、消耗、金币和过载造成穿透，回收状态、抽牌、治疗并制造拾荒牌。";
         if (PROF_LIGHTKEEPER.equals(profession)) return "满充能：消耗灯火照夜，按消耗、回声、检视和净化造成穿透，获得格挡、抽牌并制造灯牌。";
+        if (PROF_GEOMANCER.equals(profession)) return "满充能：消耗地势引发地鸣，按格挡、燃灼束缚、升级牌、汇流和过载造成穿透，获得格挡、抽牌并制造地脉牌。";
         return "选择职业后可用。";
     }
 
@@ -1776,6 +1779,47 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, light / 2);
+        } else if (PROF_GEOMANCER.equals(s.profession)) {
+            int strata = Math.max(1, s.professionCharge);
+            int guard = Math.min(28, s.block / 2 + buildFocusDeckCards(s, BUILD_GUARD));
+            int upgraded = Math.min(28, upgradedCardCount(s));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.burn * 3 + target.bind * 3 + target.mark * 2 + target.vulnerable * 2;
+            int chain = Math.max(0, s.confluenceChain);
+            int damage = 8 + s.act * 3 + Math.min(58, strata * 3 + guard * 2 + upgraded
+                    + pressure + chain * 4) + overload * 6;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.bind += 2 + Math.min(4, strata / 3) + s.bindPower / 2 + overload / 2;
+                target.burn += 1 + Math.min(4, guard / 7) + s.burnPower / 2;
+                target.mark += 1 + Math.min(3, chain / 2 + upgraded / 8) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, pressure / 12 + overload / 4);
+            }
+            gainBlock(s, 7 + s.act * 2 + Math.min(34, strata * 2 + guard + upgraded / 2 + chain * 3) + overload * 3);
+            draw(s, 1 + Math.min(2, strata / 5 + chain / 4) + overload / 4);
+            if (strata >= 5 || guard >= 14 || chain >= 3 || overload >= 3) {
+                s.energy++;
+            }
+            if (upgraded >= 5 || chain >= 3 || overload >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            Card stone = new Card(overload >= 4 || hasTalent(s, "t_geomancer_grand") ? "geomancer_grand_fault" : "geomancer_rune");
+            stone.temp = true;
+            stone.upgraded = strata >= 5 || hasTalent(s, "t_geomancer_rune");
+            addToHand(s, stone);
+            if (hasTalent(s, "t_geomancer_grand")) {
+                Card mantle = new Card("geomancer_mantle");
+                mantle.temp = true;
+                mantle.upgraded = true;
+                addToHand(s, mantle);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_GUARD, 1 + overload / 3);
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, pressure / 8 + 1));
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, upgraded / 7));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, strata / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3235,6 +3279,9 @@ public final class GameCore {
         if (PROF_LIGHTKEEPER.equals(profession)) {
             return "用消耗、回声、检视和状态净化积累灯火，把牌序维护转成格挡、抽牌、标记和照夜爆发。适合回声、循环、工坊、异常和过载构筑。";
         }
+        if (PROF_GEOMANCER.equals(profession)) {
+            return "用格挡、燃灼、束缚、升级和汇流积累地势，把稳固防线转成地鸣穿透。适合守势、异常、工坊、汇流和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3331,6 +3378,9 @@ public final class GameCore {
         }
         if (PROF_LIGHTKEEPER.equals(profession)) {
             return 0xffffe08a;
+        }
+        if (PROF_GEOMANCER.equals(profession)) {
+            return 0xffc6d47a;
         }
         return 0xffd6c07a;
     }
@@ -3676,6 +3726,13 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_GEOMANCER.equals(profession)) {
+            s.deck.add(new Card("geomancer_rune"));
+            s.deck.add(new Card("geomancer_mantle"));
+            s.maxHp += 5;
+            s.hp += 5;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -3728,6 +3785,7 @@ public final class GameCore {
         else if (PROF_PUPPETEER.equals(profession)) upgradeDeckCard(s, "puppeteer_thread");
         else if (PROF_SCAVENGER.equals(profession)) upgradeDeckCard(s, "scavenger_pick");
         else if (PROF_LIGHTKEEPER.equals(profession)) upgradeDeckCard(s, "lightkeeper_glimmer");
+        else if (PROF_GEOMANCER.equals(profession)) upgradeDeckCard(s, "geomancer_rune");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -3846,6 +3904,12 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_GEOMANCER.equals(profession)) {
+            addUpgradedDeckCard(s, "geomancer_quake");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 4;
+            s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -3881,6 +3945,7 @@ public final class GameCore {
         if (PROF_PUPPETEER.equals(profession)) return "puppeteer_overpull";
         if (PROF_SCAVENGER.equals(profession)) return "scavenger_overhaul";
         if (PROF_LIGHTKEEPER.equals(profession)) return "lightkeeper_overflare";
+        if (PROF_GEOMANCER.equals(profession)) return "geomancer_overquake";
         return "forge_signal";
     }
 
@@ -4341,6 +4406,20 @@ public final class GameCore {
         } else if ("t_lightkeeper_grand".equals(id)) {
             addUpgradedDeckCard(s, "lightkeeper_grand_beacon");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_geomancer_rune".equals(id)) {
+            addUpgradedDeckCard(s, "geomancer_rune");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_geomancer_mantle".equals(id)) {
+            addUpgradedDeckCard(s, "geomancer_mantle");
+            s.maxHp += 4;
+            s.hp += 4;
+        } else if ("t_geomancer_quake".equals(id)) {
+            addUpgradedDeckCard(s, "geomancer_quake");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_geomancer_grand".equals(id)) {
+            addUpgradedDeckCard(s, "geomancer_grand_fault");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -4776,7 +4855,7 @@ public final class GameCore {
                 || "t_gardener_grand".equals(id) || "t_chef_grand".equals(id)
                 || "t_bard_grand".equals(id) || "t_mirrorist_grand".equals(id)
                 || "t_puppeteer_grand".equals(id) || "t_scavenger_grand".equals(id)
-                || "t_lightkeeper_grand".equals(id);
+                || "t_lightkeeper_grand".equals(id) || "t_geomancer_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -4795,7 +4874,7 @@ public final class GameCore {
                 || "gardener_grand_grove".equals(id) || "chef_grand_banquet".equals(id)
                 || "bard_grand_finale".equals(id) || "mirrorist_grand_mirror".equals(id)
                 || "puppeteer_grand_stage".equals(id) || "scavenger_grand_foundry".equals(id)
-                || "lightkeeper_grand_beacon".equals(id);
+                || "lightkeeper_grand_beacon".equals(id) || "geomancer_grand_fault".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -4814,7 +4893,7 @@ public final class GameCore {
                 || "verdant_crown".equals(id) || "banquet_crown".equals(id)
                 || "finale_crown".equals(id) || "mirror_crown".equals(id)
                 || "marionette_crown".equals(id) || "scrap_king_crown".equals(id)
-                || "dawn_beacon".equals(id);
+                || "dawn_beacon".equals(id) || "tectonic_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -5297,6 +5376,9 @@ public final class GameCore {
                 || d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.skillChargeGain > 0
                 || d.vulnerable > 0 || d.bind > 0 || d.cost == 0 || "wound".equals(d.id) || "daze".equals(d.id)
                 || d.profession.equals(PROF_LIGHTKEEPER))) amount++;
+        else if (PROF_GEOMANCER.equals(s.profession) && d != null && (d.block > 0 || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -7009,6 +7091,40 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "faultline_core") && PROF_GEOMANCER.equals(s.profession)) {
+            int pressure = bestEnemyPressure(s);
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + s.confluenceChain / 2));
+            gainBlock(s, 6 + s.act + Math.min(17, s.professionCharge + s.block / 5 + pressure / 3 + s.confluenceChain * 2));
+            Card rune = new Card("geomancer_rune");
+            rune.temp = true;
+            rune.upgraded = true;
+            addToHand(s, rune);
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2;
+                target.burn += 1 + s.burnPower / 2;
+                target.mark += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(24, pressure + s.professionCharge * 2
+                        + s.block / 4 + s.confluenceChain * 3), true);
+            }
+        }
+        if (hasRelic(s, "tectonic_crown") && PROF_GEOMANCER.equals(s.profession)) {
+            Card fault = new Card("geomancer_overquake");
+            fault.temp = true;
+            fault.upgraded = true;
+            addToHand(s, fault);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.block >= 18 || s.confluenceChain >= 4 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 2 + s.bindPower / 2;
+                target.burn += 2 + s.burnPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -7070,6 +7186,8 @@ public final class GameCore {
         if (hasRelic(s, "string_spool") && PROF_PUPPETEER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || tempOrEchoHandCount(s) >= 2 || s.block >= 12 + s.act * 2
                 || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
+        if (hasRelic(s, "faultline_core") && PROF_GEOMANCER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.block >= 16 || bestEnemyPressure(s) >= 7 || s.confluenceChain >= 3)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
 
@@ -7261,6 +7379,7 @@ public final class GameCore {
                 || PROF_PRISMIST.equals(s.profession)
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
+                || PROF_GEOMANCER.equals(s.profession)
                 || hasTalent(s, "t_weaver_grandpattern") || hasTalent(s, "t_inscriber_grandcodex")
                 || hasRelic(s, "mirror_anvil") || hasRelic(s, "clockwork_loom") || hasRelic(s, "polished_cog"))) {
             return true;
@@ -7273,6 +7392,7 @@ public final class GameCore {
         if (quest == QUEST_CONFLUENCE && (PROF_MACHINIST.equals(s.profession) || PROF_CHRONOMANCER.equals(s.profession)
                 || PROF_TACTICIAN.equals(s.profession) || PROF_PRISMIST.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
+                || PROF_GEOMANCER.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear") || hasRelic(s, "resonance_prism")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
@@ -7288,6 +7408,7 @@ public final class GameCore {
                 || PROF_CHEF.equals(s.profession)
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
                 || PROF_PUPPETEER.equals(s.profession) || PROF_SCAVENGER.equals(s.profession)
+                || PROF_GEOMANCER.equals(s.profession)
                 || "spec_markchain".equals(s.skillSpec) || "spec_pressure".equals(s.skillSpec)
                 || hasTalent(s, "t_ranger_apex") || hasTalent(s, "t_tuner_counterpoint")
                 || hasRelic(s, "apex_compass") || hasRelic(s, "conductor_baton")
@@ -7305,7 +7426,7 @@ public final class GameCore {
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
-                || PROF_SCAVENGER.equals(s.profession))) {
+                || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession))) {
             return true;
         }
         for (Card c : s.deck) {
@@ -8452,6 +8573,38 @@ public final class GameCore {
                 glimmer.temp = true;
                 glimmer.upgraded = true;
                 addToHand(s, glimmer);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_GEOMANCER.equals(s.profession) && s.turn == 1) {
+            int pressure = bestEnemyPressure(s);
+            int upgraded = upgradedCardCount(s);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, s.block / 8 + upgraded / 6 + s.confluenceChain
+                    + buildFocusDeckCards(s, BUILD_GUARD) / 4);
+            gainBlock(s, 4 + s.act + Math.min(8, upgraded / 2 + s.confluenceChain * 2));
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + (hasTalent(s, "t_geomancer_mantle") ? 1 : 0) + s.bindPower / 2;
+                firstLiving(s).burn += hasTalent(s, "t_geomancer_quake") ? 1 + s.burnPower / 2 : 0;
+                firstLiving(s).mark += hasTalent(s, "t_geomancer_rune") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_geomancer_rune")) {
+                Card rune = new Card("geomancer_rune");
+                rune.temp = true;
+                rune.upgraded = true;
+                addToHand(s, rune);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_geomancer_mantle")) {
+                gainBlock(s, 5 + s.act + Math.min(5, pressure / 3));
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_geomancer_grand")) {
+                Card rune = new Card("geomancer_rune");
+                rune.temp = true;
+                rune.upgraded = true;
+                addToHand(s, rune);
                 upgradeRandomHandCard(s);
                 addProfessionSkillCharge(s, 1);
             }
@@ -10741,6 +10894,82 @@ public final class GameCore {
                 heal += 2 + s.act;
             }
             if (light >= 5 || echoes >= 3 || s.exhaust.size() >= 6 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                upgradeRandomHandCard(s);
+            }
+        }
+        if ("geomancer_rune".equals(d.id) && target != null) {
+            int strata = Math.max(0, s.professionCharge);
+            int guard = Math.min(24, s.block / 3 + upgradedCardCount(s) / 2);
+            damage += Math.min(c.upgraded ? 28 : 19, strata * 2 + guard + s.confluenceChain * 3 + target.bind * 2);
+            target.mark += 1 + (c.upgraded ? 1 : 0);
+            if (s.block >= 12 || s.confluenceChain >= 2 || c.upgraded) {
+                target.bind += 1 + s.bindPower / 2;
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+            }
+        }
+        if ("geomancer_mantle".equals(d.id)) {
+            int strata = Math.max(0, s.professionCharge);
+            int pressure = bestEnemyPressure(s);
+            block += Math.min(c.upgraded ? 30 : 21, strata * 2 + s.block / 4 + pressure / 3
+                    + upgradedCardCount(s) / 2 + s.confluenceChain * 2);
+            if (s.block + block >= 18 + s.act * 3 || pressure >= 8 || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("geomancer_quake".equals(d.id) && target != null) {
+            int strata = Math.max(0, s.professionCharge);
+            int pressure = target.burn * 3 + target.bind * 3 + target.mark * 2 + target.vulnerable * 2;
+            damage += Math.min(c.upgraded ? 44 : 31, strata * 2 + pressure + s.block / 5 + s.confluenceChain * 4);
+            target.bind += c.upgraded ? 3 : 2;
+            target.burn += 1 + s.burnPower / 2;
+            target.vulnerable += 1;
+            if (target.bind >= 4 || target.burn >= 4 || c.upgraded) {
+                draw += 1;
+            }
+        }
+        if ("geomancer_geode".equals(d.id)) {
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask));
+            block += Math.min(c.upgraded ? 28 : 19, labels * 4 + s.confluenceChain * 3 + upgradedCardCount(s) / 2);
+            if (labels >= 3 || s.confluenceChain >= 3 || c.upgraded) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("geomancer_overquake".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int strata = Math.max(0, s.professionCharge);
+            block += Math.min(c.upgraded ? 36 : 25, strata * 2 + overloadNow * 7 + s.block / 4
+                    + s.confluenceChain * 4 + bestEnemyPressure(s) / 3);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+                target.burn += 1 + s.burnPower / 2;
+                damage += Math.min(c.upgraded ? 52 : 36, overloadNow * 8 + strata * 2
+                        + s.confluenceChain * 5 + target.bind * 3 + target.burn * 2);
+            }
+            if (overloadNow >= 2 || s.confluenceChain >= 3 || c.upgraded) {
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if ("geomancer_grand_fault".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int strata = Math.max(0, s.professionCharge);
+            int pressure = bestEnemyPressure(s);
+            damage += Math.min(c.upgraded ? 78 : 56, strata * 4 + s.block / 3 + upgradedCardCount(s) * 2
+                    + s.confluenceChain * 7 + pressure + overloadNow * 9);
+            block += Math.min(c.upgraded ? 56 : 40, strata * 3 + s.block / 4 + upgradedCardCount(s)
+                    + s.confluenceChain * 5 + overloadNow * 6);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.bind += 2 + s.bindPower / 2;
+                target.burn += 2 + s.burnPower / 2;
+            }
+            if (s.confluenceChain >= 4 || s.block >= 24 || overloadNow >= 2 || c.upgraded) {
                 draw += 1;
                 upgradeRandomHandCard(s);
             }
@@ -13602,6 +13831,87 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_GEOMANCER.equals(s.profession) && (d.block > 0 || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
+            addProfessionSkillCharge(s, 1);
+            s.professionCharge++;
+            int pressure = bestEnemyPressure(s);
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                if (d.block > 0 || d.upgradeRandom || d.scry > 0 || d.profession.equals(PROF_GEOMANCER)) {
+                    e.mark += 1;
+                }
+                if (d.burn > 0 || d.bind > 0 || d.vulnerable > 0) {
+                    e.vulnerable += 1;
+                }
+                if (s.professionCharge >= 4 || s.block >= 18 || pressure >= 8 || s.confluenceChain >= 3) {
+                    damageEnemy(s, e, 3 + s.act + Math.min(29, e.mark * 2 + e.vulnerable * 2
+                            + e.bind + e.burn + s.professionCharge * 2 + s.block / 4 + s.confluenceChain * 4), true);
+                }
+            }
+            if (s.professionCharge >= 4) {
+                gainBlock(s, 4 + s.act + Math.min(17, s.professionCharge + pressure / 3 + s.block / 6 + s.confluenceChain * 2));
+                if (s.cardsPlayedThisTurn >= 3 || s.confluenceChain >= 3 || hasTalent(s, "t_geomancer_rune")) {
+                    draw(s, 1);
+                }
+                if (d.upgradeRandom || s.confluenceChain >= 3 || hasTalent(s, "t_geomancer_quake")) {
+                    upgradeRandomHandCard(s);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_geomancer_rune") && (d.cost == 0 || d.scry > 0 || d.upgradeRandom
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(23, e.mark * 2
+                        + s.professionCharge * 2 + s.confluenceChain * 4 + upgradedCardCount(s)), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || s.confluenceChain >= 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_geomancer_mantle") && (d.block > 0 || d.type == 1 || d.bind > 0
+                || d.profession.equals(PROF_GEOMANCER))) {
+            gainBlock(s, 4 + s.act + Math.min(14, s.professionCharge + s.block / 5 + bestEnemyPressure(s) / 3));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 22 + s.act * 3 || bestEnemyPressure(s) >= 10) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_geomancer_quake") && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || d.profession.equals(PROF_GEOMANCER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.burn += 1 + s.burnPower / 2;
+                if (bestEnemyPressure(s) >= 9 || s.cardsPlayedThisTurn >= 3) {
+                    e.mark += 1;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(24, bestEnemyPressure(s) + s.professionCharge * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_geomancer_grand") && (d.block > 0 || d.burn > 0 || d.bind > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2
+                || d.rarity == 2 || d.profession.equals(PROF_GEOMANCER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4 || s.block >= 18 || s.confluenceChain >= 3)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(31, e.mark * 2 + e.vulnerable * 2
+                        + e.bind + e.burn + s.professionCharge * 2 + s.block / 4 + s.confluenceChain * 4), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -14089,6 +14399,38 @@ public final class GameCore {
                 if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || tempOrEchoHandCount(s) >= 3) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(26, e.mark * 2 + e.vulnerable * 2
                             + s.professionCharge + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "faultline_core") && (d.block > 0 || d.burn > 0 || d.bind > 0 || d.upgradeRandom
+                || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 4 + s.act + Math.min(10, s.professionCharge + s.block / 5 + bestEnemyPressure(s) / 3));
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.block > 0 || s.confluenceChain >= 3 || bestEnemyPressure(s) >= 8) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(25, e.mark * 2
+                            + s.professionCharge * 2 + s.block / 4 + bestEnemyPressure(s) / 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "tectonic_crown") && (d.block > 0 || d.burn > 0 || d.bind > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || s.block >= 18 || s.confluenceChain >= 3) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(29, e.mark * 2 + e.vulnerable * 2
+                            + e.bind + e.burn + s.professionCharge + s.block / 4 + s.confluenceChain * 4), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -15422,6 +15764,10 @@ public final class GameCore {
             return focus == BUILD_ECHO ? 18 : focus == BUILD_CYCLE ? 16 : focus == BUILD_FORGE ? 14
                     : focus == BUILD_STATUS ? 14 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 10 : 0;
         }
+        if (PROF_GEOMANCER.equals(s.profession)) {
+            return focus == BUILD_GUARD ? 18 : focus == BUILD_STATUS ? 16 : focus == BUILD_FORGE ? 14
+                    : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_CYCLE ? 10 : focus == BUILD_ECHO ? 6 : 0;
+        }
         return 0;
     }
 
@@ -15502,6 +15848,9 @@ public final class GameCore {
         }
         if (PROF_LIGHTKEEPER.equals(d.profession)) {
             return lightkeeperFocusCardValue(d, focus);
+        }
+        if (PROF_GEOMANCER.equals(d.profession)) {
+            return geomancerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -16162,6 +16511,39 @@ public final class GameCore {
         return 0;
     }
 
+    private static int geomancerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + (d.draw > 0 ? 2 : 0)
+                    + ("geomancer_rune".equals(d.id) ? 8 : 0) + ("geomancer_geode".equals(d.id) ? 10 : 0)
+                    + ("geomancer_overquake".equals(d.id) ? 16 : 0) + ("geomancer_grand_fault".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return d.burn * 3 + d.bind * 2 + ("geomancer_quake".equals(d.id) ? 10 : 0)
+                    + ("geomancer_overquake".equals(d.id) ? 10 : 0) + ("geomancer_grand_fault".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.scry * 2
+                    + ("geomancer_rune".equals(d.id) ? 8 : 0) + ("geomancer_geode".equals(d.id) ? 18 : 0)
+                    + ("geomancer_grand_fault".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 3 + d.bind * 3 + d.vulnerable * 6
+                    + ("geomancer_quake".equals(d.id) ? 18 : 0) + ("geomancer_overquake".equals(d.id) ? 16 : 0)
+                    + ("geomancer_grand_fault".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + (d.cost == 0 ? 5 : 0) + (d.scry > 0 ? 3 : 0)
+                    + ("geomancer_rune".equals(d.id) ? 14 : 0) + ("geomancer_mantle".equals(d.id) ? 10 : 0)
+                    + ("geomancer_geode".equals(d.id) ? 10 : 0) + ("geomancer_overquake".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 3 : 0)
+                    + ("geomancer_mantle".equals(d.id) ? 18 : 0) + ("geomancer_geode".equals(d.id) ? 14 : 0)
+                    + ("geomancer_overquake".equals(d.id) ? 16 : 0) + ("geomancer_grand_fault".equals(d.id) ? 18 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -16509,6 +16891,15 @@ public final class GameCore {
                 + buildFocusDeckCards(s, BUILD_ECHO) * 2 + buildFocusDeckCards(s, BUILD_CYCLE)
                 + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_geomancer_rune".equals(id)) bonus += upgraded * 2 + buildFocusDeckCards(s, BUILD_FORGE) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_geomancer_mantle".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 3
+                + bindDeckCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_geomancer_quake".equals(id)) bonus += burnDeckCards(s) * 2 + bindDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) * 2 + professionCards;
+        else if ("t_geomancer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_FORGE)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_CYCLE);
         return Math.min(36, bonus);
     }
 
@@ -16534,6 +16925,7 @@ public final class GameCore {
                     "t_chef_spice", "t_chef_grand", "t_bard_chorus", "t_bard_grand",
                     "t_mirrorist_reflect", "t_mirrorist_grand", "t_scavenger_market",
                     "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
+                    "t_geomancer_quake", "t_geomancer_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
@@ -16549,12 +16941,14 @@ public final class GameCore {
                     "t_gardener_sprout", "t_gardener_grand", "t_chef_stew",
                     "t_chef_grand", "t_bard_ballad", "t_bard_chorus", "t_bard_grand",
                     "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
-                    "t_lightkeeper_keeper", "t_lightkeeper_vigil", "t_lightkeeper_grand") ? 3 : 0;
+                    "t_lightkeeper_keeper", "t_lightkeeper_vigil", "t_lightkeeper_grand",
+                    "t_geomancer_rune", "t_geomancer_grand") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "t_shared_apothecary", "t_alchemist_reserve", "t_alchemist_plague",
                     "t_alchemist_distiller", "t_alchemist_grandbrew", "t_stormcaller_front",
-                    "t_prismist_spill", "t_chef_prep", "t_chef_spice", "t_chef_grand") ? 3 : 0;
+                    "t_prismist_spill", "t_chef_prep", "t_chef_spice", "t_chef_grand",
+                    "t_geomancer_quake", "t_geomancer_grand") ? 3 : 0;
         }
         if (focus == BUILD_GOLD) {
             return isAny(id, "t_shared_hunter", "t_shared_wayfarer", "t_merchant_interest",
@@ -16579,7 +16973,7 @@ public final class GameCore {
                     "t_gardener_compost", "t_gardener_grand", "t_chef_spice",
                     "t_chef_grand", "t_bard_grand", "t_mirrorist_guard",
                     "t_mirrorist_reflect", "t_mirrorist_grand", "t_lightkeeper_prism",
-                    "t_lightkeeper_grand") ? 3 : 0;
+                    "t_lightkeeper_grand", "t_geomancer_rune", "t_geomancer_grand") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "t_alchemist_plague", "t_alchemist_distiller", "t_alchemist_grandbrew",
@@ -16601,6 +16995,7 @@ public final class GameCore {
                     "t_bard_note", "t_bard_grand", "t_mirrorist_shard",
                     "t_mirrorist_grand", "t_scavenger_salvage", "t_scavenger_patch",
                     "t_scavenger_grand", "t_lightkeeper_prism", "t_lightkeeper_grand",
+                    "t_geomancer_quake", "t_geomancer_grand",
                     "t_duelist_execution") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
@@ -16623,6 +17018,7 @@ public final class GameCore {
                     "t_mirrorist_shard", "t_mirrorist_reflect", "t_mirrorist_grand",
                     "t_scavenger_salvage", "t_scavenger_market", "t_scavenger_grand",
                     "t_lightkeeper_keeper", "t_lightkeeper_prism", "t_lightkeeper_grand",
+                    "t_geomancer_rune", "t_geomancer_grand",
                     "t_shared_longnight") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
@@ -16638,7 +17034,8 @@ public final class GameCore {
                     "t_dreamwalker_grand", "t_gardener_rootwall", "t_gardener_grand",
                     "t_chef_stew", "t_chef_grand", "t_bard_ballad", "t_bard_grand",
                     "t_mirrorist_guard", "t_mirrorist_grand", "t_scavenger_patch",
-                    "t_scavenger_grand", "t_lightkeeper_vigil", "t_lightkeeper_grand") ? 3 : 0;
+                    "t_scavenger_grand", "t_lightkeeper_vigil", "t_lightkeeper_grand",
+                    "t_geomancer_mantle", "t_geomancer_grand") ? 3 : 0;
         }
         return 0;
     }
@@ -16899,6 +17296,18 @@ public final class GameCore {
                 && (statusDeckCards(s) > 0 || exhaustDeckCards(s) >= 2 || buildFocusDeckCards(s, BUILD_FORGE) >= 2)) {
             return "净灯转写";
         }
+        if (isAny(id, "t_geomancer_rune", "t_geomancer_grand")
+                && (upgradedDeckCards(s) >= 4 || buildFocusDeckCards(s, BUILD_FORGE) >= 2 || buildFocusDeckCards(s, BUILD_CYCLE) >= 3)) {
+            return "脉纹回路";
+        }
+        if (isAny(id, "t_geomancer_mantle", "t_geomancer_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || s.hp < s.maxHp || s.block >= 12)) {
+            return "岩幕防线";
+        }
+        if (isAny(id, "t_geomancer_quake", "t_geomancer_grand")
+                && (burnDeckCards(s) + bindDeckCards(s) >= 3 || buildFocusDeckCards(s, BUILD_STATUS) >= 2)) {
+            return "震源连锁";
+        }
         return "";
     }
 
@@ -17140,7 +17549,8 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
+                    "faultline_core", "tectonic_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "hollow_crown", "void_abacus", "echo_prism",
@@ -17150,7 +17560,8 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
+                    "faultline_core", "tectonic_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell", "alchemist_case",
@@ -17176,7 +17587,8 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
+                    "faultline_core", "tectonic_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -17188,7 +17600,8 @@ public final class GameCore {
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
+                    "faultline_core", "tectonic_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum", "cracked_compass",
@@ -17199,7 +17612,8 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "lantern_wick", "dawn_beacon",
+                    "faultline_core", "tectonic_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -17211,7 +17625,7 @@ public final class GameCore {
                     "refraction_dial", "spectrum_crown", "dreamcatcher_charm", "oneiric_crown",
                     "seed_satchel", "verdant_crown", "recipe_book", "banquet_crown", "songbook", "finale_crown",
                     "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
-                    "scrap_magnet", "scrap_king_crown") ? 3 : 0;
+                    "scrap_magnet", "scrap_king_crown", "faultline_core", "tectonic_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -17247,7 +17661,8 @@ public final class GameCore {
                 || (PROF_MIRRORIST.equals(s.profession) && "mirror_lens".equals(id))
                 || (PROF_PUPPETEER.equals(s.profession) && "string_spool".equals(id))
                 || (PROF_SCAVENGER.equals(s.profession) && "scrap_magnet".equals(id))
-                || (PROF_LIGHTKEEPER.equals(s.profession) && "lantern_wick".equals(id));
+                || (PROF_LIGHTKEEPER.equals(s.profession) && "lantern_wick".equals(id))
+                || (PROF_GEOMANCER.equals(s.profession) && "faultline_core".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -17292,6 +17707,7 @@ public final class GameCore {
                 || hasRelic(s, "string_spool") || hasRelic(s, "marionette_crown")
                 || hasRelic(s, "scrap_magnet") || hasRelic(s, "scrap_king_crown")
                 || hasRelic(s, "lantern_wick") || hasRelic(s, "dawn_beacon")
+                || hasRelic(s, "faultline_core") || hasRelic(s, "tectonic_crown")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
@@ -17480,6 +17896,11 @@ public final class GameCore {
                 || d.profession.equals(PROF_LIGHTKEEPER))) {
             return 4;
         }
+        if (PROF_GEOMANCER.equals(s.profession) && (d.block > 0 || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
+            return 4;
+        }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
             return 3;
         }
@@ -17513,7 +17934,8 @@ public final class GameCore {
                     || "gardener_grand_grove".equals(d.id) || "chef_spice".equals(d.id)
                     || "chef_sizzle".equals(d.id) || "chef_grand_banquet".equals(d.id)
                     || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)
-                    || "mirrorist_prismcut".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
+                    || "mirrorist_prismcut".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)
+                    || "geomancer_quake".equals(d.id) || "geomancer_grand_fault".equals(d.id)) bonus += 4;
         } else if ("spec_tempo".equals(spec.id)) {
             if (d.cost == 0 || d.draw > 0 || d.energyGain > 0) bonus += 3;
             if (d.createEcho || d.exhaust || d.skillChargeGain > 0) bonus += 2;
@@ -17536,7 +17958,8 @@ public final class GameCore {
                     || "mirrorist_shard".equals(d.id) || "mirrorist_reflect".equals(d.id)
                     || "mirrorist_overimage".equals(d.id) || "lightkeeper_glimmer".equals(d.id)
                     || "lightkeeper_vigil".equals(d.id) || "lightkeeper_prism".equals(d.id)
-                    || "lightkeeper_overflare".equals(d.id)) bonus += 4;
+                    || "lightkeeper_overflare".equals(d.id) || "geomancer_rune".equals(d.id)
+                    || "geomancer_geode".equals(d.id) || "geomancer_overquake".equals(d.id)) bonus += 4;
         } else if ("spec_sustain".equals(spec.id)) {
             if (d.block > 0 || d.heal > 0 || d.burnToBlock || d.goldBlock) bonus += 3;
             if (d.gainSteelEngine > 0 || d.retainBlock || d.type == 1) bonus += 2;
@@ -17557,7 +17980,9 @@ public final class GameCore {
                     || "mirrorist_reflect".equals(d.id) || "mirrorist_overimage".equals(d.id)
                     || "mirrorist_grand_mirror".equals(d.id) || "lightkeeper_vigil".equals(d.id)
                     || "lightkeeper_prism".equals(d.id) || "lightkeeper_overflare".equals(d.id)
-                    || "lightkeeper_grand_beacon".equals(d.id)) bonus += 4;
+                    || "lightkeeper_grand_beacon".equals(d.id) || "geomancer_mantle".equals(d.id)
+                    || "geomancer_geode".equals(d.id) || "geomancer_overquake".equals(d.id)
+                    || "geomancer_grand_fault".equals(d.id)) bonus += 4;
         } else if ("spec_resonance".equals(spec.id)) {
             int focus = buildScoutFocus(s);
             int value = buildFocusCardValue(d, focus);
@@ -17595,7 +18020,9 @@ public final class GameCore {
                     || "mirrorist_shard".equals(d.id) || "mirrorist_prismcut".equals(d.id)
                     || "mirrorist_grand_mirror".equals(d.id) || "lightkeeper_glimmer".equals(d.id)
                     || "lightkeeper_brand".equals(d.id) || "lightkeeper_overflare".equals(d.id)
-                    || "lightkeeper_grand_beacon".equals(d.id)) bonus += 4;
+                    || "lightkeeper_grand_beacon".equals(d.id) || "geomancer_rune".equals(d.id)
+                    || "geomancer_quake".equals(d.id) || "geomancer_overquake".equals(d.id)
+                    || "geomancer_grand_fault".equals(d.id)) bonus += 4;
         } else if ("spec_assembly".equals(spec.id)) {
             if (d.upgradeRandom || d.scry > 0 || d.createEcho || hybridFocusCount(d) >= 2) bonus += 4;
             if (d.skillChargeGain > 0 || d.energyGain > 0 || d.draw > 0) bonus += 2;
@@ -17613,7 +18040,8 @@ public final class GameCore {
                     || "bard_discord".equals(d.id) || "bard_grand_finale".equals(d.id)
                     || "mirrorist_guard".equals(d.id) || "mirrorist_reflect".equals(d.id)
                     || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)
-                    || "lightkeeper_prism".equals(d.id) || "lightkeeper_grand_beacon".equals(d.id)) bonus += 4;
+                    || "lightkeeper_prism".equals(d.id) || "lightkeeper_grand_beacon".equals(d.id)
+                    || "geomancer_geode".equals(d.id) || "geomancer_grand_fault".equals(d.id)) bonus += 4;
         } else if ("spec_echoflow".equals(spec.id)) {
             if (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0) bonus += 4;
             if (d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || cedesTempo(d.id)) bonus += 2;
@@ -17634,7 +18062,9 @@ public final class GameCore {
                     || "mirrorist_reflect".equals(d.id) || "mirrorist_overimage".equals(d.id)
                     || "lightkeeper_glimmer".equals(d.id) || "lightkeeper_vigil".equals(d.id)
                     || "lightkeeper_prism".equals(d.id) || "lightkeeper_overflare".equals(d.id)
-                    || "lightkeeper_grand_beacon".equals(d.id)) bonus += 4;
+                    || "lightkeeper_grand_beacon".equals(d.id) || "geomancer_rune".equals(d.id)
+                    || "geomancer_mantle".equals(d.id) || "geomancer_geode".equals(d.id)
+                    || "geomancer_overquake".equals(d.id)) bonus += 4;
         } else if ("spec_markchain".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus || d.burn > 0) bonus += 4;
             if (d.aoe || d.comboDamage > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -17661,7 +18091,9 @@ public final class GameCore {
                     || "bard_note".equals(d.id) || "bard_discord".equals(d.id)
                     || "bard_overcrescendo".equals(d.id) || "bard_grand_finale".equals(d.id)
                     || "mirrorist_shard".equals(d.id) || "mirrorist_prismcut".equals(d.id)
-                    || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)) bonus += 4;
+                    || "mirrorist_overimage".equals(d.id) || "mirrorist_grand_mirror".equals(d.id)
+                    || "geomancer_rune".equals(d.id) || "geomancer_quake".equals(d.id)
+                    || "geomancer_overquake".equals(d.id) || "geomancer_grand_fault".equals(d.id)) bonus += 4;
         } else if ("spec_pressure".equals(spec.id)) {
             if (d.vulnerable > 0 || d.bind > 0 || d.burn > 0 || d.addStatusToEnemy || d.spreadStatus) bonus += 4;
             if (d.skillChargeGain > 0 || d.draw > 0 || d.block > 0 || hybridFocusCount(d) >= 2) bonus += 2;
@@ -17711,6 +18143,9 @@ public final class GameCore {
                 || "scavenger_patch".equals(id) || "scavenger_overhaul".equals(id)
                 || "lightkeeper_glimmer".equals(id) || "lightkeeper_vigil".equals(id)
                 || "lightkeeper_prism".equals(id) || "lightkeeper_overflare".equals(id)
+                || "geomancer_rune".equals(id) || "geomancer_mantle".equals(id)
+                || "geomancer_geode".equals(id) || "geomancer_overquake".equals(id)
+                || "geomancer_grand_fault".equals(id)
                 || "fusion_spark".equals(id) || "echo_forge_loop".equals(id)
                 || "prism_guard_matrix".equals(id) || "apex_resonance".equals(id);
     }
@@ -17757,7 +18192,9 @@ public final class GameCore {
                 || "scavenger_pick".equals(id) || "scavenger_magnet".equals(id)
                 || "scavenger_overhaul".equals(id) || "scavenger_grand_foundry".equals(id)
                 || "lightkeeper_glimmer".equals(id) || "lightkeeper_brand".equals(id)
-                || "lightkeeper_overflare".equals(id) || "lightkeeper_grand_beacon".equals(id);
+                || "lightkeeper_overflare".equals(id) || "lightkeeper_grand_beacon".equals(id)
+                || "geomancer_quake".equals(id) || "geomancer_overquake".equals(id)
+                || "geomancer_grand_fault".equals(id);
     }
 
     private static boolean salvageCardId(String id) {
@@ -17999,6 +18436,14 @@ public final class GameCore {
                 || d.skillChargeGain > 0 || d.rarity == 2 || d.vulnerable > 0 || d.profession.equals(PROF_LIGHTKEEPER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "faultline_core") && (d.block > 0 || d.burn > 0 || d.bind > 0 || d.upgradeRandom
+                || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "tectonic_crown") && (d.block > 0 || d.burn > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GEOMANCER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -18036,7 +18481,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -18068,6 +18513,7 @@ public final class GameCore {
         if (PROF_PUPPETEER.equals(s.profession)) return "string_spool";
         if (PROF_SCAVENGER.equals(s.profession)) return "scrap_magnet";
         if (PROF_LIGHTKEEPER.equals(s.profession)) return "lantern_wick";
+        if (PROF_GEOMANCER.equals(s.profession)) return "faultline_core";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -18355,7 +18801,7 @@ public final class GameCore {
                 || PROF_PRISMIST.equals(s.profession) || PROF_DREAMWALKER.equals(s.profession)
                 || PROF_GARDENER.equals(s.profession) || PROF_CHEF.equals(s.profession)
                 || PROF_BARD.equals(s.profession) || PROF_MIRRORIST.equals(s.profession)
-                || PROF_SCAVENGER.equals(s.profession))
+                || PROF_SCAVENGER.equals(s.profession) || PROF_GEOMANCER.equals(s.profession))
                 && "starforge_lens".equals(id)) {
             return 2;
         }
@@ -18373,7 +18819,8 @@ public final class GameCore {
                 || PROF_DREAMWALKER.equals(s.profession) || PROF_GARDENER.equals(s.profession)
                 || PROF_CHEF.equals(s.profession) || PROF_BARD.equals(s.profession)
                 || PROF_MIRRORIST.equals(s.profession) || PROF_PUPPETEER.equals(s.profession)
-                || PROF_SCAVENGER.equals(s.profession) || PROF_LIGHTKEEPER.equals(s.profession))
+                || PROF_SCAVENGER.equals(s.profession) || PROF_LIGHTKEEPER.equals(s.profession)
+                || PROF_GEOMANCER.equals(s.profession))
                 && "pressure_gauge".equals(id)) {
             return 2;
         }
@@ -18386,6 +18833,16 @@ public final class GameCore {
             return 2;
         }
         if (PROF_LIGHTKEEPER.equals(s.profession) && "dawn_beacon".equals(id)) {
+            return 4;
+        }
+        if (PROF_GEOMANCER.equals(s.profession) && ("faultline_core".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "split_anvil".equals(id) || "starforge_lens".equals(id) || "stormglass_seal".equals(id)
+                || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "overload_etch".equals(id)
+                || "discipline_chart".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
+                || "resonance_prism".equals(id))) {
+            return 2;
+        }
+        if (PROF_GEOMANCER.equals(s.profession) && "tectonic_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -18813,6 +19270,19 @@ public final class GameCore {
             upgradeRandomDeckCard(s);
             s.maxHp += 4;
             s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("faultline_core".equals(id)) {
+            addUpgradedDeckCard(s, "geomancer_geode");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("tectonic_crown".equals(id)) {
+            addUpgradedDeckCard(s, "geomancer_grand_fault");
+            addUpgradedDeckCard(s, "geomancer_rune");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -19541,6 +20011,19 @@ public final class GameCore {
         c = addCard("lightkeeper_grand_beacon", "终局灯塔", "通用", 2, 2, 0, 9, 13, 10, 14, "造成伤害并获得格挡；按灯火、消耗、回声、检视和过载追加终局收益。", "更高伤害、格挡和灯牌返还。");
         c.profession = PROF_LIGHTKEEPER; c.draw = c.drawUp = 1; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.createEcho = true; c.echoCardId = "lightkeeper_glimmer"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("geomancer_rune", "脉纹刻石", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害，抽1张并登记印记；格挡、汇流和升级牌会追加地势收益。", "更高伤害、更多印记和充能。");
+        c.profession = PROF_GEOMANCER; c.draw = c.drawUp = 1; c.scry = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("geomancer_mantle", "岩幕护身", "通用", 0, 1, 1, 0, 0, 8, 11, "获得格挡、检视并抽1张；地势、敌方压力和汇流会加厚岩幕。", "更多格挡、检视和抽牌窗口。");
+        c.profession = PROF_GEOMANCER; c.draw = c.drawUp = 1; c.scry = 2; c.skillChargeGain = 1;
+        c = addCard("geomancer_quake", "裂地震荡", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加束缚、燃灼和易伤；敌方压力越高越强。", "更高伤害、束缚和燃灼。");
+        c.profession = PROF_GEOMANCER; c.bind = 2; c.bindUp = 3; c.burn = 1; c.burnUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("geomancer_geode", "晶洞校准", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、检视并升级手牌；汇流标签足够时额外充能。", "更多格挡、检视和升级收益。");
+        c.profession = PROF_GEOMANCER; c.draw = c.drawUp = 1; c.scry = 3; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("geomancer_overquake", "过载地震", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌和职业技充能；过载、汇流和敌方压力会引发地鸣追击。", "更多格挡、抽牌和职业技充能。");
+        c.profession = PROF_GEOMANCER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.burn = 1; c.burnUp = 2; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("geomancer_grand_fault", "终局地裂", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按地势、格挡、升级、汇流、异常和过载追加终局收益。", "更高伤害、格挡和地脉返还。");
+        c.profession = PROF_GEOMANCER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.burn = 2; c.burnUp = 3; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -19784,6 +20267,7 @@ public final class GameCore {
         addRelicDef("string_spool", "操线轴", "傀儡师束缚、临时、回声和格挡牌更快推动职业技；释放后制造牵线并把丝线转为束缚与标记。");
         addRelicDef("scrap_magnet", "废料磁芯", "拾荒者弃牌、状态、金币、消耗和回收牌更快推动职业技；释放后制造挑拣并把废料转为治疗、格挡与标记。");
         addRelicDef("lantern_wick", "照夜灯芯", "守灯人消耗、临时、检视、升级和灯牌更快推动职业技；释放后制造灯火、净化状态并加固防线。");
+        addRelicDef("faultline_core", "断层核心", "地脉师格挡、异常、升级和汇流牌更快推动职业技；释放后制造刻石并把地势转为格挡、束缚和地鸣追击。");
         addRelicDef("aegis_throne", "圣盾王座", "获得升级圣盾战线；高格挡技能追加格挡、充能与穿透反击。");
         addRelicDef("finale_rapier", "终曲细剑", "获得升级万刃终谱；连打后攻击追加穿透伤害，第5张牌抽牌。");
         addRelicDef("solar_crucible", "日钢坩埚", "获得升级日钢终釜；制药和异常牌追加燃灼、束缚与格挡。");
@@ -19815,6 +20299,7 @@ public final class GameCore {
         addRelicDef("marionette_crown", "牵丝冠", "获得升级终局傀儡台；傀儡师束缚、临时、回声、格挡、充能和稀有牌会滚动束缚、抽牌与牵丝追击。");
         addRelicDef("scrap_king_crown", "拾荒王冠", "获得升级终局回收炉；拾荒者状态、弃牌、消耗、金币、充能和稀有牌会滚动标记、治疗、抽牌与归炉追击。");
         addRelicDef("dawn_beacon", "曦明灯塔", "获得升级终局灯塔；守灯人临时、消耗、检视、升级、充能和稀有牌会滚动印记、抽牌、升级与照夜追击。");
+        addRelicDef("tectonic_crown", "地壳冠冕", "获得升级终局地裂；地脉师格挡、异常、汇流、升级、充能和稀有牌会滚动印记、升级与地鸣追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -20047,6 +20532,9 @@ public final class GameCore {
         addTalent("t_lightkeeper_keeper", PROF_LIGHTKEEPER, "灯火回游", "获得升级灯火微明；低费、抽牌、临时和灯牌追加印记，并把灯火转成穿透追击。");
         addTalent("t_lightkeeper_vigil", PROF_LIGHTKEEPER, "守夜防线", "获得生命和升级守夜帷灯；格挡、技能、临时和灯牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_lightkeeper_prism", PROF_LIGHTKEEPER, "净灯转写", "获得升级净灯棱镜并净化状态；消耗、检视、升级和状态牌会转成抽牌、能量和灯火。");
+        addTalent("t_geomancer_rune", PROF_GEOMANCER, "脉纹回路", "获得升级脉纹刻石并升级牌组；检视、升级、低费和汇流牌追加印记，并把地势转成穿透追击。");
+        addTalent("t_geomancer_mantle", PROF_GEOMANCER, "岩幕防线", "获得生命和升级岩幕护身；格挡、技能、束缚和地脉牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_geomancer_quake", PROF_GEOMANCER, "震源连锁", "获得升级裂地震荡；燃灼、束缚、易伤和充能牌会扩张敌方压力并转成地鸣追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -20078,6 +20566,7 @@ public final class GameCore {
         addTalent("t_puppeteer_grand", PROF_PUPPETEER, "终局傀儡台", "获得升级终局傀儡台；束缚、临时、回声、格挡与过载牌持续抽牌并把丝线印记转为傀儡裁切。");
         addTalent("t_scavenger_grand", PROF_SCAVENGER, "终局回收炉", "获得升级终局回收炉；状态、弃牌、消耗、金币与过载牌持续抽牌、治疗并把废料印记转为归炉裁切。");
         addTalent("t_lightkeeper_grand", PROF_LIGHTKEEPER, "终局灯塔", "获得升级终局灯塔；临时、回声、消耗、检视与过载牌持续抽牌、升级并把灯火印记转为照夜裁切。");
+        addTalent("t_geomancer_grand", PROF_GEOMANCER, "终局地裂", "获得升级终局地裂；格挡、异常、升级、汇流与过载牌持续抽牌、升级并把地势印记转为地鸣裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
