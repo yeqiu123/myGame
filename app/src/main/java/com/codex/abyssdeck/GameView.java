@@ -1547,6 +1547,20 @@ public final class GameView extends View {
             c.drawLine(cx - size * 0.7f, cy + size * 0.5f, cx + size * 0.7f, cy - size * 0.5f, p);
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx, cy + size * 0.1f, size * 0.12f, p);
+        } else if (GameCore.PROF_DRAGONBINDER.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            Path wing = new Path();
+            wing.moveTo(cx - size * 0.8f, cy + size * 0.2f);
+            wing.lineTo(cx - size * 0.22f, cy - size * 0.62f);
+            wing.lineTo(cx, cy - size * 0.1f);
+            wing.lineTo(cx + size * 0.22f, cy - size * 0.62f);
+            wing.lineTo(cx + size * 0.8f, cy + size * 0.2f);
+            c.drawPath(wing, p);
+            c.drawCircle(cx, cy + size * 0.22f, size * 0.32f, p);
+            c.drawLine(cx, cy - size * 0.1f, cx, cy + size * 0.72f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy - size * 0.14f, size * 0.1f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
