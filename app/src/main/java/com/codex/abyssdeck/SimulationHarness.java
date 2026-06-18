@@ -252,6 +252,8 @@ public final class SimulationHarness {
             if (isPathfinderCard(d)) score += 14;
             if (GameCore.PROF_ARRAYIST.equals(s.profession) && isArrayistSignal(d)) score += 14;
             if (isArrayistCard(d)) score += 14;
+            if (GameCore.PROF_GAMBITER.equals(s.profession) && isGambiterSignal(d)) score += 14;
+            if (isGambiterCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -417,6 +419,10 @@ public final class SimulationHarness {
                     || d.draw > 0 || d.createEcho || d.block > 0 || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("array_crown") && (isArrayistSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.createEcho)) score += 20;
+            if (s.relics.contains("gambit_clock") && (isGambiterSignal(d) || d.cost == 0
+                    || d.draw > 0 || d.block > 0 || d.bind > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("checkmate_crown") && (isGambiterSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.bind > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -659,6 +665,13 @@ public final class SimulationHarness {
                     || "conductor_baton".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
                     || "bulwark_core".equals(id) || "echoflow_charm".equals(id) || "discipline_chart".equals(id)
                     || "overload_etch".equals(id))) score += 36;
+            if (GameCore.PROF_GAMBITER.equals(s.profession) && ("checkmate_crown".equals(id) || "gambit_clock".equals(id)
+                    || "tempo_metronome".equals(id) || "amber_quill".equals(id) || "flash_heel".equals(id)
+                    || "war_table".equals(id) || "verdict_seal".equals(id) || "confluence_map".equals(id)
+                    || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                    || "resonance_prism".equals(id) || "tuning_fork".equals(id) || "conductor_baton".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "bulwark_core".equals(id)
+                    || "discipline_chart".equals(id) || "overload_etch".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -705,6 +718,7 @@ public final class SimulationHarness {
             if ("relic_chisel".equals(id) || "vault_crown".equals(id)) score += 20;
             if ("pathfinder_compass".equals(id) || "route_crown".equals(id)) score += 20;
             if ("array_disc".equals(id) || "array_crown".equals(id)) score += 20;
+            if ("gambit_clock".equals(id) || "checkmate_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -1540,6 +1554,20 @@ public final class SimulationHarness {
                     if (tempOrEchoHandCards(s) >= 2 && ("arrayist_bastion".equals(c.id)
                             || "arrayist_pivot".equals(c.id) || "arrayist_grand_array".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_GAMBITER.equals(s.profession) && (isGambiterSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.cost == 0 || d.draw > 0 || d.block > 0 || d.bind > 0
+                            || d.vulnerable > 0 || isGambiterCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isGambiterCard(d)
+                            || d.bind > 0 || d.block > 0)) score += 6;
+                    if (gambiterEnemyPressure(s) >= 8 && ("gambiter_gambit".equals(c.id)
+                            || "gambiter_fork".equals(c.id) || "gambiter_overmate".equals(c.id)
+                            || "gambiter_grand_endgame".equals(c.id))) score += 8;
+                    if ((s.cardsPlayedThisTurn >= 3 || s.block >= 14 || s.confluenceChain >= 3)
+                            && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isGambiterCard(d))) score += 5;
+                    if (s.block >= 12 && ("gambiter_castle".equals(c.id) || "gambiter_fork".equals(c.id)
+                            || "gambiter_grand_endgame".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1788,6 +1816,15 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_arrayist_grand") && (d.cost == 0 || d.draw > 0
                         || d.block > 0 || d.createEcho || c.temp || d.skillChargeGain > 0
                         || d.rarity == 2 || isArrayistCard(d))) score += 14;
+                if (s.talents.contains("t_gambiter_pawn") && (d.cost == 0 || d.draw > 0
+                        || d.type == 0 || d.bind > 0 || isGambiterCard(d))) score += 12;
+                if (s.talents.contains("t_gambiter_castle") && (d.block > 0 || d.type == 1
+                        || d.upgradeRandom || d.draw > 0 || isGambiterCard(d))) score += 12;
+                if (s.talents.contains("t_gambiter_fork") && (d.bind > 0 || d.vulnerable > 0
+                        || d.skillChargeGain > 0 || isHybridCore(d) || isGambiterCard(d))) score += 12;
+                if (s.talents.contains("t_gambiter_grand") && (d.cost == 0 || d.draw > 0
+                        || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                        || d.upgradeRandom || isGambiterCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1875,6 +1912,9 @@ public final class SimulationHarness {
                 if ("arrayist_grand_array".equals(c.id) || "arrayist_overarray".equals(c.id)) score += 18;
                 if ("arrayist_glyph".equals(c.id) || "arrayist_bastion".equals(c.id)
                         || "arrayist_pivot".equals(c.id) || "arrayist_lance".equals(c.id)) score += 14;
+                if ("gambiter_grand_endgame".equals(c.id) || "gambiter_overmate".equals(c.id)) score += 18;
+                if ("gambiter_pawn".equals(c.id) || "gambiter_castle".equals(c.id)
+                        || "gambiter_gambit".equals(c.id) || "gambiter_fork".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -2026,6 +2066,10 @@ public final class SimulationHarness {
                         || d.cost == 0 || d.draw > 0 || d.createEcho || d.block > 0 || d.skillChargeGain > 0)) score += 14;
                 if (s.relics.contains("array_crown") && (isArrayistSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.createEcho || d.upgradeRandom)) score += 16;
+                if (s.relics.contains("gambit_clock") && (isGambiterSignal(d) || c.temp
+                        || d.cost == 0 || d.draw > 0 || d.block > 0 || d.bind > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("checkmate_crown") && (isGambiterSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom || d.bind > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2358,6 +2402,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_GAMBITER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean mateWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || mateWindow || s.cardsPlayedThisTurn >= 4
+                    || s.block >= 18 || s.confluenceChain >= 3 || gambiterEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2385,7 +2439,8 @@ public final class SimulationHarness {
                 || "t_soulbinder_grand".equals(id) || "t_starforger_spark".equals(id)
                 || "t_starforger_grand".equals(id) || "t_pathfinder_mark".equals(id)
                 || "t_pathfinder_grand".equals(id) || "t_arrayist_glyph".equals(id)
-                || "t_arrayist_grand".equals(id));
+                || "t_arrayist_grand".equals(id) || "t_gambiter_pawn".equals(id)
+                || "t_gambiter_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2731,6 +2786,7 @@ public final class SimulationHarness {
                 || s.relics.contains("star_hammer") || s.relics.contains("star_crown")
                 || s.relics.contains("pathfinder_compass") || s.relics.contains("route_crown")
                 || s.relics.contains("array_disc") || s.relics.contains("array_crown")
+                || s.relics.contains("gambit_clock") || s.relics.contains("checkmate_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3221,6 +3277,33 @@ public final class SimulationHarness {
         pressure += Math.min(5, tempOrEchoHandCards(s));
         pressure += Math.min(4, s.confluenceChain);
         pressure += Math.min(4, s.block / 6);
+        return pressure;
+    }
+
+    private static boolean isGambiterSignal(GameCore.CardDef d) {
+        return d != null && (d.cost == 0 || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || d.upgradeRandom || isHybridCore(d)
+                || d.type == 0 || d.type == 1 || GameCore.PROF_GAMBITER.equals(d.profession)
+                || GameCore.PROF_DUELIST.equals(d.profession) || GameCore.PROF_TACTICIAN.equals(d.profession)
+                || GameCore.PROF_ADJUDICATOR.equals(d.profession));
+    }
+
+    private static boolean isGambiterCard(GameCore.CardDef d) {
+        return d != null && ("gambiter_pawn".equals(d.id) || "gambiter_castle".equals(d.id)
+                || "gambiter_gambit".equals(d.id) || "gambiter_fork".equals(d.id)
+                || "gambiter_overmate".equals(d.id) || "gambiter_grand_endgame".equals(d.id));
+    }
+
+    private static int gambiterEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(4, s.block / 6);
+        pressure += Math.min(4, s.cardsPlayedThisTurn);
+        pressure += Math.min(4, s.confluenceChain);
         return pressure;
     }
 
