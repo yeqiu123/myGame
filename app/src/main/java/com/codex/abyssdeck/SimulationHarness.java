@@ -1076,6 +1076,9 @@ public final class SimulationHarness {
         else if (n.route == GameCore.ROUTE_FORGE) score += hasUpgradableCard(s) ? 16 : 8;
         else if (n.route == GameCore.ROUTE_DANGER) score += s.hp > s.maxHp * 0.55f ? 14 : -8;
         else if (n.route == GameCore.ROUTE_AMBUSH) score += s.hp > s.maxHp * 0.6f ? 10 : -12;
+        else if (n.route == GameCore.ROUTE_CONFLUENCE) score += hasBuildCoreTalent(s) || s.act >= 2
+                || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
+                || GameCore.PROF_STARFORGER.equals(s.profession) ? 16 : 9;
         return score;
     }
 
