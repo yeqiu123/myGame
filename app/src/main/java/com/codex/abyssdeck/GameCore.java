@@ -484,6 +484,9 @@ public final class GameCore {
             c.upgraded = true;
             s.deck.add(c);
             upgradeRandomDeckCard(s);
+        } else if ("pact_specialist".equals(id)) {
+            addUpgradedDeckCard(s, "overload_conduit");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -524,6 +527,9 @@ public final class GameCore {
         }
         if ("pact_confluence".equals(s.pact)) {
             return s.pactConfluenceCards >= 2 || s.confluenceChain >= 4 || s.combatQuest == QUEST_CONFLUENCE;
+        }
+        if ("pact_specialist".equals(s.pact)) {
+            return s.pactSkillCards >= 2 || s.combatQuest == QUEST_SKILL && s.questComplete;
         }
         return false;
     }
@@ -601,6 +607,19 @@ public final class GameCore {
                 c.upgraded = true;
                 s.deck.add(c);
             }
+        } else if ("pact_specialist".equals(s.pact)) {
+            addProfessionSkillCharge(s, 1 + s.pactFulfilled / 2);
+            CardDef d = randomSkillSpecCard(s, s.act >= 2 || s.pactFulfilled >= 2);
+            if (d != null) {
+                Card c = new Card(d.id);
+                c.upgraded = s.pactFulfilled >= 2;
+                s.deck.add(c);
+            } else {
+                addUpgradedDeckCard(s, "overload_conduit");
+            }
+            if (s.pactFulfilled >= 2) {
+                upgradeRandomDeckCard(s);
+            }
         }
         if (hasRelic(s, "trial_ledger")) {
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + Math.min(2, s.pactFulfilled));
@@ -675,6 +694,12 @@ public final class GameCore {
             addUpgradedDeckCard(s, "hybrid_rift_engine");
             addRelic(s, "prism_gear");
             upgradeRandomDeckCard(s);
+        } else if ("pact_specialist".equals(s.pact)) {
+            addRelic(s, "discipline_chart");
+            addRelic(s, skillSpecRelicFor(s));
+            if (s.skillSpecLevel < 3) {
+                advanceSkillSpec(s);
+            }
         }
         log(s, "誓约圆满：" + pactName(s) + "给予终局馈赠。");
     }
@@ -9042,6 +9067,7 @@ public final class GameCore {
         s.pactForgeCards = 0;
         s.pactGoldCards = 0;
         s.pactConfluenceCards = 0;
+        s.pactSkillCards = 0;
         s.hand.clear();
         s.draw.clear();
         s.discard.clear();
@@ -19909,6 +19935,9 @@ public final class GameCore {
                 || "apex_resonance".equals(d.id))) {
             s.pactConfluenceCards++;
         }
+        if (d != null && (skillSpecCardBonus(s, d) >= 4 || d.skillChargeGain > 0)) {
+            s.pactSkillCards++;
+        }
     }
 
     private static void trackQuestAfterPlay(State s, Card c, CardDef d, boolean exhausted) {
@@ -20934,6 +20963,7 @@ public final class GameCore {
         if ("pact_merchant".equals(s.pact) && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.draw > 0)) return 7;
         if ("pact_suppression".equals(s.pact) && (d.vulnerable > 0 || d.bind > 0 || d.burn > 0 || d.addStatusToEnemy || d.spreadStatus || pressureCardId(d.id))) return 7;
         if ("pact_confluence".equals(s.pact) && (hybridFocusCount(d) >= 2 || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0)) return 7;
+        if ("pact_specialist".equals(s.pact) && (skillSpecCardBonus(s, d) >= 4 || d.skillChargeGain > 0 || d.profession.equals(s.profession))) return 7;
         return 0;
     }
 
@@ -21171,6 +21201,7 @@ public final class GameCore {
         if ("pact_merchant".equals(s.pact)) return focus == BUILD_GOLD ? 15 : 0;
         if ("pact_suppression".equals(s.pact)) return focus == BUILD_STATUS ? 15 : focus == BUILD_OVERLOAD || focus == BUILD_CYCLE ? 5 : 0;
         if ("pact_confluence".equals(s.pact)) return focus == BUILD_FORGE || focus == BUILD_CYCLE ? 10 : focus == BUILD_ECHO || focus == BUILD_OVERLOAD ? 6 : 0;
+        if ("pact_specialist".equals(s.pact)) return focus == BUILD_OVERLOAD ? 12 : focus == BUILD_CYCLE || focus == BUILD_FORGE ? 6 : 0;
         return 0;
     }
 
@@ -27306,6 +27337,7 @@ public final class GameCore {
         addPact("pact_merchant", "裂币誓约", "金币牌或富裕达标兑现金币和治疗；3次圆满获得裂币引擎和大量金币。");
         addPact("pact_suppression", "镇压誓约", "异常、印记或控场路线达标兑现控制牌与充能；3次圆满获得疫变向量和镇压烙印。");
         addPact("pact_confluence", "汇流誓约", "混搭牌或汇流链达标持续升级牌组；3次圆满获得裂隙万用机和棱镜齿轮。");
+        addPact("pact_specialist", "专修誓约", "专修适配牌或权能目标达标兑现专修牌与充能；3次圆满获得专修图谱和专属遗物。");
     }
 
     private static void addPact(String id, String name, String text) {
@@ -27631,6 +27663,7 @@ public final class GameCore {
         public int pactForgeCards;
         public int pactGoldCards;
         public int pactConfluenceCards;
+        public int pactSkillCards;
         public int masterySkillCharge;
         public int skillSpecLevel;
         public int buildResonanceFocus = -1;
