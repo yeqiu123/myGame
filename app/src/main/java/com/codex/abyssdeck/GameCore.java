@@ -130,6 +130,7 @@ public final class GameCore {
     public static final String PROF_PLAGUEDOCTOR = "瘟疫医师";
     public static final String PROF_ARCHIVIST = "档案员";
     public static final String PROF_VOIDNAVIGATOR = "虚空领航员";
+    public static final String PROF_RELICSMITH = "遗物匠";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -139,7 +140,7 @@ public final class GameCore {
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
-            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR
+            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -835,6 +836,7 @@ public final class GameCore {
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "疫方";
         if (PROF_ARCHIVIST.equals(profession)) return "归档";
         if (PROF_VOIDNAVIGATOR.equals(profession)) return "跃迁";
+        if (PROF_RELICSMITH.equals(profession)) return "开匣";
         return "职业技";
     }
 
@@ -913,6 +915,7 @@ public final class GameCore {
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "满充能：消耗病灶配制疫方，按药剂、状态牌、治疗、燃缚易和过载造成穿透，净化状态、治疗、抽牌并制造疫医牌。";
         if (PROF_ARCHIVIST.equals(profession)) return "满充能：消耗案卷归档，按检视、升级、状态、弃牌消耗、汇流和过载造成穿透，净化状态、升级手牌并制造档案牌。";
         if (PROF_VOIDNAVIGATOR.equals(profession)) return "满充能：消耗航迹跃迁，按临时牌、消耗、检视、汇流和过载造成穿透，抽牌返能并制造航标牌。";
+        if (PROF_RELICSMITH.equals(profession)) return "满充能：消耗匠印开匣，按遗物、金币、升级、格挡、汇流和过载造成穿透，获得金币、格挡并制造遗物牌。";
         return "选择职业后可用。";
     }
 
@@ -2212,6 +2215,52 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, Math.max(1, pressure / 10)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, routes / 2);
+        } else if (PROF_RELICSMITH.equals(s.profession)) {
+            int marks = Math.max(1, s.professionCharge);
+            int relicPulse = Math.min(22, s.relics.size() + buildFocusDeckCards(s, BUILD_GOLD) / 2);
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD) * 2);
+            int forge = Math.min(18, upgradedCardCount(s) / 2 + buildFocusDeckCards(s, BUILD_FORGE));
+            int guard = Math.min(16, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int chain = Math.min(12, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 2 + target.burn;
+            int damage = 8 + s.act * 3 + Math.min(76, marks * 3 + relicPulse * 5
+                    + wealth * 3 + forge * 3 + guard * 3 + chain * 4 + pressure) + overload * 7;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, relicPulse / 5 + forge / 5) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, wealth / 6 + chain / 5 + overload / 4);
+                if (guard >= 5 || hasTalent(s, "t_relicsmith_lock")) {
+                    target.bind += 1 + s.bindPower / 2;
+                }
+            }
+            int gainGold = 6 + s.act * 2 + Math.min(28, relicPulse * 2 + wealth * 2 + marks);
+            s.gold += gainGold;
+            gainBlock(s, 7 + s.act * 2 + Math.min(42, marks * 2 + relicPulse * 3
+                    + wealth * 2 + forge * 2 + guard * 4) + overload * 3);
+            draw(s, 1 + Math.min(3, marks / 5 + relicPulse / 6 + forge / 6) + overload / 4);
+            if (relicPulse >= 5 || wealth >= 5 || guard >= 5 || overload >= 2) {
+                s.energy++;
+            }
+            upgradeRandomHandCard(s);
+            Card key = new Card(overload >= 4 || hasTalent(s, "t_relicsmith_grand")
+                    ? "relicsmith_grand_vault" : "relicsmith_key");
+            key.temp = true;
+            key.upgraded = marks >= 5 || hasTalent(s, "t_relicsmith_key");
+            addToHand(s, key);
+            if (hasTalent(s, "t_relicsmith_grand")) {
+                Card gauge = new Card("relicsmith_gauge");
+                gauge.temp = true;
+                gauge.upgraded = true;
+                addToHand(s, gauge);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_TREASURE, 1 + Math.min(3, gainGold / 12));
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, forge / 4));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, marks / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3698,6 +3747,9 @@ public final class GameCore {
         if (PROF_VOIDNAVIGATOR.equals(profession)) {
             return "用临时牌、消耗、检视和汇流积累航迹，把回声循环转成抽牌、返能、控场和跃迁爆发。适合回声、循环、汇流、过载和虚空构筑。";
         }
+        if (PROF_RELICSMITH.equals(profession)) {
+            return "用遗物、金币、升级和格挡积累匠印，把装备优势转成防线、抽牌、经济和开匣爆发。适合金币、工坊、守势、汇流和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3821,6 +3873,9 @@ public final class GameCore {
         }
         if (PROF_VOIDNAVIGATOR.equals(profession)) {
             return 0xff8fb8ff;
+        }
+        if (PROF_RELICSMITH.equals(profession)) {
+            return 0xfff0b96f;
         }
         return 0xffd6c07a;
     }
@@ -4237,6 +4292,13 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_RELICSMITH.equals(profession)) {
+            s.deck.add(new Card("relicsmith_key"));
+            s.deck.add(new Card("relicsmith_lock"));
+            s.gold += 25;
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4298,6 +4360,7 @@ public final class GameCore {
         else if (PROF_PLAGUEDOCTOR.equals(profession)) upgradeDeckCard(s, "plaguedoctor_lancet");
         else if (PROF_ARCHIVIST.equals(profession)) upgradeDeckCard(s, "archivist_index");
         else if (PROF_VOIDNAVIGATOR.equals(profession)) upgradeDeckCard(s, "voidnavigator_beacon");
+        else if (PROF_RELICSMITH.equals(profession)) upgradeDeckCard(s, "relicsmith_key");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4464,6 +4527,11 @@ public final class GameCore {
             addUpgradedDeckCard(s, "voidnavigator_chart");
             addUpgradedDeckCard(s, "voidnavigator_beacon");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_RELICSMITH.equals(profession)) {
+            addUpgradedDeckCard(s, "relicsmith_gauge");
+            s.gold += 40;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4508,6 +4576,7 @@ public final class GameCore {
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "plaguedoctor_overdose";
         if (PROF_ARCHIVIST.equals(profession)) return "archivist_overfile";
         if (PROF_VOIDNAVIGATOR.equals(profession)) return "voidnavigator_overjump";
+        if (PROF_RELICSMITH.equals(profession)) return "relicsmith_overvault";
         return "forge_signal";
     }
 
@@ -5098,6 +5167,21 @@ public final class GameCore {
         } else if ("t_voidnavigator_grand".equals(id)) {
             addUpgradedDeckCard(s, "voidnavigator_grand_jump");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_relicsmith_key".equals(id)) {
+            addUpgradedDeckCard(s, "relicsmith_key");
+            s.gold += 35;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_relicsmith_lock".equals(id)) {
+            addUpgradedDeckCard(s, "relicsmith_lock");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_relicsmith_gauge".equals(id)) {
+            addUpgradedDeckCard(s, "relicsmith_gauge");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_relicsmith_grand".equals(id)) {
+            addUpgradedDeckCard(s, "relicsmith_grand_vault");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5543,7 +5627,8 @@ public final class GameCore {
                 || "t_witch_grand".equals(id) || "t_shifter_grand".equals(id)
                 || "t_fateseer_grand".equals(id) || "t_tidecaller_grand".equals(id)
                 || "t_frostbinder_grand".equals(id) || "t_plaguedoctor_grand".equals(id)
-                || "t_archivist_grand".equals(id) || "t_voidnavigator_grand".equals(id);
+                || "t_archivist_grand".equals(id) || "t_voidnavigator_grand".equals(id)
+                || "t_relicsmith_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5566,7 +5651,8 @@ public final class GameCore {
                 || "witch_grand_cauldron".equals(id) || "shifter_grand_paradox".equals(id)
                 || "fateseer_grand_design".equals(id) || "tidecaller_grand_tide".equals(id)
                 || "frostbinder_grand_winter".equals(id) || "plaguedoctor_grand_plague".equals(id)
-                || "archivist_grand_archive".equals(id) || "voidnavigator_grand_jump".equals(id);
+                || "archivist_grand_archive".equals(id) || "voidnavigator_grand_jump".equals(id)
+                || "relicsmith_grand_vault".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5588,7 +5674,8 @@ public final class GameCore {
                 || "dawn_beacon".equals(id) || "tectonic_crown".equals(id)
                 || "witch_moon_crown".equals(id) || "phase_crown".equals(id)
                 || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
-                || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id);
+                || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id)
+                || "vault_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -6117,6 +6204,10 @@ public final class GameCore {
                 || d.exhaustTopDiscard || d.scry > 0 || d.draw > 0 || d.energyGain > 0
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_VOIDNAVIGATOR) || d.profession.equals(PROF_ARCANIST))) amount++;
+        else if (PROF_RELICSMITH.equals(s.profession) && d != null && (d.goldGain > 0 || d.goldDamage
+                || d.goldBlock || d.upgradeRandom || d.block > 0 || d.scry > 0 || d.draw > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_RELICSMITH) || d.profession.equals(PROF_MERCHANT))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -8211,6 +8302,41 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "relic_chisel") && PROF_RELICSMITH.equals(s.profession)) {
+            int relicPulse = Math.min(18, s.relics.size());
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            s.gold += 8 + s.act * 2 + relicPulse;
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + relicPulse / 5 + wealth / 5));
+            gainBlock(s, 6 + s.act + Math.min(20, s.professionCharge * 2 + relicPulse * 3 + wealth * 2));
+            Card key = new Card("relicsmith_key");
+            key.temp = true;
+            key.upgraded = true;
+            addToHand(s, key);
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(28, target.mark * 2
+                        + s.professionCharge * 2 + relicPulse * 3 + wealth * 2), true);
+            }
+        }
+        if (hasRelic(s, "vault_crown") && PROF_RELICSMITH.equals(s.profession)) {
+            Card vault = new Card("relicsmith_overvault");
+            vault.temp = true;
+            vault.upgraded = true;
+            addToHand(s, vault);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.relics.size() >= 6 || s.gold >= 160 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -8298,6 +8424,9 @@ public final class GameCore {
         if (hasRelic(s, "void_compass") && PROF_VOIDNAVIGATOR.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || tempOrEchoHandCount(s) >= 2 || s.exhaust.size() >= 4
                 || s.confluenceChain >= 2 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "relic_chisel") && PROF_RELICSMITH.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.relics.size() >= 4 || s.gold >= 120 || s.block >= 14
+                || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -10010,6 +10139,37 @@ public final class GameCore {
                 chart.temp = true;
                 chart.upgraded = true;
                 addToHand(s, chart);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_RELICSMITH.equals(s.profession) && s.turn == 1) {
+            int relicPulse = Math.min(10, s.relics.size());
+            int wealth = Math.min(10, s.gold / 30);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, relicPulse / 2 + wealth / 2
+                    + buildFocusDeckCards(s, BUILD_GOLD) / 4);
+            gainBlock(s, 4 + s.act + Math.min(10, relicPulse * 2 + wealth + s.professionCharge));
+            s.gold += 3 + s.act + relicPulse;
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1 + (hasTalent(s, "t_relicsmith_key") ? 1 : 0);
+                firstLiving(s).vulnerable += wealth >= 4 || hasTalent(s, "t_relicsmith_gauge") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_relicsmith_key")) {
+                Card key = new Card("relicsmith_key");
+                key.temp = true;
+                key.upgraded = true;
+                addToHand(s, key);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_relicsmith_lock")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_relicsmith_grand")) {
+                Card gauge = new Card("relicsmith_gauge");
+                gauge.temp = true;
+                gauge.upgraded = true;
+                addToHand(s, gauge);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -13277,6 +13437,119 @@ public final class GameCore {
             addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, labels / 3));
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("relicsmith_key".equals(d.id) && target != null) {
+            int marks = Math.max(0, s.professionCharge);
+            int relicPulse = Math.min(18, s.relics.size());
+            int wealth = Math.min(16, s.gold / 25);
+            damage += Math.min(c.upgraded ? 34 : 24, marks * 2 + relicPulse * 3 + wealth + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            s.gold += c.upgraded ? 8 : 5;
+            if (relicPulse >= 4 || wealth >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+        }
+        if ("relicsmith_lock".equals(d.id)) {
+            int relicPulse = Math.min(18, s.relics.size());
+            int wealth = Math.min(16, s.gold / 25);
+            block += Math.min(c.upgraded ? 38 : 27, s.professionCharge * 2 + relicPulse * 3
+                    + wealth * 2 + upgradedCardCount(s) / 2);
+            if (s.gold >= 120 || s.block >= 16 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if ("relicsmith_gauge".equals(d.id)) {
+            int relicPulse = Math.min(22, s.relics.size());
+            int wealth = Math.min(18, s.gold / 25);
+            block += Math.min(c.upgraded ? 36 : 25, s.professionCharge * 2 + relicPulse * 3
+                    + wealth * 2 + s.confluenceChain * 2);
+            upgradeRandomHandCard(s);
+            s.gold += 5 + s.act + Math.min(16, relicPulse + wealth);
+            if (relicPulse >= 5 || wealth >= 5 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_TREASURE, 1 + Math.min(2, wealth / 5));
+        }
+        if ("relicsmith_unlock".equals(d.id) && target != null) {
+            int relicPulse = Math.min(24, s.relics.size());
+            int wealth = Math.min(20, s.gold / 25);
+            int pressure = target.mark * 4 + target.vulnerable * 4 + target.bind * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 56 : 40, pressure + relicPulse * 4
+                    + wealth * 3 + s.professionCharge * 2 + upgradedCardCount(s));
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            target.bind += 1 + s.bindPower / 2;
+            s.gold += 7 + s.act;
+            if (target.mark + target.vulnerable >= 4 || wealth >= 5 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 2 : 1);
+        }
+        if ("relicsmith_overvault".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int relicPulse = Math.min(24, s.relics.size());
+            int wealth = Math.min(22, s.gold / 25);
+            block += Math.min(c.upgraded ? 46 : 32, s.professionCharge * 2 + relicPulse * 4
+                    + wealth * 3 + overloadNow * 7);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 68 : 48, overloadNow * 8 + relicPulse * 4
+                        + wealth * 3 + target.mark * 2 + s.professionCharge * 2);
+            }
+            s.gold += 10 + s.act * 2 + Math.min(20, relicPulse + wealth);
+            if (overloadNow >= 2 || relicPulse >= 6 || wealth >= 6 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if ("relicsmith_grand_vault".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int relicPulse = Math.min(30, s.relics.size());
+            int wealth = Math.min(28, s.gold / 25);
+            int labels = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 96 : 74, s.professionCharge * 4 + relicPulse * 6
+                    + wealth * 4 + upgradedCardCount(s) + labels * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 68 : 50, s.professionCharge * 3 + relicPulse * 5
+                    + wealth * 3 + labels * 3 + overloadNow * 6);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.bind += 2 + s.bindPower / 2;
+            }
+            Card key = new Card("relicsmith_key");
+            key.temp = true;
+            key.upgraded = true;
+            addToHand(s, key);
+            upgradeRandomHandCard(s);
+            s.gold += 16 + s.act * 3 + Math.min(30, relicPulse + wealth);
+            if (relicPulse >= 6 || wealth >= 6 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
         if ("hybrid_coinwall".equals(d.id)) {
@@ -16930,6 +17203,86 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_RELICSMITH.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.upgradeRandom || c.upgraded || d.block > 0 || d.scry > 0 || d.draw > 0
+                || d.skillChargeGain > 0 || d.profession.equals(PROF_RELICSMITH) || d.profession.equals(PROF_MERCHANT))) {
+            int relicPulse = Math.min(18, s.relics.size());
+            int wealth = Math.min(18, s.gold / 30);
+            s.professionCharge += 1 + Math.min(2, (relicPulse / 3 + wealth / 3
+                    + (d.goldGain > 0 || d.goldDamage || d.goldBlock ? 2 : 0)
+                    + (d.upgradeRandom || c.upgraded ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1;
+                    if (d.vulnerable > 0 || d.goldDamage || hasTalent(s, "t_relicsmith_gauge")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(34, e.mark * 2 + relicPulse * 3
+                            + wealth * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.goldBlock || hasTalent(s, "t_relicsmith_lock")) {
+                    gainBlock(s, 3 + s.act + Math.min(18, s.professionCharge + relicPulse * 2 + wealth));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || s.gold >= 150 || hasTalent(s, "t_relicsmith_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_relicsmith_key") && (d.goldGain > 0 || d.goldDamage || d.draw > 0
+                || d.cost == 0 || d.profession.equals(PROF_RELICSMITH))) {
+            s.gold += 2 + s.act;
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(28, e.mark * 2
+                        + s.professionCharge * 2 + s.gold / 30), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || s.gold >= 150) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_relicsmith_lock") && (d.block > 0 || d.type == 1 || d.goldBlock
+                || d.upgradeRandom || d.profession.equals(PROF_RELICSMITH))) {
+            gainBlock(s, 4 + s.act + Math.min(18, s.professionCharge + s.relics.size() * 2 + s.gold / 35));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 18) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_relicsmith_gauge") && (d.upgradeRandom || c.upgraded || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || d.goldGain > 0 || d.profession.equals(PROF_RELICSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (s.cardsPlayedThisTurn >= 3 || s.gold >= 160) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(32, e.mark * 2
+                            + s.professionCharge * 2 + s.relics.size() * 3 + s.gold / 25), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.gold >= 160) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_relicsmith_grand") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.upgradeRandom || c.upgraded || d.block > 0 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.profession.equals(PROF_RELICSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || s.relics.size() >= 6 || s.gold >= 160)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(38, e.mark * 2 + e.vulnerable * 2
+                        + s.professionCharge * 2 + s.relics.size() * 3 + s.gold / 25), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -17768,6 +18121,41 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 s.energy++;
+            }
+        }
+        if (hasRelic(s, "relic_chisel") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.upgradeRandom || c.upgraded || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.profession.equals(PROF_RELICSMITH))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge + s.relics.size() * 2 + s.gold / 35));
+                s.gold += 2 + s.act;
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.goldGain > 0 || d.upgradeRandom || c.upgraded || s.gold >= 150) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(29, e.mark * 2
+                            + s.relics.size() * 3 + s.professionCharge * 2 + s.gold / 30), true);
+                }
+            }
+        }
+        if (hasRelic(s, "vault_crown") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.upgradeRandom || c.upgraded || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_RELICSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || s.relics.size() >= 6 || s.gold >= 180) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(34, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge + s.relics.size() * 3 + s.gold / 25), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -19229,6 +19617,9 @@ public final class GameCore {
         if (PROF_VOIDNAVIGATOR.equals(d.profession)) {
             return voidnavigatorFocusCardValue(d, focus);
         }
+        if (PROF_RELICSMITH.equals(d.profession)) {
+            return relicsmithFocusCardValue(d, focus);
+        }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
@@ -20211,6 +20602,40 @@ public final class GameCore {
         return 0;
     }
 
+    private static int relicsmithFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.goldGain * 2 + (d.upgradeRandom ? 3 : 0)
+                    + ("relicsmith_key".equals(d.id) ? 8 : 0) + ("relicsmith_unlock".equals(d.id) ? 9 : 0)
+                    + ("relicsmith_overvault".equals(d.id) ? 16 : 0) + ("relicsmith_grand_vault".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_GOLD) {
+            return d.goldGain * 6 + (d.goldDamage ? 10 : 0) + (d.goldBlock ? 8 : 0) + d.draw * 2
+                    + ("relicsmith_key".equals(d.id) ? 16 : 0) + ("relicsmith_gauge".equals(d.id) ? 16 : 0)
+                    + ("relicsmith_overvault".equals(d.id) ? 18 : 0) + ("relicsmith_grand_vault".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.scry * 3 + (d.rarity == 2 ? 3 : 0)
+                    + ("relicsmith_gauge".equals(d.id) ? 18 : 0) + ("relicsmith_overvault".equals(d.id) ? 16 : 0)
+                    + ("relicsmith_grand_vault".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 7 + d.bind * 5 + d.skillChargeGain * 2
+                    + ("relicsmith_unlock".equals(d.id) ? 18 : 0) + ("relicsmith_overvault".equals(d.id) ? 16 : 0)
+                    + ("relicsmith_grand_vault".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 6 : 0) + d.skillChargeGain * 2
+                    + d.goldGain * 2 + ("relicsmith_key".equals(d.id) ? 15 : 0)
+                    + ("relicsmith_gauge".equals(d.id) ? 12 : 0) + ("relicsmith_overvault".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.draw * 2 + (d.goldBlock ? 6 : 0)
+                    + ("relicsmith_lock".equals(d.id) ? 18 : 0) + ("relicsmith_gauge".equals(d.id) ? 14 : 0)
+                    + ("relicsmith_overvault".equals(d.id) ? 16 : 0) + ("relicsmith_grand_vault".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -20645,6 +21070,15 @@ public final class GameCore {
         else if ("t_voidnavigator_grand".equals(id)) bonus += professionCards + tempOrEchoDeckCards(s) * 2
                 + exhaustDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_ECHO)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_CYCLE);
+        else if ("t_relicsmith_key".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GOLD) * 3
+                + zeroCost * 2 + professionCards + Math.min(12, s.gold / 25);
+        else if ("t_relicsmith_lock".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + buildFocusDeckCards(s, BUILD_GOLD) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_relicsmith_gauge".equals(id)) bonus += upgraded + buildFocusDeckCards(s, BUILD_FORGE) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_relicsmith_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GOLD) * 2
+                + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_GUARD)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + Math.min(12, s.relics.size() * 2);
         return Math.min(36, bonus);
     }
 
@@ -20673,6 +21107,13 @@ public final class GameCore {
             if (focus == BUILD_OVERLOAD && isAny(id, "t_voidnavigator_rift", "t_voidnavigator_grand")) return 3;
             if (focus == BUILD_STATUS && isAny(id, "t_voidnavigator_rift", "t_voidnavigator_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_voidnavigator_anchor", "t_voidnavigator_grand")) return 3;
+        }
+        if (isAny(id, "t_relicsmith_key", "t_relicsmith_lock", "t_relicsmith_gauge", "t_relicsmith_grand")) {
+            if (focus == BUILD_GOLD) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_relicsmith_gauge", "t_relicsmith_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_relicsmith_gauge", "t_relicsmith_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_relicsmith_gauge", "t_relicsmith_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_relicsmith_lock", "t_relicsmith_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -22560,7 +23001,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -22601,6 +23042,7 @@ public final class GameCore {
         if (PROF_PLAGUEDOCTOR.equals(s.profession)) return "plague_case";
         if (PROF_ARCHIVIST.equals(s.profession)) return "archive_key";
         if (PROF_VOIDNAVIGATOR.equals(s.profession)) return "void_compass";
+        if (PROF_RELICSMITH.equals(s.profession)) return "relic_chisel";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -23023,6 +23465,18 @@ public final class GameCore {
             return 2;
         }
         if (PROF_VOIDNAVIGATOR.equals(s.profession) && "void_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_RELICSMITH.equals(s.profession) && ("relic_chisel".equals(id) || "ledger_stamp".equals(id)
+                || "golden_throne".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
+                || "split_anvil".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                || "overload_etch".equals(id) || "discipline_chart".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                || "resonance_prism".equals(id) || "bulwark_core".equals(id) || "contract_stamp".equals(id)
+                || "grand_ledger".equals(id))) {
+            return 2;
+        }
+        if (PROF_RELICSMITH.equals(s.profession) && "vault_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -23538,6 +23992,18 @@ public final class GameCore {
         } else if ("void_crown".equals(id)) {
             addUpgradedDeckCard(s, "voidnavigator_grand_jump");
             addUpgradedDeckCard(s, "voidnavigator_beacon");
+            s.maxHp += 4;
+            s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("relic_chisel".equals(id)) {
+            addUpgradedDeckCard(s, "relicsmith_gauge");
+            s.gold += 45;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("vault_crown".equals(id)) {
+            addUpgradedDeckCard(s, "relicsmith_grand_vault");
+            addUpgradedDeckCard(s, "relicsmith_key");
+            s.gold += 80;
             s.maxHp += 4;
             s.hp += 4;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
@@ -24387,6 +24853,19 @@ public final class GameCore {
         c = addCard("voidnavigator_grand_jump", "终局深空跃迁", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按航迹、临时牌、消耗、检视、汇流和过载追加终局收益。", "更高伤害、格挡和航标返还。");
         c.profession = PROF_VOIDNAVIGATOR; c.draw = c.drawUp = 1; c.scry = 2; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "voidnavigator_beacon"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("relicsmith_key", "开匣钥", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并获得金币；遗物、金币和匠印会提高收益。", "更高伤害、金币和匠印。");
+        c.profession = PROF_RELICSMITH; c.draw = c.drawUp = 1; c.goldGain = 5; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("relicsmith_lock", "匠锁护壳", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌并稳定匠印；遗物与金币会加厚防线。", "更多格挡、抽牌和职业技充能。");
+        c.profession = PROF_RELICSMITH; c.draw = c.drawUp = 1; c.goldBlock = true; c.skillChargeGain = 1;
+        c = addCard("relicsmith_gauge", "估价仪", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡、金币并升级手牌；遗物与金币足够时返能。", "更多格挡、金币和升级收益。");
+        c.profession = PROF_RELICSMITH; c.draw = c.drawUp = 1; c.goldGain = 7; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("relicsmith_unlock", "解封槌", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加印记、易伤和束缚；遗物与金币会转成解封爆发。", "更高伤害、控制和金币收益。");
+        c.profession = PROF_RELICSMITH; c.goldGain = 6; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("relicsmith_overvault", "过载开匣", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、金币、升级和充能；过载与遗物会追加开匣伤害。", "更多格挡、金币和职业技充能。");
+        c.profession = PROF_RELICSMITH; c.draw = c.drawUp = 1; c.goldGain = 8; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("relicsmith_grand_vault", "终局万藏匣", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按匠印、遗物、金币、升级、汇流和过载追加终局收益。", "更高伤害、格挡和钥匙返还。");
+        c.profession = PROF_RELICSMITH; c.draw = c.drawUp = 1; c.goldGain = 12; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "relicsmith_key"; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -24680,6 +25159,8 @@ public final class GameCore {
         addRelicDef("archive_crown", "档案冠", "获得升级终局大档案；档案员检视、升级、归档、充能和稀有牌会滚动印记、抽牌与裁页追击。");
         addRelicDef("void_compass", "虚空罗盘", "虚空领航员临时牌、消耗、检视、汇流和职业牌更快推动职业技；释放后制造航标并返能。");
         addRelicDef("void_crown", "深空冠", "获得升级终局深空跃迁；虚空领航员回声、消耗、过载和稀有牌会滚动印记、抽牌与跃迁追击。");
+        addRelicDef("relic_chisel", "遗物凿", "遗物匠金币、升级、格挡和职业牌更快推动职业技；释放后制造开匣钥、升级手牌并获得金币。");
+        addRelicDef("vault_crown", "万藏冠", "获得升级终局万藏匣；遗物匠金币、升级、格挡、充能和稀有牌会滚动印记、抽牌与开匣追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -24940,6 +25421,9 @@ public final class GameCore {
         addTalent("t_voidnavigator_beacon", PROF_VOIDNAVIGATOR, "航标回路", "获得升级虚空航标和裂隙折返；低费、检视、临时和虚空牌追加印记，并把航迹转成穿透追击。");
         addTalent("t_voidnavigator_anchor", PROF_VOIDNAVIGATOR, "相位防线", "获得生命和升级相位锚；格挡、技能、临时牌和消耗牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_voidnavigator_rift", PROF_VOIDNAVIGATOR, "裂隙折返", "获得升级裂隙折返；易伤、束缚、消耗、回声和充能牌会扩张控制压力并转成折返追击。");
+        addTalent("t_relicsmith_key", PROF_RELICSMITH, "钥齿回路", "获得升级开匣钥和金币；低费、抽牌、金币和遗物牌追加印记，并把匠印转成穿透追击。");
+        addTalent("t_relicsmith_lock", PROF_RELICSMITH, "匠锁防线", "获得生命和升级匠锁护壳；格挡、技能、金币和升级牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_relicsmith_gauge", PROF_RELICSMITH, "估价裁线", "获得升级估价仪并升级牌组；易伤、束缚、金币、升级和充能牌会扩张控制压力并转成开匣追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -24980,6 +25464,7 @@ public final class GameCore {
         addTalent("t_plaguedoctor_grand", PROF_PLAGUEDOCTOR, "终局疫潮", "获得升级终局疫潮；药剂、状态、治疗、异常与过载牌持续抽牌、补药并把病灶印记转为疫潮裁切。");
         addTalent("t_archivist_grand", PROF_ARCHIVIST, "终局大档案", "获得升级终局大档案；检视、升级、状态、归档与过载牌持续抽牌、升级并把案卷印记转为档案裁切。");
         addTalent("t_voidnavigator_grand", PROF_VOIDNAVIGATOR, "终局深空", "获得升级终局深空跃迁；临时、消耗、检视、汇流与过载牌持续抽牌、返能并把航迹印记转为跃迁裁切。");
+        addTalent("t_relicsmith_grand", PROF_RELICSMITH, "终局万藏", "获得升级终局万藏匣；金币、遗物、升级、格挡与过载牌持续抽牌、升级并把匠印转为万藏裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

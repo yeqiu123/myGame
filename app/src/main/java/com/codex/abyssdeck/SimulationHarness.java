@@ -239,6 +239,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && isPlaguedoctorSignal(d)) score += 14;
             if (GameCore.PROF_ARCHIVIST.equals(s.profession) && isArchivistSignal(d)) score += 14;
             if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession) && isVoidnavigatorSignal(d)) score += 14;
+            if (GameCore.PROF_RELICSMITH.equals(s.profession) && isRelicsmithSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -302,6 +303,7 @@ public final class SimulationHarness {
             if (isPlaguedoctorCard(d)) score += 14;
             if (isArchivistCard(d)) score += 14;
             if (isVoidnavigatorCard(d)) score += 14;
+            if (isRelicsmithCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -391,6 +393,10 @@ public final class SimulationHarness {
                     || d.exhaust || d.scry > 0 || d.draw > 0)) score += 18;
             if (s.relics.contains("void_crown") && (isVoidnavigatorSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.createEcho || d.exhaust || d.vulnerable > 0)) score += 20;
+            if (s.relics.contains("relic_chisel") && (isRelicsmithSignal(d) || d.goldGain > 0
+                    || d.upgradeRandom || d.block > 0 || d.draw > 0)) score += 18;
+            if (s.relics.contains("vault_crown") && (isRelicsmithSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.goldGain > 0 || d.upgradeRandom || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -587,6 +593,13 @@ public final class SimulationHarness {
                     || "discipline_chart".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
                     || "mosaic_core".equals(id) || "starforge_lens".equals(id) || "resonance_prism".equals(id)
                     || "phase_lens".equals(id) || "fate_lantern".equals(id))) score += 36;
+            if (GameCore.PROF_RELICSMITH.equals(s.profession) && ("vault_crown".equals(id) || "relic_chisel".equals(id)
+                    || "ledger_stamp".equals(id) || "golden_throne".equals(id) || "contract_stamp".equals(id)
+                    || "grand_ledger".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
+                    || "split_anvil".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                    || "overload_etch".equals(id) || "discipline_chart".equals(id) || "confluence_map".equals(id)
+                    || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                    || "resonance_prism".equals(id) || "bulwark_core".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -630,6 +643,7 @@ public final class SimulationHarness {
             if ("plague_case".equals(id) || "plague_crown".equals(id)) score += 20;
             if ("archive_key".equals(id) || "archive_crown".equals(id)) score += 20;
             if ("void_compass".equals(id) || "void_crown".equals(id)) score += 20;
+            if ("relic_chisel".equals(id) || "vault_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -788,6 +802,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession) && ("pact_void".equals(id) || "pact_sprinter".equals(id)
                     || "pact_confluence".equals(id) || "pact_suppression".equals(id) || "pact_hunter".equals(id)
                     || "pact_guardian".equals(id))) score += 24;
+            if (GameCore.PROF_RELICSMITH.equals(s.profession) && ("pact_merchant".equals(id) || "pact_forge".equals(id)
+                    || "pact_guardian".equals(id) || "pact_confluence".equals(id) || "pact_suppression".equals(id)
+                    || "pact_hunter".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -970,6 +987,9 @@ public final class SimulationHarness {
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
                     || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_burst".equals(id)
                     || "spec_bulwark".equals(id) || "spec_assembly".equals(id))) score += 10;
+            if (GameCore.PROF_RELICSMITH.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_assembly".equals(id) || "spec_bulwark".equals(id) || "spec_tempo".equals(id)
+                    || "spec_control".equals(id) || "spec_markchain".equals(id) || "spec_pressure".equals(id))) score += 10;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -1337,6 +1357,19 @@ public final class SimulationHarness {
                     if (tempOrEchoHandCards(s) >= 2 && ("voidnavigator_anchor".equals(c.id)
                             || "voidnavigator_chart".equals(c.id) || "voidnavigator_grand_jump".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_RELICSMITH.equals(s.profession) && (isRelicsmithSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.upgradeRandom || d.block > 0
+                            || d.draw > 0 || isRelicsmithCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isRelicsmithCard(d)
+                            || d.goldGain > 0 || d.upgradeRandom)) score += 6;
+                    if (relicsmithEnemyPressure(s) >= 8 && ("relicsmith_unlock".equals(c.id)
+                            || "relicsmith_overvault".equals(c.id) || "relicsmith_grand_vault".equals(c.id))) score += 8;
+                    if ((s.relics.size() >= 5 || s.gold >= 150 || s.block >= 14)
+                            && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isRelicsmithCard(d))) score += 5;
+                    if (s.gold >= 120 && ("relicsmith_lock".equals(c.id) || "relicsmith_gauge".equals(c.id)
+                            || "relicsmith_grand_vault".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1527,6 +1560,15 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard || isVoidnavigatorCard(d))) score += 12;
                 if (s.talents.contains("t_voidnavigator_grand") && (d.createEcho || c.temp || d.exhaust
                         || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isVoidnavigatorCard(d))) score += 14;
+                if (s.talents.contains("t_relicsmith_key") && (d.goldGain > 0 || d.goldDamage
+                        || d.draw > 0 || d.cost == 0 || isRelicsmithCard(d))) score += 12;
+                if (s.talents.contains("t_relicsmith_lock") && (d.block > 0 || d.goldBlock || d.type == 1
+                        || d.upgradeRandom || isRelicsmithCard(d))) score += 12;
+                if (s.talents.contains("t_relicsmith_gauge") && (d.upgradeRandom || c.upgraded
+                        || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || isRelicsmithCard(d))) score += 12;
+                if (s.talents.contains("t_relicsmith_grand") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                        || d.upgradeRandom || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                        || isRelicsmithCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2013,6 +2055,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_RELICSMITH.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean vaultWindow = target >= 0 && (s.enemies.get(target).vulnerable > 0
+                    || s.enemies.get(target).mark >= 2 || s.enemies.get(target).bind >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || vaultWindow || s.relics.size() >= 5
+                    || s.gold >= 150 || s.block >= 18 || relicsmithEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2033,7 +2085,8 @@ public final class SimulationHarness {
                 || "t_scavenger_market".equals(id) || "t_plaguedoctor_lancet".equals(id)
                 || "t_plaguedoctor_grand".equals(id) || "t_archivist_index".equals(id)
                 || "t_archivist_grand".equals(id) || "t_voidnavigator_beacon".equals(id)
-                || "t_voidnavigator_grand".equals(id));
+                || "t_voidnavigator_grand".equals(id) || "t_relicsmith_key".equals(id)
+                || "t_relicsmith_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2372,6 +2425,7 @@ public final class SimulationHarness {
                 || s.relics.contains("plague_case") || s.relics.contains("plague_crown")
                 || s.relics.contains("archive_key") || s.relics.contains("archive_crown")
                 || s.relics.contains("void_compass") || s.relics.contains("void_crown")
+                || s.relics.contains("relic_chisel") || s.relics.contains("vault_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2681,6 +2735,31 @@ public final class SimulationHarness {
         }
         pressure += Math.min(4, s.confluenceChain);
         pressure += Math.min(5, s.exhaust.size() / 2);
+        return pressure;
+    }
+
+    private static boolean isRelicsmithSignal(GameCore.CardDef d) {
+        return d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.upgradeRandom
+                || d.block > 0 || d.draw > 0 || d.scry > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || isHybridCore(d)
+                || GameCore.PROF_RELICSMITH.equals(d.profession) || GameCore.PROF_MERCHANT.equals(d.profession));
+    }
+
+    private static boolean isRelicsmithCard(GameCore.CardDef d) {
+        return d != null && ("relicsmith_key".equals(d.id) || "relicsmith_lock".equals(d.id)
+                || "relicsmith_gauge".equals(d.id) || "relicsmith_unlock".equals(d.id)
+                || "relicsmith_overvault".equals(d.id) || "relicsmith_grand_vault".equals(d.id));
+    }
+
+    private static int relicsmithEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 2 + e.burn;
+            }
+        }
+        pressure += Math.min(5, s.relics.size());
+        pressure += Math.min(5, s.gold / 40);
         return pressure;
     }
 

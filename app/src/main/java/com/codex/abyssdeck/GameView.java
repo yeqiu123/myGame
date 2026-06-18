@@ -1522,6 +1522,20 @@ public final class GameView extends View {
             c.drawPath(needle, p);
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx, cy, size * 0.12f, p);
+        } else if (GameCore.PROF_RELICSMITH.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            RectF box = new RectF(cx - size * 0.78f, cy - size * 0.44f,
+                    cx + size * 0.78f, cy + size * 0.68f);
+            c.drawRoundRect(box, size * 0.14f, size * 0.14f, p);
+            c.drawLine(cx - size * 0.78f, cy - size * 0.1f, cx + size * 0.78f, cy - size * 0.1f, p);
+            c.drawLine(cx - size * 0.32f, cy - size * 0.44f, cx - size * 0.18f, cy - size * 0.74f, p);
+            c.drawLine(cx + size * 0.32f, cy - size * 0.44f, cx + size * 0.18f, cy - size * 0.74f, p);
+            c.drawLine(cx - size * 0.18f, cy - size * 0.74f, cx + size * 0.18f, cy - size * 0.74f, p);
+            c.drawCircle(cx, cy + size * 0.2f, size * 0.2f, p);
+            c.drawLine(cx, cy + size * 0.4f, cx, cy + size * 0.58f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy + size * 0.2f, size * 0.08f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);
