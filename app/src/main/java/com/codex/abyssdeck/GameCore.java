@@ -73,6 +73,7 @@ public final class GameCore {
     public static final int ROUTE_AMBUSH = 5;
     public static final int ROUTE_FORGE = 6;
     public static final int ROUTE_CONFLUENCE = 7;
+    public static final int ROUTE_STUDY = 8;
     public static final int PROF_SKILL_MAX = 10;
     public static final int PROF_SKILL_OVERLOAD_MAX = 6;
     private static final int BUILD_OVERLOAD = 0;
@@ -3618,6 +3619,7 @@ public final class GameCore {
         if (route == ROUTE_AMBUSH) return "伏击";
         if (route == ROUTE_FORGE) return "工坊";
         if (route == ROUTE_CONFLUENCE) return "汇流";
+        if (route == ROUTE_STUDY) return "研习";
         return "";
     }
 
@@ -3629,6 +3631,7 @@ public final class GameCore {
         if (route == ROUTE_AMBUSH) return "伏";
         if (route == ROUTE_FORGE) return "锻";
         if (route == ROUTE_CONFLUENCE) return "汇";
+        if (route == ROUTE_STUDY) return "研";
         return "";
     }
 
@@ -3640,6 +3643,7 @@ public final class GameCore {
         if (route == ROUTE_AMBUSH) return "首回合承压更高，胜利额外获得金币和卡牌选择。";
         if (route == ROUTE_FORGE) return "营地锻造更强，战斗后有机会自动升级一张牌。";
         if (route == ROUTE_CONFLUENCE) return "奖励更偏向当前构筑核心和多标签牌，首回合获得汇流启动。";
+        if (route == ROUTE_STUDY) return "奖励更偏向职业技专修牌，首回合获得职业技充能。";
         return "普通路线。";
     }
 
@@ -3651,6 +3655,7 @@ public final class GameCore {
         if (route == ROUTE_AMBUSH) return 0xffd48655;
         if (route == ROUTE_FORGE) return 0xff77a7c9;
         if (route == ROUTE_CONFLUENCE) return 0xff62c1b6;
+        if (route == ROUTE_STUDY) return 0xff9aa7e8;
         return 0xff5b6470;
     }
 
@@ -6339,22 +6344,22 @@ public final class GameCore {
             return ROUTE_NONE;
         }
         if (type == '$') {
-            int[] routes = {ROUTE_RICH, ROUTE_SUPPLY, ROUTE_SECRET, ROUTE_CONFLUENCE};
+            int[] routes = {ROUTE_RICH, ROUTE_SUPPLY, ROUTE_SECRET, ROUTE_CONFLUENCE, ROUTE_STUDY};
             return routes[s.run.nextInt(routes.length)];
         }
         if (type == 'R') {
-            int[] routes = {ROUTE_FORGE, ROUTE_SUPPLY, ROUTE_SECRET, ROUTE_CONFLUENCE};
+            int[] routes = {ROUTE_FORGE, ROUTE_SUPPLY, ROUTE_SECRET, ROUTE_CONFLUENCE, ROUTE_STUDY};
             return routes[s.run.nextInt(routes.length)];
         }
         if (type == '?') {
-            int[] routes = {ROUTE_SECRET, ROUTE_RICH, ROUTE_SUPPLY, ROUTE_FORGE, ROUTE_CONFLUENCE};
+            int[] routes = {ROUTE_SECRET, ROUTE_RICH, ROUTE_SUPPLY, ROUTE_FORGE, ROUTE_CONFLUENCE, ROUTE_STUDY};
             return routes[s.run.nextInt(routes.length)];
         }
         if (type == 'E') {
-            int[] routes = {ROUTE_DANGER, ROUTE_RICH, ROUTE_AMBUSH, ROUTE_FORGE, ROUTE_CONFLUENCE};
+            int[] routes = {ROUTE_DANGER, ROUTE_RICH, ROUTE_AMBUSH, ROUTE_FORGE, ROUTE_CONFLUENCE, ROUTE_STUDY};
             return routes[s.run.nextInt(routes.length)];
         }
-        int[] routes = {ROUTE_RICH, ROUTE_DANGER, ROUTE_SECRET, ROUTE_SUPPLY, ROUTE_AMBUSH, ROUTE_FORGE, ROUTE_CONFLUENCE};
+        int[] routes = {ROUTE_RICH, ROUTE_DANGER, ROUTE_SECRET, ROUTE_SUPPLY, ROUTE_AMBUSH, ROUTE_FORGE, ROUTE_CONFLUENCE, ROUTE_STUDY};
         return routes[s.run.nextInt(routes.length)];
     }
 
@@ -6377,6 +6382,10 @@ public final class GameCore {
         } else if (s.currentRoute == ROUTE_CONFLUENCE && type != 'C' && type != 'E' && type != 'B') {
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
             log(s, "汇流路线整理构筑线索，下场职业技更快启动。");
+        } else if (s.currentRoute == ROUTE_STUDY && type != 'C' && type != 'E' && type != 'B') {
+            int charge = skillSpec(s.skillSpec) == null ? 1 : 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, charge);
+            log(s, "研习路线预演职业技，下场战斗获得充能。");
         }
     }
 
@@ -6400,6 +6409,11 @@ public final class GameCore {
                 e.block += 3 + s.act * 2;
             }
             log(s, "汇流：敌人带护甲，战后奖励更偏向构筑标签。");
+        } else if (s.currentRoute == ROUTE_STUDY) {
+            for (Enemy e : s.enemies) {
+                e.block += 2 + s.act;
+            }
+            log(s, "研习：敌人带少量护甲，战后奖励更偏向职业技专修。");
         } else if (s.currentRoute == ROUTE_SUPPLY && s.potions.size() < potionLimit(s) && s.run.nextInt(100) < 18) {
             PotionDef p = POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size()));
             s.potions.add(p.id);
@@ -6422,6 +6436,12 @@ public final class GameCore {
                 draw(s, 1);
             }
             log(s, "汇流路线启动构筑链。");
+        } else if (s.currentRoute == ROUTE_STUDY) {
+            addProfessionSkillCharge(s, skillSpec(s.skillSpec) == null ? 1 : 2);
+            if (s.skillSpecLevel >= 2) {
+                draw(s, 1);
+            }
+            log(s, "研习路线让职业技提前蓄势。");
         } else if (s.currentRoute == ROUTE_SECRET && s.run.nextInt(100) < 35) {
             Card echo = new Card("void_echo");
             echo.temp = true;
@@ -6440,12 +6460,16 @@ public final class GameCore {
         if (s.currentRoute == ROUTE_CONFLUENCE) {
             return 1;
         }
+        if (s.currentRoute == ROUTE_STUDY) {
+            return 1;
+        }
         return 0;
     }
 
     private static boolean routeAllowsRare(State s) {
         return s.currentRoute == ROUTE_DANGER || s.currentRoute == ROUTE_SECRET || s.currentRoute == ROUTE_AMBUSH
-                || s.currentRoute == ROUTE_CONFLUENCE && (s.act >= 2 || s.combatKind != 'C');
+                || s.currentRoute == ROUTE_CONFLUENCE && (s.act >= 2 || s.combatKind != 'C')
+                || s.currentRoute == ROUTE_STUDY && (s.act >= 2 || s.combatKind != 'C');
     }
 
     private static int routeGoldBonus(State s) {
@@ -6454,6 +6478,7 @@ public final class GameCore {
         if (s.currentRoute == ROUTE_AMBUSH) return 10 + s.act * 4;
         if (s.currentRoute == ROUTE_SECRET && s.combatKind != 'C') return 12 + s.act * 4;
         if (s.currentRoute == ROUTE_CONFLUENCE) return 6 + s.act * 2;
+        if (s.currentRoute == ROUTE_STUDY) return 5 + s.act * 2;
         return 0;
     }
 
@@ -6462,6 +6487,7 @@ public final class GameCore {
         if (s.currentRoute == ROUTE_DANGER) return 8;
         if (s.currentRoute == ROUTE_SECRET && s.combatKind != 'C') return 8;
         if (s.currentRoute == ROUTE_CONFLUENCE) return 6;
+        if (s.currentRoute == ROUTE_STUDY) return 5;
         return 0;
     }
 
@@ -20545,6 +20571,8 @@ public final class GameCore {
             boolean allowRare = s.combatKind != 'C' || s.encounterModifier == MOD_FRENZY || hasRelic(s, "scarlet_dice") || routeAllowsRare(s);
             CardDef d = s.currentRoute == ROUTE_CONFLUENCE
                     ? randomBuildScoutCard(s, allowRare, offeredCards)
+                    : s.currentRoute == ROUTE_STUDY
+                    ? randomSkillSpecCard(s, allowRare, offeredCards)
                     : randomCard(s, s.origin, allowRare, offeredCards);
             offeredCards.add(d.id);
             RewardCard rc = new RewardCard();
@@ -20752,9 +20780,16 @@ public final class GameCore {
     }
 
     private static CardDef randomSkillSpecCard(State s, boolean allowRare) {
+        return randomSkillSpecCard(s, allowRare, Collections.<String>emptySet());
+    }
+
+    private static CardDef randomSkillSpecCard(State s, boolean allowRare, Set<String> excluded) {
         ArrayList<CardDef> pool = new ArrayList<>();
         for (CardDef d : CARD_LIBRARY) {
             if (d.type == 3) {
+                continue;
+            }
+            if (excluded.contains(d.id)) {
                 continue;
             }
             if (!allowRare && d.rarity == 2) {
@@ -20783,7 +20818,7 @@ public final class GameCore {
             }
         }
         if (pool.isEmpty()) {
-            return randomOverloadCard(s, allowRare);
+            return randomCard(s, s.origin, allowRare, excluded);
         }
         return pool.get(s.run.nextInt(pool.size()));
     }

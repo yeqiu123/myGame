@@ -1089,6 +1089,10 @@ public final class SimulationHarness {
         else if (n.route == GameCore.ROUTE_CONFLUENCE) score += hasBuildCoreTalent(s) || s.act >= 2
                 || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
                 || GameCore.PROF_STARFORGER.equals(s.profession) ? 16 : 9;
+        else if (n.route == GameCore.ROUTE_STUDY) score += s.skillSpecLevel >= 2
+                || GameCore.PROF_PACTMAKER.equals(s.profession) || GameCore.PROF_ADJUDICATOR.equals(s.profession)
+                || GameCore.PROF_TUNER.equals(s.profession) || GameCore.PROF_PRISMIST.equals(s.profession)
+                || GameCore.PROF_RELICSMITH.equals(s.profession) ? 16 : 9;
         return score;
     }
 
