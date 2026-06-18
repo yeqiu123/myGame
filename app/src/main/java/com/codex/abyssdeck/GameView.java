@@ -1536,6 +1536,17 @@ public final class GameView extends View {
             c.drawLine(cx, cy + size * 0.4f, cx, cy + size * 0.58f, p);
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx, cy + size * 0.2f, size * 0.08f, p);
+        } else if (GameCore.PROF_BEASTMASTER.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            c.drawCircle(cx, cy + size * 0.1f, size * 0.46f, p);
+            c.drawCircle(cx - size * 0.42f, cy - size * 0.38f, size * 0.18f, p);
+            c.drawCircle(cx - size * 0.14f, cy - size * 0.58f, size * 0.18f, p);
+            c.drawCircle(cx + size * 0.18f, cy - size * 0.58f, size * 0.18f, p);
+            c.drawCircle(cx + size * 0.46f, cy - size * 0.34f, size * 0.18f, p);
+            c.drawLine(cx - size * 0.7f, cy + size * 0.5f, cx + size * 0.7f, cy - size * 0.5f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy + size * 0.1f, size * 0.12f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

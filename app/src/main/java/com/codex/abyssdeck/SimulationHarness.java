@@ -240,6 +240,8 @@ public final class SimulationHarness {
             if (GameCore.PROF_ARCHIVIST.equals(s.profession) && isArchivistSignal(d)) score += 14;
             if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession) && isVoidnavigatorSignal(d)) score += 14;
             if (GameCore.PROF_RELICSMITH.equals(s.profession) && isRelicsmithSignal(d)) score += 14;
+            if (GameCore.PROF_BEASTMASTER.equals(s.profession) && isBeastmasterSignal(d)) score += 14;
+            if (isBeastmasterCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -600,6 +602,12 @@ public final class SimulationHarness {
                     || "overload_etch".equals(id) || "discipline_chart".equals(id) || "confluence_map".equals(id)
                     || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
                     || "resonance_prism".equals(id) || "bulwark_core".equals(id))) score += 36;
+            if (GameCore.PROF_BEASTMASTER.equals(s.profession) && ("alpha_crown".equals(id) || "beast_whistle".equals(id)
+                    || "seed_satchel".equals(id) || "verdant_crown".equals(id) || "dreamcatcher_charm".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bulwark_core".equals(id)
+                    || "confluence_map".equals(id) || "echo_ledger".equals(id) || "overload_etch".equals(id)
+                    || "discipline_chart".equals(id) || "resonance_prism".equals(id) || "spirit_bell".equals(id)
+                    || "root_drum".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -805,6 +813,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_RELICSMITH.equals(s.profession) && ("pact_merchant".equals(id) || "pact_forge".equals(id)
                     || "pact_guardian".equals(id) || "pact_confluence".equals(id) || "pact_suppression".equals(id)
                     || "pact_hunter".equals(id))) score += 24;
+            if (GameCore.PROF_BEASTMASTER.equals(s.profession) && ("pact_summon".equals(id) || "pact_guardian".equals(id)
+                    || "pact_suppression".equals(id) || "pact_void".equals(id) || "pact_hunter".equals(id)
+                    || "pact_confluence".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -990,6 +1001,10 @@ public final class SimulationHarness {
             if (GameCore.PROF_RELICSMITH.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
                     || "spec_assembly".equals(id) || "spec_bulwark".equals(id) || "spec_tempo".equals(id)
                     || "spec_control".equals(id) || "spec_markchain".equals(id) || "spec_pressure".equals(id))) score += 10;
+            if (GameCore.PROF_BEASTMASTER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_echoflow".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
+                    || "spec_pressure".equals(id) || "spec_sustain".equals(id) || "spec_bulwark".equals(id)
+                    || "spec_tempo".equals(id))) score += 10;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -1066,7 +1081,7 @@ public final class SimulationHarness {
                         || isStormcallerCard(d) || isShadowdancerCard(d) || isRunebladeCard(d) || isMediumCard(d)
                         || isTacticianCard(d) || isPrismistCard(d) || isDreamwalkerCard(d) || isGardenerCard(d)
                         || isBardCard(d) || isMirroristCard(d) || isPuppeteerCard(d) || isScavengerCard(d)
-                        || isGeomancerCard(d) || isWitchCard(d) || isFrostbinderCard(d))) score += 20;
+                        || isGeomancerCard(d) || isWitchCard(d) || isFrostbinderCard(d) || isBeastmasterCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -1370,6 +1385,19 @@ public final class SimulationHarness {
                     if (s.gold >= 120 && ("relicsmith_lock".equals(c.id) || "relicsmith_gauge".equals(c.id)
                             || "relicsmith_grand_vault".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_BEASTMASTER.equals(s.profession) && (isBeastmasterSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.createEcho || c.temp || d.bind > 0 || d.heal > 0 || d.block > 0
+                            || d.draw > 0 || isBeastmasterCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isBeastmasterCard(d)
+                            || d.createEcho || d.bind > 0)) score += 6;
+                    if (beastmasterEnemyPressure(s) >= 8 && ("beastmaster_pounce".equals(c.id)
+                            || "beastmaster_overpack".equals(c.id) || "beastmaster_grand_hunt".equals(c.id))) score += 8;
+                    if ((tempOrEchoHandCards(s) >= 3 || bindDeckCards(s) >= 3 || s.block >= 14)
+                            && (d.draw > 0 || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0 || isBeastmasterCard(d))) score += 5;
+                    if (tempOrEchoHandCards(s) >= 2 && ("beastmaster_hide".equals(c.id)
+                            || "beastmaster_call".equals(c.id) || "beastmaster_grand_hunt".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1569,6 +1597,14 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_relicsmith_grand") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
                         || d.upgradeRandom || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
                         || isRelicsmithCard(d))) score += 14;
+                if (s.talents.contains("t_beastmaster_claw") && (d.cost == 0 || d.draw > 0 || d.createEcho
+                        || c.temp || d.bind > 0 || isBeastmasterCard(d))) score += 12;
+                if (s.talents.contains("t_beastmaster_hide") && (d.block > 0 || d.heal > 0 || d.type == 1
+                        || d.createEcho || c.temp || isBeastmasterCard(d))) score += 12;
+                if (s.talents.contains("t_beastmaster_den") && (d.bind > 0 || d.vulnerable > 0
+                        || d.skillChargeGain > 0 || d.createEcho || c.temp || isBeastmasterCard(d))) score += 12;
+                if (s.talents.contains("t_beastmaster_grand") && (d.createEcho || c.temp || d.bind > 0
+                        || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isBeastmasterCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2065,6 +2101,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_BEASTMASTER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean huntWindow = target >= 0 && (s.enemies.get(target).bind >= 3
+                    || s.enemies.get(target).vulnerable > 0 || s.enemies.get(target).mark >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || huntWindow || tempOrEchoHandCards(s) >= 3
+                    || bindDeckCards(s) >= 3 || s.block >= 18 || beastmasterEnemyPressure(s) >= 7
+                    || s.hp < s.maxHp * 0.75f || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2086,7 +2132,8 @@ public final class SimulationHarness {
                 || "t_plaguedoctor_grand".equals(id) || "t_archivist_index".equals(id)
                 || "t_archivist_grand".equals(id) || "t_voidnavigator_beacon".equals(id)
                 || "t_voidnavigator_grand".equals(id) || "t_relicsmith_key".equals(id)
-                || "t_relicsmith_grand".equals(id));
+                || "t_relicsmith_grand".equals(id) || "t_beastmaster_claw".equals(id)
+                || "t_beastmaster_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2426,6 +2473,7 @@ public final class SimulationHarness {
                 || s.relics.contains("archive_key") || s.relics.contains("archive_crown")
                 || s.relics.contains("void_compass") || s.relics.contains("void_crown")
                 || s.relics.contains("relic_chisel") || s.relics.contains("vault_crown")
+                || s.relics.contains("beast_whistle") || s.relics.contains("alpha_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2760,6 +2808,31 @@ public final class SimulationHarness {
         }
         pressure += Math.min(5, s.relics.size());
         pressure += Math.min(5, s.gold / 40);
+        return pressure;
+    }
+
+    private static boolean isBeastmasterSignal(GameCore.CardDef d) {
+        return d != null && (d.createEcho || d.bind > 0 || d.heal > 0 || d.block > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.cost == 0
+                || isHybridCore(d) || GameCore.PROF_BEASTMASTER.equals(d.profession)
+                || GameCore.PROF_GARDENER.equals(d.profession));
+    }
+
+    private static boolean isBeastmasterCard(GameCore.CardDef d) {
+        return d != null && ("beastmaster_claw".equals(d.id) || "beastmaster_hide".equals(d.id)
+                || "beastmaster_call".equals(d.id) || "beastmaster_pounce".equals(d.id)
+                || "beastmaster_overpack".equals(d.id) || "beastmaster_grand_hunt".equals(d.id));
+    }
+
+    private static int beastmasterEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(5, tempOrEchoHandCards(s));
+        pressure += Math.min(4, s.block / 6);
         return pressure;
     }
 

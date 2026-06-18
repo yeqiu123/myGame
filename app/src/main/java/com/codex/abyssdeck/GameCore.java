@@ -131,6 +131,7 @@ public final class GameCore {
     public static final String PROF_ARCHIVIST = "档案员";
     public static final String PROF_VOIDNAVIGATOR = "虚空领航员";
     public static final String PROF_RELICSMITH = "遗物匠";
+    public static final String PROF_BEASTMASTER = "驯兽师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -140,7 +141,7 @@ public final class GameCore {
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
-            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH
+            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -837,6 +838,7 @@ public final class GameCore {
         if (PROF_ARCHIVIST.equals(profession)) return "归档";
         if (PROF_VOIDNAVIGATOR.equals(profession)) return "跃迁";
         if (PROF_RELICSMITH.equals(profession)) return "开匣";
+        if (PROF_BEASTMASTER.equals(profession)) return "群猎";
         return "职业技";
     }
 
@@ -916,6 +918,7 @@ public final class GameCore {
         if (PROF_ARCHIVIST.equals(profession)) return "满充能：消耗案卷归档，按检视、升级、状态、弃牌消耗、汇流和过载造成穿透，净化状态、升级手牌并制造档案牌。";
         if (PROF_VOIDNAVIGATOR.equals(profession)) return "满充能：消耗航迹跃迁，按临时牌、消耗、检视、汇流和过载造成穿透，抽牌返能并制造航标牌。";
         if (PROF_RELICSMITH.equals(profession)) return "满充能：消耗匠印开匣，按遗物、金币、升级、格挡、汇流和过载造成穿透，获得金币、格挡并制造遗物牌。";
+        if (PROF_BEASTMASTER.equals(profession)) return "满充能：消耗兽势群猎，按临时伙伴、束缚、治疗、格挡、汇流和过载造成穿透，治疗、控场并制造兽牌。";
         return "选择职业后可用。";
     }
 
@@ -2261,6 +2264,48 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, marks / 2);
+        } else if (PROF_BEASTMASTER.equals(s.profession)) {
+            int pack = Math.max(1, s.professionCharge);
+            int companions = Math.min(20, tempOrEchoHandCount(s) + tempOrEchoDeckCards(s) / 2 + s.pactTempCards);
+            int binds = Math.min(18, bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS));
+            int healing = Math.min(16, healingDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD) / 2);
+            int guard = Math.min(16, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int chain = Math.min(12, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 4 + target.burn;
+            int damage = 9 + s.act * 3 + Math.min(76, pack * 3 + companions * 4
+                    + binds * 5 + healing * 3 + guard * 3 + chain * 4 + pressure) + overload * 7;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.bind += 2 + s.bindPower / 2 + Math.min(4, pack / 4 + companions / 5) + overload / 2;
+                target.mark += 2 + Math.min(3, binds / 4 + chain / 4);
+                target.vulnerable += 1 + Math.min(2, overload / 4 + pressure / 18);
+            }
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(14, pack / 2 + healing * 2 + companions) + overload);
+            gainBlock(s, 6 + s.act * 2 + Math.min(40, pack * 2 + companions * 3
+                    + binds * 2 + healing * 2 + guard * 4) + overload * 3);
+            draw(s, 1 + Math.min(3, pack / 5 + companions / 4 + healing / 4) + overload / 4);
+            if (companions >= 3 || binds >= 4 || healing >= 3 || overload >= 2) {
+                s.energy++;
+            }
+            Card claw = new Card(overload >= 4 || hasTalent(s, "t_beastmaster_grand")
+                    ? "beastmaster_grand_hunt" : "beastmaster_claw");
+            claw.temp = true;
+            claw.upgraded = pack >= 5 || hasTalent(s, "t_beastmaster_claw");
+            addToHand(s, claw);
+            if (hasTalent(s, "t_beastmaster_grand")) {
+                Card den = new Card("beastmaster_call");
+                den.temp = true;
+                den.upgraded = true;
+                addToHand(s, den);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.min(3, companions / 3));
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, binds / 3 + pressure / 12));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4 + healing / 4));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, pack / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3750,6 +3795,9 @@ public final class GameCore {
         if (PROF_RELICSMITH.equals(profession)) {
             return "用遗物、金币、升级和格挡积累匠印，把装备优势转成防线、抽牌、经济和开匣爆发。适合金币、工坊、守势、汇流和过载构筑。";
         }
+        if (PROF_BEASTMASTER.equals(profession)) {
+            return "用临时伙伴、束缚、治疗和格挡积累兽势，把控场与续航转成群猎爆发。适合回声、异常、守势、治疗和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3876,6 +3924,9 @@ public final class GameCore {
         }
         if (PROF_RELICSMITH.equals(profession)) {
             return 0xfff0b96f;
+        }
+        if (PROF_BEASTMASTER.equals(profession)) {
+            return 0xff9bd47a;
         }
         return 0xffd6c07a;
     }
@@ -4299,6 +4350,13 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_BEASTMASTER.equals(profession)) {
+            s.deck.add(new Card("beastmaster_claw"));
+            s.deck.add(new Card("beastmaster_hide"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 4;
+            s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4361,6 +4419,7 @@ public final class GameCore {
         else if (PROF_ARCHIVIST.equals(profession)) upgradeDeckCard(s, "archivist_index");
         else if (PROF_VOIDNAVIGATOR.equals(profession)) upgradeDeckCard(s, "voidnavigator_beacon");
         else if (PROF_RELICSMITH.equals(profession)) upgradeDeckCard(s, "relicsmith_key");
+        else if (PROF_BEASTMASTER.equals(profession)) upgradeDeckCard(s, "beastmaster_claw");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4532,6 +4591,11 @@ public final class GameCore {
             s.gold += 40;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_BEASTMASTER.equals(profession)) {
+            addUpgradedDeckCard(s, "beastmaster_call");
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4577,6 +4641,7 @@ public final class GameCore {
         if (PROF_ARCHIVIST.equals(profession)) return "archivist_overfile";
         if (PROF_VOIDNAVIGATOR.equals(profession)) return "voidnavigator_overjump";
         if (PROF_RELICSMITH.equals(profession)) return "relicsmith_overvault";
+        if (PROF_BEASTMASTER.equals(profession)) return "beastmaster_overpack";
         return "forge_signal";
     }
 
@@ -5182,6 +5247,20 @@ public final class GameCore {
         } else if ("t_relicsmith_grand".equals(id)) {
             addUpgradedDeckCard(s, "relicsmith_grand_vault");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_beastmaster_claw".equals(id)) {
+            addUpgradedDeckCard(s, "beastmaster_claw");
+            addUpgradedDeckCard(s, "beastmaster_pounce");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_beastmaster_hide".equals(id)) {
+            addUpgradedDeckCard(s, "beastmaster_hide");
+            s.maxHp += 4;
+            s.hp += 4;
+        } else if ("t_beastmaster_den".equals(id)) {
+            addUpgradedDeckCard(s, "beastmaster_call");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_beastmaster_grand".equals(id)) {
+            addUpgradedDeckCard(s, "beastmaster_grand_hunt");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5628,7 +5707,7 @@ public final class GameCore {
                 || "t_fateseer_grand".equals(id) || "t_tidecaller_grand".equals(id)
                 || "t_frostbinder_grand".equals(id) || "t_plaguedoctor_grand".equals(id)
                 || "t_archivist_grand".equals(id) || "t_voidnavigator_grand".equals(id)
-                || "t_relicsmith_grand".equals(id);
+                || "t_relicsmith_grand".equals(id) || "t_beastmaster_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5652,7 +5731,7 @@ public final class GameCore {
                 || "fateseer_grand_design".equals(id) || "tidecaller_grand_tide".equals(id)
                 || "frostbinder_grand_winter".equals(id) || "plaguedoctor_grand_plague".equals(id)
                 || "archivist_grand_archive".equals(id) || "voidnavigator_grand_jump".equals(id)
-                || "relicsmith_grand_vault".equals(id);
+                || "relicsmith_grand_vault".equals(id) || "beastmaster_grand_hunt".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5675,7 +5754,7 @@ public final class GameCore {
                 || "witch_moon_crown".equals(id) || "phase_crown".equals(id)
                 || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
                 || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id)
-                || "vault_crown".equals(id);
+                || "vault_crown".equals(id) || "alpha_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -6208,6 +6287,10 @@ public final class GameCore {
                 || d.goldBlock || d.upgradeRandom || d.block > 0 || d.scry > 0 || d.draw > 0
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_RELICSMITH) || d.profession.equals(PROF_MERCHANT))) amount++;
+        else if (PROF_BEASTMASTER.equals(s.profession) && d != null && (d.createEcho || d.bind > 0
+                || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.cost == 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_BEASTMASTER) || d.profession.equals(PROF_GARDENER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -8337,6 +8420,40 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "beast_whistle") && PROF_BEASTMASTER.equals(s.profession)) {
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            int binds = bindDeckCards(s);
+            draw(s, 1);
+            s.hp = Math.min(s.maxHp, s.hp + 2 + s.act + Math.min(8, companions + healingDeckCards(s)));
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + companions / 2 + binds / 3));
+            gainBlock(s, 6 + s.act + Math.min(18, s.professionCharge * 2 + companions * 3 + binds * 2));
+            Card claw = new Card("beastmaster_claw");
+            claw.temp = true;
+            claw.upgraded = true;
+            addToHand(s, claw);
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2;
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(28, target.bind * 3
+                        + s.professionCharge * 2 + companions * 3), true);
+            }
+        }
+        if (hasRelic(s, "alpha_crown") && PROF_BEASTMASTER.equals(s.profession)) {
+            Card packCard = new Card("beastmaster_overpack");
+            packCard.temp = true;
+            packCard.upgraded = true;
+            addToHand(s, packCard);
+            draw(s, 1);
+            if (s.professionCharge >= 5 || tempOrEchoHandCount(s) >= 3 || bindDeckCards(s) >= 3
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+                target.mark += 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -8427,6 +8544,9 @@ public final class GameCore {
         if (hasRelic(s, "relic_chisel") && PROF_RELICSMITH.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.relics.size() >= 4 || s.gold >= 120 || s.block >= 14
                 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "beast_whistle") && PROF_BEASTMASTER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || tempOrEchoHandCount(s) >= 2 || bindDeckCards(s) >= 2
+                || s.hp < s.maxHp || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -10170,6 +10290,36 @@ public final class GameCore {
                 gauge.temp = true;
                 gauge.upgraded = true;
                 addToHand(s, gauge);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_BEASTMASTER.equals(s.profession) && s.turn == 1) {
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            int binds = Math.min(10, bindDeckCards(s));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, companions + binds / 2 + healingDeckCards(s) / 3);
+            gainBlock(s, 4 + s.act + Math.min(10, companions * 2 + binds + s.professionCharge));
+            s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+                firstLiving(s).mark += hasTalent(s, "t_beastmaster_claw") ? 2 : 1;
+            }
+            if (hasTalent(s, "t_beastmaster_claw")) {
+                Card claw = new Card("beastmaster_claw");
+                claw.temp = true;
+                claw.upgraded = true;
+                addToHand(s, claw);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_beastmaster_hide")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_beastmaster_grand")) {
+                Card den = new Card("beastmaster_call");
+                den.temp = true;
+                den.upgraded = true;
+                addToHand(s, den);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -13549,6 +13699,117 @@ public final class GameCore {
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("beastmaster_claw".equals(d.id) && target != null) {
+            int pack = Math.max(0, s.professionCharge);
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            damage += Math.min(c.upgraded ? 34 : 24, pack * 2 + companions * 3 + target.bind * 3 + target.mark * 2);
+            target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            target.mark += c.upgraded ? 2 : 1;
+            if (companions >= 2 || target.bind >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 2 : 1);
+        }
+        if ("beastmaster_hide".equals(d.id)) {
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            int healing = healingDeckCards(s);
+            block += Math.min(c.upgraded ? 38 : 27, s.professionCharge * 2 + companions * 4
+                    + healing * 3 + bindDeckCards(s) * 2);
+            heal += 2 + Math.min(c.upgraded ? 8 : 5, companions + healing);
+            if (companions >= 2 || s.hp < s.maxHp || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_HEX, 1);
+        }
+        if ("beastmaster_call".equals(d.id)) {
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            block += Math.min(c.upgraded ? 36 : 25, s.professionCharge * 2 + companions * 4
+                    + bindDeckCards(s) * 2 + healingDeckCards(s) * 2);
+            Card claw = new Card("beastmaster_claw");
+            claw.temp = true;
+            claw.upgraded = c.upgraded || companions >= 3;
+            addToHand(s, claw);
+            if (companions >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, focusMaskCount(s.confluenceMask)));
+        }
+        if ("beastmaster_pounce".equals(d.id) && target != null) {
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            int pressure = target.bind * 4 + target.mark * 4 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 56 : 40, pressure + companions * 5
+                    + s.professionCharge * 2 + healingDeckCards(s) * 2);
+            target.bind += 2 + s.bindPower / 2;
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            if (target.bind + target.mark >= 5 || companions >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+        }
+        if ("beastmaster_overpack".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            int binds = bindDeckCards(s);
+            block += Math.min(c.upgraded ? 46 : 32, s.professionCharge * 2 + companions * 5
+                    + binds * 3 + overloadNow * 7);
+            heal += 2 + Math.min(10, companions + binds + overloadNow * 2);
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 68 : 48, overloadNow * 8 + companions * 5
+                        + binds * 4 + target.bind * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || companions >= 3 || binds >= 3 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, 1);
+        }
+        if ("beastmaster_grand_hunt".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            int binds = bindDeckCards(s);
+            int labels = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 96 : 74, s.professionCharge * 4 + companions * 7
+                    + binds * 6 + healingDeckCards(s) * 3 + labels * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 68 : 50, s.professionCharge * 3 + companions * 5
+                    + binds * 3 + labels * 3 + overloadNow * 6);
+            heal += 3 + Math.min(14, companions + healingDeckCards(s) + overloadNow * 2);
+            if (target != null) {
+                target.bind += 3 + s.bindPower / 2;
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+            }
+            Card claw = new Card("beastmaster_claw");
+            claw.temp = true;
+            claw.upgraded = true;
+            addToHand(s, claw);
+            if (companions >= 3 || binds >= 3 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
@@ -17283,6 +17544,91 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_BEASTMASTER.equals(s.profession) && (d.createEcho || c.temp || d.bind > 0
+                || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.profession.equals(PROF_BEASTMASTER) || d.profession.equals(PROF_GARDENER))) {
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            int binds = bindDeckCards(s);
+            s.professionCharge += 1 + Math.min(2, (companions + binds / 2
+                    + (d.createEcho || c.temp ? 2 : 0) + (d.heal > 0 ? 1 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.bind += 1 + s.bindPower / 2;
+                    e.mark += 1;
+                    if (d.bind > 0 || hasTalent(s, "t_beastmaster_den")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(34, e.bind * 2 + e.mark * 2
+                            + companions * 3 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.heal > 0 || hasTalent(s, "t_beastmaster_hide")) {
+                    gainBlock(s, 3 + s.act + Math.min(18, s.professionCharge + companions * 2 + binds));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || companions >= 3 || hasTalent(s, "t_beastmaster_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_beastmaster_claw") && (d.cost == 0 || d.draw > 0 || d.createEcho
+                || c.temp || d.bind > 0 || d.profession.equals(PROF_BEASTMASTER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(28, e.bind * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || c.temp) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_beastmaster_hide") && (d.block > 0 || d.heal > 0 || d.type == 1
+                || d.createEcho || c.temp || d.profession.equals(PROF_BEASTMASTER))) {
+            gainBlock(s, 4 + s.act + Math.min(18, s.professionCharge + tempOrEchoHandCount(s) * 3
+                    + healingDeckCards(s)));
+            if (s.hp < s.maxHp && s.cardsPlayedThisTurn <= 3) {
+                s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
+            }
+            if (s.cardsPlayedThisTurn == 3 || s.hp < s.maxHp) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_beastmaster_den") && (d.bind > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
+                || d.createEcho || c.temp || d.profession.equals(PROF_BEASTMASTER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 8 || s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(32, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + bindDeckCards(s) * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_beastmaster_grand") && (d.createEcho || c.temp || d.bind > 0
+                || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.profession.equals(PROF_BEASTMASTER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || tempOrEchoHandCount(s) >= 3 || bindDeckCards(s) >= 3)) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(38, e.bind * 2 + e.mark * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + bindDeckCards(s) * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -18156,6 +18502,44 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "beast_whistle") && (d.createEcho || c.temp || d.bind > 0 || d.heal > 0
+                || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_BEASTMASTER))) {
+            addProfessionSkillCharge(s, 1);
+            int companions = tempOrEchoHandCount(s) + s.pactTempCards;
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge + companions * 3 + bindDeckCards(s) * 2));
+                if (s.hp < s.maxHp) {
+                    s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                if (d.createEcho || c.temp || e.bind >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(29, e.bind * 2
+                            + companions * 3 + s.professionCharge * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "alpha_crown") && (d.createEcho || c.temp || d.bind > 0 || d.heal > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_BEASTMASTER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.bind >= 4 || s.cardsPlayedThisTurn >= 4 || tempOrEchoHandCount(s) >= 3) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(34, e.bind * 2 + e.mark * 2
+                            + s.professionCharge + tempOrEchoHandCount(s) * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -19620,6 +20004,9 @@ public final class GameCore {
         if (PROF_RELICSMITH.equals(d.profession)) {
             return relicsmithFocusCardValue(d, focus);
         }
+        if (PROF_BEASTMASTER.equals(d.profession)) {
+            return beastmasterFocusCardValue(d, focus);
+        }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
@@ -20636,6 +21023,35 @@ public final class GameCore {
         return 0;
     }
 
+    private static int beastmasterFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.bind * 2 + d.heal * 2 + (d.createEcho ? 4 : 0)
+                    + ("beastmaster_claw".equals(d.id) ? 8 : 0) + ("beastmaster_pounce".equals(d.id) ? 9 : 0)
+                    + ("beastmaster_overpack".equals(d.id) ? 16 : 0) + ("beastmaster_grand_hunt".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 13 : 0) + d.draw * 3 + (d.cost == 0 ? 6 : 0)
+                    + ("beastmaster_claw".equals(d.id) ? 12 : 0) + ("beastmaster_call".equals(d.id) ? 16 : 0)
+                    + ("beastmaster_grand_hunt".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 6 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("beastmaster_claw".equals(d.id) ? 10 : 0) + ("beastmaster_pounce".equals(d.id) ? 18 : 0)
+                    + ("beastmaster_overpack".equals(d.id) ? 16 : 0) + ("beastmaster_grand_hunt".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 7 : 0) + d.skillChargeGain * 2
+                    + (d.createEcho ? 5 : 0) + ("beastmaster_claw".equals(d.id) ? 16 : 0)
+                    + ("beastmaster_call".equals(d.id) ? 14 : 0) + ("beastmaster_grand_hunt".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + d.heal * 5 + (d.type == 1 ? 5 : 0) + d.draw * 2 + (d.createEcho ? 4 : 0)
+                    + ("beastmaster_hide".equals(d.id) ? 18 : 0) + ("beastmaster_call".equals(d.id) ? 16 : 0)
+                    + ("beastmaster_overpack".equals(d.id) ? 16 : 0) + ("beastmaster_grand_hunt".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -21079,6 +21495,15 @@ public final class GameCore {
         else if ("t_relicsmith_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GOLD) * 2
                 + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD) + Math.min(12, s.relics.size() * 2);
+        else if ("t_beastmaster_claw".equals(id)) bonus += zeroCost * 2 + tempOrEchoDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + bindDeckCards(s) + professionCards;
+        else if ("t_beastmaster_hide".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + healingDeckCards(s) * 2 + tempOrEchoDeckCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_beastmaster_den".equals(id)) bonus += bindDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD) + tempOrEchoDeckCards(s) + professionCards;
+        else if ("t_beastmaster_grand".equals(id)) bonus += professionCards + tempOrEchoDeckCards(s) * 2
+                + bindDeckCards(s) + healingDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -21114,6 +21539,12 @@ public final class GameCore {
             if (focus == BUILD_OVERLOAD && isAny(id, "t_relicsmith_gauge", "t_relicsmith_grand")) return 3;
             if (focus == BUILD_STATUS && isAny(id, "t_relicsmith_gauge", "t_relicsmith_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_relicsmith_lock", "t_relicsmith_grand")) return 3;
+        }
+        if (isAny(id, "t_beastmaster_claw", "t_beastmaster_hide", "t_beastmaster_den", "t_beastmaster_grand")) {
+            if (focus == BUILD_ECHO || focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_beastmaster_den", "t_beastmaster_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_beastmaster_claw", "t_beastmaster_den", "t_beastmaster_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_beastmaster_hide", "t_beastmaster_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -21850,6 +22281,10 @@ public final class GameCore {
             return focus == BUILD_FORGE || focus == BUILD_STATUS || focus == BUILD_CYCLE
                     || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_ECHO ? 3 : 0;
         }
+        if ("beast_whistle".equals(id) || "alpha_crown".equals(id)) {
+            return focus == BUILD_ECHO || focus == BUILD_STATUS || focus == BUILD_CYCLE
+                    || focus == BUILD_GUARD || focus == BUILD_OVERLOAD ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -21991,7 +22426,10 @@ public final class GameCore {
                 || (PROF_TIDECALLER.equals(s.profession) && "tide_shell".equals(id))
                 || (PROF_FROSTBINDER.equals(s.profession) && "frost_chain".equals(id))
                 || (PROF_PLAGUEDOCTOR.equals(s.profession) && "plague_case".equals(id))
-                || (PROF_ARCHIVIST.equals(s.profession) && "archive_key".equals(id));
+                || (PROF_ARCHIVIST.equals(s.profession) && "archive_key".equals(id))
+                || (PROF_VOIDNAVIGATOR.equals(s.profession) && "void_compass".equals(id))
+                || (PROF_RELICSMITH.equals(s.profession) && "relic_chisel".equals(id))
+                || (PROF_BEASTMASTER.equals(s.profession) && "beast_whistle".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -22044,6 +22482,7 @@ public final class GameCore {
                 || hasRelic(s, "frost_chain") || hasRelic(s, "frost_crown")
                 || hasRelic(s, "plague_case") || hasRelic(s, "plague_crown")
                 || hasRelic(s, "archive_key") || hasRelic(s, "archive_crown")
+                || hasRelic(s, "beast_whistle") || hasRelic(s, "alpha_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
@@ -23001,7 +23440,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -23043,6 +23482,7 @@ public final class GameCore {
         if (PROF_ARCHIVIST.equals(s.profession)) return "archive_key";
         if (PROF_VOIDNAVIGATOR.equals(s.profession)) return "void_compass";
         if (PROF_RELICSMITH.equals(s.profession)) return "relic_chisel";
+        if (PROF_BEASTMASTER.equals(s.profession)) return "beast_whistle";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -23477,6 +23917,16 @@ public final class GameCore {
             return 2;
         }
         if (PROF_RELICSMITH.equals(s.profession) && "vault_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_BEASTMASTER.equals(s.profession) && ("beast_whistle".equals(id) || "seed_satchel".equals(id)
+                || "verdant_crown".equals(id) || "dreamcatcher_charm".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "bulwark_core".equals(id) || "confluence_map".equals(id)
+                || "echo_ledger".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                || "resonance_prism".equals(id) || "spirit_bell".equals(id) || "root_drum".equals(id))) {
+            return 2;
+        }
+        if (PROF_BEASTMASTER.equals(s.profession) && "alpha_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -24006,6 +24456,17 @@ public final class GameCore {
             s.gold += 80;
             s.maxHp += 4;
             s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("beast_whistle".equals(id)) {
+            addUpgradedDeckCard(s, "beastmaster_call");
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("alpha_crown".equals(id)) {
+            addUpgradedDeckCard(s, "beastmaster_grand_hunt");
+            addUpgradedDeckCard(s, "beastmaster_claw");
+            s.maxHp += 5;
+            s.hp += 5;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -24866,6 +25327,19 @@ public final class GameCore {
         c = addCard("relicsmith_grand_vault", "终局万藏匣", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按匠印、遗物、金币、升级、汇流和过载追加终局收益。", "更高伤害、格挡和钥匙返还。");
         c.profession = PROF_RELICSMITH; c.draw = c.drawUp = 1; c.goldGain = 12; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "relicsmith_key"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("beastmaster_claw", "伙伴利爪", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加束缚；伙伴、束缚和兽势会提高收益。", "更高伤害、束缚和兽势。");
+        c.profession = PROF_BEASTMASTER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("beastmaster_hide", "兽皮护身", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌和治疗；伙伴与治疗牌会加厚防线。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_BEASTMASTER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.skillChargeGain = 1;
+        c = addCard("beastmaster_call", "唤群哨", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌并制造临时伙伴利爪；伙伴足够时返能。", "更多格挡、伙伴和返能窗口。");
+        c.profession = PROF_BEASTMASTER; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "beastmaster_claw"; c.skillChargeGain = 1;
+        c = addCard("beastmaster_pounce", "扑猎令", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加束缚、印记和易伤；伙伴与束缚会转成扑猎爆发。", "更高伤害、束缚和压制。");
+        c.profession = PROF_BEASTMASTER; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("beastmaster_overpack", "过载群嚎", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、治疗和充能；过载、伙伴与束缚会追加群嚎伤害。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_BEASTMASTER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("beastmaster_grand_hunt", "终局百兽猎", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按兽势、伙伴、束缚、治疗、汇流和过载追加终局收益。", "更高伤害、格挡和伙伴返还。");
+        c.profession = PROF_BEASTMASTER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "beastmaster_claw"; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -25161,6 +25635,8 @@ public final class GameCore {
         addRelicDef("void_crown", "深空冠", "获得升级终局深空跃迁；虚空领航员回声、消耗、过载和稀有牌会滚动印记、抽牌与跃迁追击。");
         addRelicDef("relic_chisel", "遗物凿", "遗物匠金币、升级、格挡和职业牌更快推动职业技；释放后制造开匣钥、升级手牌并获得金币。");
         addRelicDef("vault_crown", "万藏冠", "获得升级终局万藏匣；遗物匠金币、升级、格挡、充能和稀有牌会滚动印记、抽牌与开匣追击。");
+        addRelicDef("beast_whistle", "兽群哨", "驯兽师临时伙伴、束缚、治疗、格挡和职业牌更快推动职业技；释放后制造伙伴利爪并治疗。");
+        addRelicDef("alpha_crown", "头兽冠", "获得升级终局百兽猎；驯兽师伙伴、束缚、治疗、充能和稀有牌会滚动束缚、抽牌与群猎追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -25424,6 +25900,9 @@ public final class GameCore {
         addTalent("t_relicsmith_key", PROF_RELICSMITH, "钥齿回路", "获得升级开匣钥和金币；低费、抽牌、金币和遗物牌追加印记，并把匠印转成穿透追击。");
         addTalent("t_relicsmith_lock", PROF_RELICSMITH, "匠锁防线", "获得生命和升级匠锁护壳；格挡、技能、金币和升级牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_relicsmith_gauge", PROF_RELICSMITH, "估价裁线", "获得升级估价仪并升级牌组；易伤、束缚、金币、升级和充能牌会扩张控制压力并转成开匣追击。");
+        addTalent("t_beastmaster_claw", PROF_BEASTMASTER, "利爪回路", "获得升级伙伴利爪和扑猎令；低费、抽牌、临时伙伴和束缚牌追加印记，并把兽势转成穿透追击。");
+        addTalent("t_beastmaster_hide", PROF_BEASTMASTER, "兽皮防线", "获得生命和升级兽皮护身；格挡、治疗、技能和伙伴牌提供额外防线，并在关键节奏治疗。");
+        addTalent("t_beastmaster_den", PROF_BEASTMASTER, "兽穴围猎", "获得升级唤群哨；束缚、易伤、伙伴和充能牌会扩张控制压力并转成群猎追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -25465,6 +25944,7 @@ public final class GameCore {
         addTalent("t_archivist_grand", PROF_ARCHIVIST, "终局大档案", "获得升级终局大档案；检视、升级、状态、归档与过载牌持续抽牌、升级并把案卷印记转为档案裁切。");
         addTalent("t_voidnavigator_grand", PROF_VOIDNAVIGATOR, "终局深空", "获得升级终局深空跃迁；临时、消耗、检视、汇流与过载牌持续抽牌、返能并把航迹印记转为跃迁裁切。");
         addTalent("t_relicsmith_grand", PROF_RELICSMITH, "终局万藏", "获得升级终局万藏匣；金币、遗物、升级、格挡与过载牌持续抽牌、升级并把匠印转为万藏裁切。");
+        addTalent("t_beastmaster_grand", PROF_BEASTMASTER, "终局百兽", "获得升级终局百兽猎；伙伴、束缚、治疗、守势与过载牌持续抽牌、治疗并把兽势印记转为群猎裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
