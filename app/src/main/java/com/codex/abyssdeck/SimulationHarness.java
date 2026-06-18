@@ -237,6 +237,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_TIDECALLER.equals(s.profession) && isTidecallerSignal(d)) score += 14;
             if (GameCore.PROF_FROSTBINDER.equals(s.profession) && isFrostbinderSignal(d)) score += 14;
             if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && isPlaguedoctorSignal(d)) score += 14;
+            if (GameCore.PROF_ARCHIVIST.equals(s.profession) && isArchivistSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -298,6 +299,7 @@ public final class SimulationHarness {
             if (isTidecallerCard(d)) score += 14;
             if (isFrostbinderCard(d)) score += 14;
             if (isPlaguedoctorCard(d)) score += 14;
+            if (isArchivistCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -379,6 +381,10 @@ public final class SimulationHarness {
                     || d.burn > 0 || d.bind > 0 || d.heal > 0 || d.createWound)) score += 18;
             if (s.relics.contains("plague_crown") && (isPlaguedoctorSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.createPotion || d.burn > 0 || d.bind > 0)) score += 20;
+            if (s.relics.contains("archive_key") && (isArchivistSignal(d) || d.scry > 0
+                    || d.upgradeRandom || d.draw > 0 || d.exhaustTopDiscard)) score += 18;
+            if (s.relics.contains("archive_crown") && (isArchivistSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -560,6 +566,14 @@ public final class SimulationHarness {
                     || "bulwark_core".equals(id) || "hex_moon".equals(id) || "void_abacus".equals(id)
                     || "echo_ledger".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
                     || "mosaic_core".equals(id) || "starforge_lens".equals(id) || "resonance_prism".equals(id))) score += 36;
+            if (GameCore.PROF_ARCHIVIST.equals(s.profession) && ("archive_crown".equals(id) || "archive_key".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "split_anvil".equals(id)
+                    || "tempo_metronome".equals(id) || "tuning_fork".equals(id) || "echo_ledger".equals(id)
+                    || "echoflow_charm".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                    || "overload_etch".equals(id) || "discipline_chart".equals(id) || "salvage_hook".equals(id)
+                    || "bulwark_core".equals(id) || "stormglass_seal".equals(id) || "void_abacus".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "resonance_prism".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -601,6 +615,7 @@ public final class SimulationHarness {
             if ("tide_shell".equals(id) || "tide_crown".equals(id)) score += 20;
             if ("frost_chain".equals(id) || "frost_crown".equals(id)) score += 20;
             if ("plague_case".equals(id) || "plague_crown".equals(id)) score += 20;
+            if ("archive_key".equals(id) || "archive_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -753,6 +768,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && ("pact_brewer".equals(id) || "pact_hex".equals(id)
                     || "pact_suppression".equals(id) || "pact_confluence".equals(id) || "pact_hunter".equals(id)
                     || "pact_guardian".equals(id))) score += 24;
+            if (GameCore.PROF_ARCHIVIST.equals(s.profession) && ("pact_forge".equals(id) || "pact_suppression".equals(id)
+                    || "pact_confluence".equals(id) || "pact_guardian".equals(id) || "pact_sprinter".equals(id)
+                    || "pact_void".equals(id) || "pact_hunter".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -927,6 +945,10 @@ public final class SimulationHarness {
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
                     || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id)
                     || "spec_sustain".equals(id) || "spec_bulwark".equals(id))) score += 10;
+            if (GameCore.PROF_ARCHIVIST.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
+                    || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id)
+                    || "spec_sustain".equals(id) || "spec_bulwark".equals(id) || "spec_assembly".equals(id))) score += 10;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -1268,6 +1290,19 @@ public final class SimulationHarness {
                     if (statusDeckCards(s) >= 1 && ("plaguedoctor_mask".equals(c.id) || "plaguedoctor_culture".equals(c.id)
                             || "plaguedoctor_grand_plague".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_ARCHIVIST.equals(s.profession) && (isArchivistSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.block > 0 || d.createEcho
+                            || "wound".equals(c.id) || "daze".equals(c.id) || isArchivistCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isArchivistCard(d)
+                            || d.scry > 0 || d.upgradeRandom)) score += 6;
+                    if (archivistEnemyPressure(s) >= 8 && ("archivist_redline".equals(c.id)
+                            || "archivist_overfile".equals(c.id) || "archivist_grand_archive".equals(c.id))) score += 8;
+                    if ((upgradedDeckCards(s) >= 6 || statusDeckCards(s) >= 1 || s.discard.size() >= 6)
+                            && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isArchivistCard(d))) score += 5;
+                    if (upgradedDeckCards(s) >= 5 && ("archivist_seal".equals(c.id) || "archivist_catalog".equals(c.id)
+                            || "archivist_grand_archive".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1442,6 +1477,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || isPlaguedoctorCard(d))) score += 12;
                 if (s.talents.contains("t_plaguedoctor_grand") && (d.createPotion || d.burn > 0 || d.bind > 0
                         || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isPlaguedoctorCard(d))) score += 14;
+                if (s.talents.contains("t_archivist_index") && (d.scry > 0 || d.draw > 0 || d.cost == 0
+                        || d.upgradeRandom || c.upgraded || isArchivistCard(d))) score += 12;
+                if (s.talents.contains("t_archivist_seal") && (d.block > 0 || d.type == 1 || d.upgradeRandom
+                        || "wound".equals(c.id) || "daze".equals(c.id) || isArchivistCard(d))) score += 12;
+                if (s.talents.contains("t_archivist_redline") && (d.vulnerable > 0 || d.bind > 0
+                        || d.skillChargeGain > 0 || d.exhaustTopDiscard || isArchivistCard(d))) score += 12;
+                if (s.talents.contains("t_archivist_grand") && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                        || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isArchivistCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1520,6 +1563,9 @@ public final class SimulationHarness {
                 if ("plaguedoctor_grand_plague".equals(c.id) || "plaguedoctor_overdose".equals(c.id)) score += 18;
                 if ("plaguedoctor_lancet".equals(c.id) || "plaguedoctor_mask".equals(c.id)
                         || "plaguedoctor_culture".equals(c.id) || "plaguedoctor_quarantine".equals(c.id)) score += 14;
+                if ("archivist_grand_archive".equals(c.id) || "archivist_overfile".equals(c.id)) score += 18;
+                if ("archivist_index".equals(c.id) || "archivist_seal".equals(c.id)
+                        || "archivist_catalog".equals(c.id) || "archivist_redline".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -1659,6 +1705,10 @@ public final class SimulationHarness {
                         || d.createPotion || d.burn > 0 || d.bind > 0 || d.heal > 0)) score += 14;
                 if (s.relics.contains("plague_crown") && (isPlaguedoctorSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.createPotion || d.burn > 0 || d.bind > 0)) score += 16;
+                if (s.relics.contains("archive_key") && (isArchivistSignal(d) || c.temp
+                        || d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.exhaustTopDiscard)) score += 14;
+                if (s.relics.contains("archive_crown") && (isArchivistSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -1901,6 +1951,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_ARCHIVIST.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean archiveWindow = target >= 0 && (s.enemies.get(target).vulnerable > 0
+                    || s.enemies.get(target).mark >= 2 || s.enemies.get(target).bind >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || archiveWindow || upgradedDeckCards(s) >= 6
+                    || statusDeckCards(s) >= 1 || s.discard.size() >= 6 || archivistEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -1919,7 +1979,8 @@ public final class SimulationHarness {
                 || "t_chef_prep".equals(id) || "t_bard_chorus".equals(id)
                 || "t_mirrorist_reflect".equals(id) || "t_puppeteer_rehearse".equals(id)
                 || "t_scavenger_market".equals(id) || "t_plaguedoctor_lancet".equals(id)
-                || "t_plaguedoctor_grand".equals(id));
+                || "t_plaguedoctor_grand".equals(id) || "t_archivist_index".equals(id)
+                || "t_archivist_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -1993,7 +2054,8 @@ public final class SimulationHarness {
                     "chef_overcook", "bard_overcrescendo", "mirrorist_overimage",
                     "puppeteer_overpull", "scavenger_overhaul", "geomancer_overquake", "witch_overbrew",
                     "shifter_overblink", "fateseer_overfate", "tidecaller_overtide", "frostbinder_overfreeze",
-                    "plaguedoctor_overdose", "plaguedoctor_grand_plague", "fusion_spark",
+                    "plaguedoctor_overdose", "plaguedoctor_grand_plague",
+                    "archivist_overfile", "archivist_grand_archive", "fusion_spark",
                     "prism_guard_matrix", "apex_resonance") ? 12 : 0)
                     + (isAny(d.id, "hybrid_guard_conduit", "hybrid_bloodcharge", "hybrid_rift_engine",
                     "confluence_chord", "prism_anchor", "apex_confluence") ? 8 : 0);
@@ -2009,7 +2071,9 @@ public final class SimulationHarness {
                     "shifter_slip", "shifter_screen", "shifter_anchor", "shifter_grand_paradox",
                     "fateseer_omen", "fateseer_grand_design", "tidecaller_ripple", "tidecaller_current",
                     "frostbinder_shard", "frostbinder_rime", "frostbinder_grand_winter",
-                    "plaguedoctor_culture", "plaguedoctor_grand_plague", "apex_resonance") ? 10 : 0);
+                    "plaguedoctor_culture", "plaguedoctor_grand_plague",
+                    "archivist_index", "archivist_catalog", "archivist_grand_archive",
+                    "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_BREW) {
             return (d.createPotion ? 10 : 0) + d.burn * 2 + d.bind * 2 + (d.spreadStatus ? 6 : 0)
@@ -2044,6 +2108,8 @@ public final class SimulationHarness {
                     "geomancer_grand_fault", "witch_charm", "echo_forge_loop",
                     "fateseer_omen", "fateseer_veil", "fateseer_wheel", "fateseer_overfate",
                     "fateseer_grand_design",
+                    "archivist_index", "archivist_seal", "archivist_catalog",
+                    "archivist_overfile", "archivist_grand_archive",
                     "prism_guard_matrix", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_STATUS) {
@@ -2061,7 +2127,8 @@ public final class SimulationHarness {
                     "tidecaller_overtide", "tidecaller_grand_tide", "frostbinder_shard",
                     "frostbinder_shatter", "frostbinder_overfreeze", "frostbinder_grand_winter",
                     "plaguedoctor_lancet", "plaguedoctor_quarantine", "plaguedoctor_overdose",
-                    "plaguedoctor_grand_plague", "fusion_spark",
+                    "plaguedoctor_grand_plague", "archivist_index", "archivist_redline",
+                    "archivist_overfile", "archivist_grand_archive", "fusion_spark",
                     "bloodcoin_catalyst", "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_CYCLE) {
@@ -2078,7 +2145,8 @@ public final class SimulationHarness {
                     "tidecaller_ripple", "tidecaller_current", "tidecaller_overtide",
                     "frostbinder_shard", "frostbinder_rime", "frostbinder_overfreeze",
                     "plaguedoctor_lancet", "plaguedoctor_culture", "plaguedoctor_overdose",
-                    "plaguedoctor_grand_plague", "fusion_spark", "echo_forge_loop",
+                    "plaguedoctor_grand_plague", "archivist_index", "archivist_catalog",
+                    "archivist_overfile", "archivist_grand_archive", "fusion_spark", "echo_forge_loop",
                     "apex_resonance") ? 10 : 0);
         }
         if (focus == BUILD_GUARD) {
@@ -2096,7 +2164,9 @@ public final class SimulationHarness {
                     "tidecaller_breaker", "tidecaller_current", "tidecaller_overtide", "tidecaller_grand_tide",
                     "frostbinder_ward", "frostbinder_rime", "frostbinder_overfreeze", "frostbinder_grand_winter",
                     "plaguedoctor_mask", "plaguedoctor_culture", "plaguedoctor_overdose",
-                    "plaguedoctor_grand_plague", "echo_forge_loop", "prism_guard_matrix", "apex_resonance") ? 10 : 0);
+                    "plaguedoctor_grand_plague", "archivist_seal", "archivist_catalog",
+                    "archivist_overfile", "archivist_grand_archive",
+                    "echo_forge_loop", "prism_guard_matrix", "apex_resonance") ? 10 : 0);
         }
         return 0;
     }
@@ -2113,7 +2183,8 @@ public final class SimulationHarness {
                     "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
                     "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
-                    "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
+                    "frost_chain", "frost_crown", "plague_case", "plague_crown",
+                    "archive_key", "archive_crown") ? 3 : 0;
         }
         if (focus == BUILD_ECHO) {
             return isAny(id, "void_lens", "arcane_ink", "void_abacus", "echo_prism", "singularity_orb",
@@ -2121,7 +2192,8 @@ public final class SimulationHarness {
                     "ancestral_planchette", "dreamcatcher_charm", "oneiric_crown", "songbook",
                     "finale_crown", "mirror_lens", "mirror_crown", "string_spool", "marionette_crown",
                     "resonance_prism", "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "tide_shell", "tide_crown", "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
+                    "tide_shell", "tide_crown", "frost_chain", "frost_crown", "plague_case", "plague_crown",
+                    "archive_key", "archive_crown") ? 3 : 0;
         }
         if (focus == BUILD_BREW) {
             return isAny(id, "ember_core", "charcoal_sigil", "cinder_spoon", "green_bell",
@@ -2149,7 +2221,7 @@ public final class SimulationHarness {
                     "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism",
                     "war_table", "grand_war_room", "refraction_dial", "spectrum_crown",
                     "faultline_core", "tectonic_crown", "witch_moon_crown", "phase_lens", "phase_crown",
-                    "fate_lantern", "fate_crown", "plague_crown") ? 3 : 0;
+                    "fate_lantern", "fate_crown", "plague_crown", "archive_key", "archive_crown") ? 3 : 0;
         }
         if (focus == BUILD_STATUS) {
             return isAny(id, "thorn_ring", "charcoal_sigil", "root_drum", "cinder_spoon", "green_bell",
@@ -2161,7 +2233,8 @@ public final class SimulationHarness {
                     "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
                     "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
-                    "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
+                    "frost_chain", "frost_crown", "plague_case", "plague_crown",
+                    "archive_key", "archive_crown") ? 3 : 0;
         }
         if (focus == BUILD_CYCLE) {
             return isAny(id, "void_lens", "amber_quill", "ink_fountain", "root_drum",
@@ -2172,7 +2245,8 @@ public final class SimulationHarness {
                     "songbook", "finale_crown", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
                     "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
-                    "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
+                    "frost_chain", "frost_crown", "plague_case", "plague_crown",
+                    "archive_key", "archive_crown") ? 3 : 0;
         }
         if (focus == BUILD_GUARD) {
             return isAny(id, "steel_oath", "bone_mask", "thorn_ring", "opal_scar", "warden_plate",
@@ -2184,7 +2258,8 @@ public final class SimulationHarness {
                     "starforge_lens", "resonance_prism", "faultline_core", "tectonic_crown",
                     "witch_bottle", "witch_moon_crown", "phase_lens", "phase_crown",
                     "fate_lantern", "fate_crown", "tide_shell", "tide_crown",
-                    "frost_chain", "frost_crown", "plague_case", "plague_crown") ? 3 : 0;
+                    "frost_chain", "frost_crown", "plague_case", "plague_crown",
+                    "archive_key", "archive_crown") ? 3 : 0;
         }
         return 0;
     }
@@ -2242,6 +2317,7 @@ public final class SimulationHarness {
                 || s.relics.contains("tide_shell") || s.relics.contains("tide_crown")
                 || s.relics.contains("frost_chain") || s.relics.contains("frost_crown")
                 || s.relics.contains("plague_case") || s.relics.contains("plague_crown")
+                || s.relics.contains("archive_key") || s.relics.contains("archive_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2514,6 +2590,29 @@ public final class SimulationHarness {
         return d != null && ("plaguedoctor_lancet".equals(d.id) || "plaguedoctor_mask".equals(d.id)
                 || "plaguedoctor_culture".equals(d.id) || "plaguedoctor_quarantine".equals(d.id)
                 || "plaguedoctor_overdose".equals(d.id) || "plaguedoctor_grand_plague".equals(d.id));
+    }
+
+    private static boolean isArchivistSignal(GameCore.CardDef d) {
+        return d != null && (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.block > 0
+                || d.createEcho || d.exhaustTopDiscard || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || isHybridCore(d) || GameCore.PROF_ARCHIVIST.equals(d.profession));
+    }
+
+    private static boolean isArchivistCard(GameCore.CardDef d) {
+        return d != null && ("archivist_index".equals(d.id) || "archivist_seal".equals(d.id)
+                || "archivist_catalog".equals(d.id) || "archivist_redline".equals(d.id)
+                || "archivist_overfile".equals(d.id) || "archivist_grand_archive".equals(d.id));
+    }
+
+    private static int archivistEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 2 + e.burn;
+            }
+        }
+        return pressure;
     }
 
     private static int plaguedoctorEnemyPressure(GameCore.State s) {

@@ -1487,6 +1487,25 @@ public final class GameView extends View {
             c.drawLine(cx + size * 0.68f, cy + size * 0.16f, cx + size * 0.68f, cy - size * 0.02f, p);
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx + size * 0.55f, cy + size * 0.54f, size * 0.11f, p);
+        } else if (GameCore.PROF_ARCHIVIST.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            Path folder = new Path();
+            folder.moveTo(cx - size * 0.9f, cy - size * 0.48f);
+            folder.lineTo(cx - size * 0.28f, cy - size * 0.48f);
+            folder.lineTo(cx - size * 0.1f, cy - size * 0.72f);
+            folder.lineTo(cx + size * 0.84f, cy - size * 0.72f);
+            folder.lineTo(cx + size * 0.84f, cy + size * 0.74f);
+            folder.lineTo(cx - size * 0.9f, cy + size * 0.74f);
+            folder.close();
+            c.drawPath(folder, p);
+            c.drawLine(cx - size * 0.58f, cy - size * 0.1f, cx + size * 0.56f, cy - size * 0.1f, p);
+            c.drawLine(cx - size * 0.58f, cy + size * 0.24f, cx + size * 0.5f, cy + size * 0.24f, p);
+            c.drawLine(cx - size * 0.58f, cy + size * 0.58f, cx + size * 0.28f, cy + size * 0.58f, p);
+            c.drawLine(cx + size * 0.2f, cy - size * 0.46f, cx + size * 0.54f, cy - size * 0.18f, p);
+            c.drawLine(cx + size * 0.54f, cy - size * 0.18f, cx + size * 0.2f, cy + size * 0.1f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx - size * 0.62f, cy - size * 0.46f, size * 0.1f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

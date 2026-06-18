@@ -128,6 +128,7 @@ public final class GameCore {
     public static final String PROF_TIDECALLER = "潮汐使";
     public static final String PROF_FROSTBINDER = "霜缚者";
     public static final String PROF_PLAGUEDOCTOR = "瘟疫医师";
+    public static final String PROF_ARCHIVIST = "档案员";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -136,7 +137,8 @@ public final class GameCore {
             PROF_PACTMAKER, PROF_STORMCALLER, PROF_SHADOWDANCER, PROF_RUNEBLADE, PROF_MEDIUM,
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
-            PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR
+            PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
+            PROF_ARCHIVIST
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -830,6 +832,7 @@ public final class GameCore {
         if (PROF_TIDECALLER.equals(profession)) return "回潮";
         if (PROF_FROSTBINDER.equals(profession)) return "霜契";
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "疫方";
+        if (PROF_ARCHIVIST.equals(profession)) return "归档";
         return "职业技";
     }
 
@@ -906,6 +909,7 @@ public final class GameCore {
         if (PROF_TIDECALLER.equals(profession)) return "满充能：消耗潮势回潮，按格挡、束缚、抽牌、连打和过载造成穿透，获得格挡、抽牌并制造潮汐牌。";
         if (PROF_FROSTBINDER.equals(profession)) return "满充能：消耗霜纹缔结霜契，按状态牌、束缚、格挡、消耗和过载造成穿透，净化状态、抽牌并制造霜牌。";
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "满充能：消耗病灶配制疫方，按药剂、状态牌、治疗、燃缚易和过载造成穿透，净化状态、治疗、抽牌并制造疫医牌。";
+        if (PROF_ARCHIVIST.equals(profession)) return "满充能：消耗案卷归档，按检视、升级、状态、弃牌消耗、汇流和过载造成穿透，净化状态、升级手牌并制造档案牌。";
         return "选择职业后可用。";
     }
 
@@ -2107,6 +2111,58 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, Math.max(1, pressure / 8)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, lesions / 2);
+        } else if (PROF_ARCHIVIST.equals(s.profession)) {
+            int files = Math.max(1, s.professionCharge);
+            int scryPulse = Math.min(18, buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_CYCLE)
+                    + upgradedCardCount(s) / 3);
+            int statuses = Math.min(18, statusDeckCards(s) + statusHandCards(s));
+            int archive = Math.min(22, s.discard.size() + s.exhaust.size() * 2);
+            int labels = Math.min(12, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int cleanse = Math.min(2 + overload / 3, statusDeckCards(s));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 3 + target.burn;
+            int damage = 8 + s.act * 3 + Math.min(72, files * 3 + scryPulse * 4
+                    + statuses * 5 + archive * 2 + labels * 4 + pressure) + overload * 7;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, files / 3 + scryPulse / 5) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, labels / 4 + statuses / 3 + overload / 4);
+                if (archive >= 8 || statuses > 0 || hasTalent(s, "t_archivist_redline")) {
+                    target.bind += 1 + s.bindPower / 2;
+                }
+            }
+            for (int i = 0; i < cleanse; i++) {
+                removeStatusCard(s);
+            }
+            gainBlock(s, 6 + s.act * 2 + Math.min(38, files * 2 + scryPulse * 2
+                    + statuses * 4 + archive + labels * 3) + overload * 3);
+            draw(s, 1 + Math.min(3, files / 5 + scryPulse / 6 + statuses / 3) + overload / 4);
+            upgradeRandomHandCard(s);
+            if (scryPulse >= 8 || archive >= 8 || statuses >= 2 || overload >= 3) {
+                s.energy++;
+                upgradeRandomHandCard(s);
+            }
+            if (!s.discard.isEmpty() && (archive >= 6 || statuses > 0 || overload >= 2)) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+                addQuestProgress(s, QUEST_ECHO, 1);
+            }
+            Card index = new Card(overload >= 4 || hasTalent(s, "t_archivist_grand")
+                    ? "archivist_grand_archive" : "archivist_index");
+            index.temp = true;
+            index.upgraded = files >= 5 || hasTalent(s, "t_archivist_index");
+            addToHand(s, index);
+            if (hasTalent(s, "t_archivist_grand")) {
+                Card catalog = new Card("archivist_catalog");
+                catalog.temp = true;
+                catalog.upgraded = true;
+                addToHand(s, catalog);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, scryPulse / 4));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, labels / 2)));
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, statuses / 2 + Math.max(1, pressure / 10)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, files / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3587,6 +3643,9 @@ public final class GameCore {
         if (PROF_PLAGUEDOCTOR.equals(profession)) {
             return "用病灶、药剂、治疗和状态转化扩散感染，把裂伤与眩光炼成续航、控场和疫方爆发。适合炼调、异常、血契、循环和过载构筑。";
         }
+        if (PROF_ARCHIVIST.equals(profession)) {
+            return "用检视、升级、状态封存和弃牌归档积累案卷，把牌序管理转成抽牌、控场、净化和归档爆发。适合工坊、循环、异常、回声和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3704,6 +3763,9 @@ public final class GameCore {
         }
         if (PROF_PLAGUEDOCTOR.equals(profession)) {
             return 0xff9fe0a1;
+        }
+        if (PROF_ARCHIVIST.equals(profession)) {
+            return 0xffd8c58f;
         }
         return 0xffd6c07a;
     }
@@ -4105,6 +4167,14 @@ public final class GameCore {
                 s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
             }
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_ARCHIVIST.equals(profession)) {
+            s.deck.add(new Card("archivist_index"));
+            s.deck.add(new Card("archivist_seal"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 2;
+            s.hp += 2;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4164,6 +4234,7 @@ public final class GameCore {
         else if (PROF_TIDECALLER.equals(profession)) upgradeDeckCard(s, "tidecaller_ripple");
         else if (PROF_FROSTBINDER.equals(profession)) upgradeDeckCard(s, "frostbinder_shard");
         else if (PROF_PLAGUEDOCTOR.equals(profession)) upgradeDeckCard(s, "plaguedoctor_lancet");
+        else if (PROF_ARCHIVIST.equals(profession)) upgradeDeckCard(s, "archivist_index");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4321,6 +4392,11 @@ public final class GameCore {
                 s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
             }
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_ARCHIVIST.equals(profession)) {
+            addUpgradedDeckCard(s, "archivist_catalog");
+            upgradeRandomDeckCard(s);
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4363,6 +4439,7 @@ public final class GameCore {
         if (PROF_TIDECALLER.equals(profession)) return "tidecaller_overtide";
         if (PROF_FROSTBINDER.equals(profession)) return "frostbinder_overfreeze";
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "plaguedoctor_overdose";
+        if (PROF_ARCHIVIST.equals(profession)) return "archivist_overfile";
         return "forge_signal";
     }
 
@@ -4924,6 +5001,21 @@ public final class GameCore {
         } else if ("t_plaguedoctor_grand".equals(id)) {
             addUpgradedDeckCard(s, "plaguedoctor_grand_plague");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_archivist_index".equals(id)) {
+            addUpgradedDeckCard(s, "archivist_index");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_archivist_seal".equals(id)) {
+            addUpgradedDeckCard(s, "archivist_seal");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_archivist_redline".equals(id)) {
+            addUpgradedDeckCard(s, "archivist_redline");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_archivist_grand".equals(id)) {
+            addUpgradedDeckCard(s, "archivist_grand_archive");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5368,7 +5460,8 @@ public final class GameCore {
                 || "t_lightkeeper_grand".equals(id) || "t_geomancer_grand".equals(id)
                 || "t_witch_grand".equals(id) || "t_shifter_grand".equals(id)
                 || "t_fateseer_grand".equals(id) || "t_tidecaller_grand".equals(id)
-                || "t_frostbinder_grand".equals(id) || "t_plaguedoctor_grand".equals(id);
+                || "t_frostbinder_grand".equals(id) || "t_plaguedoctor_grand".equals(id)
+                || "t_archivist_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5390,7 +5483,8 @@ public final class GameCore {
                 || "lightkeeper_grand_beacon".equals(id) || "geomancer_grand_fault".equals(id)
                 || "witch_grand_cauldron".equals(id) || "shifter_grand_paradox".equals(id)
                 || "fateseer_grand_design".equals(id) || "tidecaller_grand_tide".equals(id)
-                || "frostbinder_grand_winter".equals(id) || "plaguedoctor_grand_plague".equals(id);
+                || "frostbinder_grand_winter".equals(id) || "plaguedoctor_grand_plague".equals(id)
+                || "archivist_grand_archive".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5412,7 +5506,7 @@ public final class GameCore {
                 || "dawn_beacon".equals(id) || "tectonic_crown".equals(id)
                 || "witch_moon_crown".equals(id) || "phase_crown".equals(id)
                 || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
-                || "plague_crown".equals(id);
+                || "plague_crown".equals(id) || "archive_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -5933,6 +6027,10 @@ public final class GameCore {
                 || d.bind > 0 || d.vulnerable > 0 || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0
                 || d.createEcho || d.createWound || d.exhaust || "wound".equals(d.id) || "daze".equals(d.id)
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PLAGUEDOCTOR))) amount++;
+        else if (PROF_ARCHIVIST.equals(s.profession) && d != null && (d.scry > 0 || d.upgradeRandom
+                || d.draw > 0 || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard
+                || d.vulnerable > 0 || d.bind > 0 || d.createEcho || "wound".equals(d.id) || "daze".equals(d.id)
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_ARCHIVIST))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -7951,6 +8049,45 @@ public final class GameCore {
                 target.mark += 2;
             }
         }
+        if (hasRelic(s, "archive_key") && PROF_ARCHIVIST.equals(s.profession)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(18, s.discard.size() + s.exhaust.size() * 2);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + statuses + archive / 8));
+            gainBlock(s, 5 + s.act + Math.min(18, s.professionCharge * 2 + statuses * 4
+                    + archive + upgradedCardCount(s)));
+            Card index = new Card("archivist_index");
+            index.temp = true;
+            index.upgraded = true;
+            addToHand(s, index);
+            if (statuses > 0) {
+                removeStatusCard(s);
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(26, target.mark * 2
+                        + s.professionCharge * 2 + statuses * 4 + archive), true);
+            }
+        }
+        if (hasRelic(s, "archive_crown") && PROF_ARCHIVIST.equals(s.profession)) {
+            Card file = new Card("archivist_overfile");
+            file.temp = true;
+            file.upgraded = true;
+            addToHand(s, file);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || upgradedCardCount(s) >= 8 || statusDeckCards(s) + statusHandCards(s) >= 1
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -8032,6 +8169,9 @@ public final class GameCore {
         if (hasRelic(s, "plague_case") && PROF_PLAGUEDOCTOR.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || !s.potions.isEmpty() || statusDeckCards(s) + statusHandCards(s) > 0
                 || firstLiving(s) != null && (firstLiving(s).burn > 0 || firstLiving(s).vulnerable > 0))) amount++;
+        if (hasRelic(s, "archive_key") && PROF_ARCHIVIST.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || upgradedCardCount(s) >= 5 || statusDeckCards(s) + statusHandCards(s) > 0
+                || s.discard.size() + s.exhaust.size() >= 6 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -9680,6 +9820,40 @@ public final class GameCore {
                 culture.temp = true;
                 culture.upgraded = true;
                 addToHand(s, culture);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_ARCHIVIST.equals(s.profession) && s.turn == 1) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(12, s.discard.size() + s.exhaust.size() * 2);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, upgradedCardCount(s) / 4 + statuses + archive / 5
+                    + buildFocusDeckCards(s, BUILD_FORGE) / 4);
+            gainBlock(s, 4 + s.act + Math.min(9, statuses * 3 + upgradedCardCount(s) / 2 + s.professionCharge));
+            upgradeRandomHandCard(s);
+            if (statuses > 0 || hasTalent(s, "t_archivist_seal")) {
+                removeStatusCard(s);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1 + (hasTalent(s, "t_archivist_index") ? 1 : 0);
+                firstLiving(s).vulnerable += statuses > 0 || hasTalent(s, "t_archivist_redline") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_archivist_index")) {
+                Card index = new Card("archivist_index");
+                index.temp = true;
+                index.upgraded = true;
+                addToHand(s, index);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_archivist_seal")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_archivist_grand")) {
+                Card catalog = new Card("archivist_catalog");
+                catalog.temp = true;
+                catalog.upgraded = true;
+                addToHand(s, catalog);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -12700,6 +12874,135 @@ public final class GameCore {
             }
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("archivist_index".equals(d.id) && target != null) {
+            int files = Math.max(0, s.professionCharge);
+            int archive = Math.min(16, s.discard.size() + s.exhaust.size() * 2);
+            damage += Math.min(c.upgraded ? 34 : 24, files * 2 + upgradedCardCount(s)
+                    + archive + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            if (d.scry > 0 || c.upgraded || files >= 3) {
+                draw += 1;
+            }
+            if (files >= 4 || archive >= 8) {
+                upgradeRandomHandCard(s);
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+        }
+        if ("archivist_seal".equals(d.id)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(16, s.discard.size() + s.exhaust.size() * 2);
+            block += Math.min(c.upgraded ? 36 : 25, s.professionCharge * 2 + statuses * 5
+                    + upgradedCardCount(s) + archive);
+            if (statuses > 0) {
+                removeStatusCard(s);
+                draw += 1;
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+                firstLiving(s).vulnerable += statuses > 0 ? 1 : 0;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_HEX, 1);
+        }
+        if ("archivist_catalog".equals(d.id)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(20, s.discard.size() + s.exhaust.size() * 2);
+            block += Math.min(c.upgraded ? 34 : 24, s.professionCharge * 2 + archive
+                    + upgradedCardCount(s) + statuses * 4);
+            upgradeRandomHandCard(s);
+            if (!s.discard.isEmpty()) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+                addQuestProgress(s, QUEST_ECHO, 1);
+            }
+            if (archive >= 8 || statuses > 0 || c.upgraded) {
+                draw += 1;
+            }
+            if (archive >= 12 || statuses >= 2) {
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, focusMaskCount(s.confluenceMask)));
+        }
+        if ("archivist_redline".equals(d.id) && target != null) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(22, s.discard.size() + s.exhaust.size() * 2);
+            int pressure = target.mark * 4 + target.vulnerable * 4 + target.bind * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 54 : 39, pressure + statuses * 5
+                    + archive + s.professionCharge * 2 + upgradedCardCount(s));
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            target.bind += 1 + s.bindPower / 2;
+            if (!s.discard.isEmpty()) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+            }
+            if (target.mark + target.vulnerable >= 4 || archive >= 8 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+        }
+        if ("archivist_overfile".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(24, s.discard.size() + s.exhaust.size() * 2);
+            block += Math.min(c.upgraded ? 42 : 30, s.professionCharge * 2 + statuses * 5
+                    + archive + overloadNow * 7 + upgradedCardCount(s));
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 64 : 46, overloadNow * 8 + statuses * 5
+                        + archive + target.mark * 2 + s.professionCharge * 2);
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+            }
+            if (overloadNow >= 2 || archive >= 10 || statuses >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("archivist_grand_archive".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(30, s.discard.size() + s.exhaust.size() * 2);
+            int labels = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 92 : 70, s.professionCharge * 4 + statuses * 7
+                    + archive * 2 + upgradedCardCount(s) + labels * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 64 : 48, s.professionCharge * 3 + statuses * 6
+                    + archive + upgradedCardCount(s) + overloadNow * 6);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.bind += 2 + s.bindPower / 2;
+            }
+            if (statuses > 0) {
+                removeStatusCard(s);
+            }
+            Card index = new Card("archivist_index");
+            index.temp = true;
+            index.upgraded = true;
+            addToHand(s, index);
+            upgradeRandomHandCard(s);
+            if (archive >= 12 || statuses >= 2 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
@@ -16189,6 +16492,92 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_ARCHIVIST.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                || d.draw > 0 || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_ARCHIVIST))) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(18, s.discard.size() + s.exhaust.size() * 2);
+            s.professionCharge += 1 + Math.min(2, (d.scry + (d.upgradeRandom || c.upgraded ? 2 : 0)
+                    + statuses + archive / 8) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1;
+                    if (d.vulnerable > 0 || statuses > 0 || hasTalent(s, "t_archivist_redline")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(32, e.mark * 2 + archive
+                            + statuses * 4 + upgradedCardCount(s) + s.professionCharge * 2), true);
+                }
+                if (d.scry > 0 || d.upgradeRandom || c.upgraded || hasTalent(s, "t_archivist_index")) {
+                    gainBlock(s, 3 + s.act + Math.min(16, s.professionCharge + archive + upgradedCardCount(s) / 2));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || statuses > 0 || hasTalent(s, "t_archivist_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_archivist_index") && (d.scry > 0 || d.draw > 0 || d.cost == 0
+                || d.upgradeRandom || c.upgraded || d.profession.equals(PROF_ARCHIVIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(26, e.mark * 2
+                        + s.professionCharge * 2 + upgradedCardCount(s)), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || d.scry > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_archivist_seal") && (d.block > 0 || d.type == 1 || d.upgradeRandom
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_ARCHIVIST))) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            gainBlock(s, 4 + s.act + Math.min(16, s.professionCharge + statuses * 3
+                    + upgradedCardCount(s) / 2));
+            if (statuses > 0 && s.cardsPlayedThisTurn <= 3) {
+                removeStatusCard(s);
+                s.energy++;
+            }
+            if (s.cardsPlayedThisTurn == 3 || statuses > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_archivist_redline") && (d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0
+                || d.exhaust || d.exhaustTopDiscard || d.scry > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || d.profession.equals(PROF_ARCHIVIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 8 || s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(30, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + s.discard.size() + s.exhaust.size() * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_archivist_grand") && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || d.exhaust || d.exhaustTopDiscard
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_ARCHIVIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || upgradedCardCount(s) >= 7 || statusDeckCards(s) + statusHandCards(s) > 0)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(36, e.mark * 2 + e.vulnerable * 2
+                        + s.professionCharge * 2 + upgradedCardCount(s) + s.discard.size()
+                        + s.exhaust.size() * 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -16948,6 +17337,47 @@ public final class GameCore {
                     s.potions.add(p.id);
                     log(s, "疫冠补剂：" + p.name);
                 }
+            }
+        }
+        if (hasRelic(s, "archive_key") && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                || d.draw > 0 || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_ARCHIVIST))) {
+            addProfessionSkillCharge(s, 1);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int archive = Math.min(18, s.discard.size() + s.exhaust.size() * 2);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(13, s.professionCharge + archive + upgradedCardCount(s) / 2));
+                if (statuses > 0 && s.relicTriggersThisTurn == 0) {
+                    removeStatusCard(s);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.scry > 0 || d.upgradeRandom || c.upgraded || archive >= 8) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(27, e.mark * 2
+                            + archive + s.professionCharge * 2 + upgradedCardCount(s)), true);
+                }
+            }
+        }
+        if (hasRelic(s, "archive_crown") && (d.scry > 0 || d.upgradeRandom || c.upgraded
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.exhaust || d.exhaustTopDiscard
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_ARCHIVIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || upgradedCardCount(s) >= 7
+                        || s.discard.size() + s.exhaust.size() >= 8) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(32, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge + upgradedCardCount(s) + s.discard.size()
+                            + s.exhaust.size() * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -18403,6 +18833,9 @@ public final class GameCore {
         if (PROF_PLAGUEDOCTOR.equals(d.profession)) {
             return plaguedoctorFocusCardValue(d, focus);
         }
+        if (PROF_ARCHIVIST.equals(d.profession)) {
+            return archivistFocusCardValue(d, focus);
+        }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
@@ -19316,6 +19749,41 @@ public final class GameCore {
         return 0;
     }
 
+    private static int archivistFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.scry * 2 + (d.upgradeRandom ? 3 : 0)
+                    + ("archivist_index".equals(d.id) ? 8 : 0) + ("archivist_redline".equals(d.id) ? 9 : 0)
+                    + ("archivist_overfile".equals(d.id) ? 16 : 0) + ("archivist_grand_archive".equals(d.id) ? 15 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
+                    + d.draw * 3 + ("archivist_catalog".equals(d.id) ? 12 : 0)
+                    + ("archivist_grand_archive".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.scry * 3 + (d.rarity == 2 ? 3 : 0)
+                    + ("archivist_index".equals(d.id) ? 14 : 0) + ("archivist_catalog".equals(d.id) ? 18 : 0)
+                    + ("archivist_overfile".equals(d.id) ? 16 : 0) + ("archivist_grand_archive".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 7 + d.bind * 5 + d.skillChargeGain * 2 + (d.createWound ? 7 : 0)
+                    + ("wound".equals(d.id) || "daze".equals(d.id) ? 5 : 0)
+                    + ("archivist_index".equals(d.id) ? 8 : 0) + ("archivist_redline".equals(d.id) ? 18 : 0)
+                    + ("archivist_overfile".equals(d.id) ? 16 : 0) + ("archivist_grand_archive".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 6 : 0) + d.skillChargeGain * 2
+                    + d.scry * 2 + ("archivist_index".equals(d.id) ? 15 : 0)
+                    + ("archivist_catalog".equals(d.id) ? 14 : 0) + ("archivist_overfile".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.draw * 2 + (d.upgradeRandom ? 4 : 0)
+                    + ("archivist_seal".equals(d.id) ? 18 : 0) + ("archivist_catalog".equals(d.id) ? 14 : 0)
+                    + ("archivist_overfile".equals(d.id) ? 16 : 0) + ("archivist_grand_archive".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -19731,6 +20199,16 @@ public final class GameCore {
                 + status * 2 + buildFocusDeckCards(s, BUILD_BREW) + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_GUARD) + buildFocusDeckCards(s, BUILD_ECHO)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_archivist_index".equals(id)) bonus += upgraded + buildFocusDeckCards(s, BUILD_FORGE)
+                + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_archivist_seal".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + status * 3 + upgraded + professionCards + (s.hp < s.maxHp * 0.85f ? 5 : 2);
+        else if ("t_archivist_redline".equals(id)) bonus += status * 2 + buildFocusDeckCards(s, BUILD_STATUS) * 2
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + s.discard.size() / 3 + s.exhaust.size() + professionCards;
+        else if ("t_archivist_grand".equals(id)) bonus += professionCards + upgraded
+                + status * 2 + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS)
+                + buildFocusDeckCards(s, BUILD_GUARD) + buildFocusDeckCards(s, BUILD_ECHO)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -19746,6 +20224,13 @@ public final class GameCore {
             if (focus == BUILD_CYCLE && isAny(id, "t_plaguedoctor_lancet", "t_plaguedoctor_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_plaguedoctor_mask", "t_plaguedoctor_grand")) return 3;
             if (focus == BUILD_BLOOD && isAny(id, "t_plaguedoctor_mask", "t_plaguedoctor_grand")) return 3;
+        }
+        if (isAny(id, "t_archivist_index", "t_archivist_seal", "t_archivist_redline", "t_archivist_grand")) {
+            if (focus == BUILD_FORGE || focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_archivist_redline", "t_archivist_grand")) return 3;
+            if (focus == BUILD_ECHO && isAny(id, "t_archivist_index", "t_archivist_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_archivist_redline", "t_archivist_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_archivist_seal", "t_archivist_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -20232,6 +20717,20 @@ public final class GameCore {
                 || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
             return "隔离压制";
         }
+        if (isAny(id, "t_archivist_index", "t_archivist_grand")
+                && (upgradedDeckCards(s) >= 4 || buildFocusDeckCards(s, BUILD_FORGE) >= 2
+                || buildFocusDeckCards(s, BUILD_CYCLE) >= 3)) {
+            return "索引回路";
+        }
+        if (isAny(id, "t_archivist_seal", "t_archivist_grand")
+                && (buildFocusDeckCards(s, BUILD_GUARD) >= 2 || statusDeckCards(s) > 0 || s.hp < s.maxHp)) {
+            return "封存防线";
+        }
+        if (isAny(id, "t_archivist_redline", "t_archivist_grand")
+                && (bindDeckCards(s) >= 2 || statusDeckCards(s) > 0 || buildFocusDeckCards(s, BUILD_STATUS) >= 2
+                || buildFocusDeckCards(s, BUILD_OVERLOAD) >= 2)) {
+            return "朱批裁页";
+        }
         return "";
     }
 
@@ -20464,6 +20963,10 @@ public final class GameCore {
                     || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_BLOOD
                     || focus == BUILD_ECHO ? 3 : 0;
         }
+        if ("archive_key".equals(id) || "archive_crown".equals(id)) {
+            return focus == BUILD_FORGE || focus == BUILD_STATUS || focus == BUILD_CYCLE
+                    || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_ECHO ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -20604,7 +21107,8 @@ public final class GameCore {
                 || (PROF_FATESEER.equals(s.profession) && "fate_lantern".equals(id))
                 || (PROF_TIDECALLER.equals(s.profession) && "tide_shell".equals(id))
                 || (PROF_FROSTBINDER.equals(s.profession) && "frost_chain".equals(id))
-                || (PROF_PLAGUEDOCTOR.equals(s.profession) && "plague_case".equals(id));
+                || (PROF_PLAGUEDOCTOR.equals(s.profession) && "plague_case".equals(id))
+                || (PROF_ARCHIVIST.equals(s.profession) && "archive_key".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -20656,6 +21160,7 @@ public final class GameCore {
                 || hasRelic(s, "tide_shell") || hasRelic(s, "tide_crown")
                 || hasRelic(s, "frost_chain") || hasRelic(s, "frost_crown")
                 || hasRelic(s, "plague_case") || hasRelic(s, "plague_crown")
+                || hasRelic(s, "archive_key") || hasRelic(s, "archive_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
@@ -20881,6 +21386,12 @@ public final class GameCore {
                 || d.vulnerable > 0 || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0
                 || d.createEcho || d.createWound || "wound".equals(d.id) || "daze".equals(d.id)
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            return 4;
+        }
+        if (PROF_ARCHIVIST.equals(s.profession) && (d.scry > 0 || d.upgradeRandom || d.draw > 0
+                || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard || d.vulnerable > 0
+                || d.bind > 0 || d.createEcho || "wound".equals(d.id) || "daze".equals(d.id)
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_ARCHIVIST))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -21110,6 +21621,14 @@ public final class GameCore {
             if (isAny(spec.id, "spec_sustain", "spec_bulwark", "spec_salvage")) bonus += isAny(d.id, "plaguedoctor_mask",
                     "plaguedoctor_culture", "plaguedoctor_overdose", "plaguedoctor_grand_plague") ? 4 : 2;
         }
+        if (isAny(d.id, "archivist_index", "archivist_seal", "archivist_catalog",
+                "archivist_redline", "archivist_overfile", "archivist_grand_archive")) {
+            if (isAny(spec.id, "spec_burst", "spec_control", "spec_pressure", "spec_mastery")) bonus += 4;
+            if (isAny(spec.id, "spec_tempo", "spec_echoflow", "spec_assembly")) bonus += isAny(d.id, "archivist_index",
+                    "archivist_catalog", "archivist_overfile", "archivist_grand_archive") ? 4 : 2;
+            if (isAny(spec.id, "spec_sustain", "spec_bulwark", "spec_salvage")) bonus += isAny(d.id, "archivist_seal",
+                    "archivist_catalog", "archivist_overfile", "archivist_grand_archive") ? 4 : 2;
+        }
         if (bonus > 0) {
             bonus += Math.max(0, s.skillSpecLevel - 1);
         }
@@ -21155,6 +21674,9 @@ public final class GameCore {
                 || "plaguedoctor_lancet".equals(id) || "plaguedoctor_mask".equals(id)
                 || "plaguedoctor_culture".equals(id) || "plaguedoctor_overdose".equals(id)
                 || "plaguedoctor_grand_plague".equals(id)
+                || "archivist_index".equals(id) || "archivist_seal".equals(id)
+                || "archivist_catalog".equals(id) || "archivist_overfile".equals(id)
+                || "archivist_grand_archive".equals(id)
                 || "fusion_spark".equals(id) || "echo_forge_loop".equals(id)
                 || "prism_guard_matrix".equals(id) || "apex_resonance".equals(id);
     }
@@ -21207,7 +21729,9 @@ public final class GameCore {
                 || "witch_curse".equals(id) || "witch_overbrew".equals(id)
                 || "witch_grand_cauldron".equals(id) || "plaguedoctor_lancet".equals(id)
                 || "plaguedoctor_quarantine".equals(id) || "plaguedoctor_overdose".equals(id)
-                || "plaguedoctor_grand_plague".equals(id) || "shifter_anchor".equals(id)
+                || "plaguedoctor_grand_plague".equals(id) || "archivist_index".equals(id)
+                || "archivist_redline".equals(id) || "archivist_overfile".equals(id)
+                || "archivist_grand_archive".equals(id) || "shifter_anchor".equals(id)
                 || "shifter_overblink".equals(id) || "shifter_grand_paradox".equals(id);
     }
 
@@ -21230,6 +21754,8 @@ public final class GameCore {
                 || "witch_charm".equals(id) || "witch_grand_cauldron".equals(id)
                 || "plaguedoctor_mask".equals(id) || "plaguedoctor_culture".equals(id)
                 || "plaguedoctor_overdose".equals(id) || "plaguedoctor_grand_plague".equals(id)
+                || "archivist_seal".equals(id) || "archivist_catalog".equals(id)
+                || "archivist_overfile".equals(id) || "archivist_grand_archive".equals(id)
                 || "hybrid_coinwall".equals(id)
                 || "hybrid_spirit_anvil".equals(id) || "echo_forge_loop".equals(id)
                 || "apex_resonance".equals(id);
@@ -21256,7 +21782,9 @@ public final class GameCore {
                 || "witch_ward".equals(id) || "witch_charm".equals(id)
                 || "witch_grand_cauldron".equals(id) || "plaguedoctor_lancet".equals(id)
                 || "plaguedoctor_mask".equals(id) || "plaguedoctor_culture".equals(id)
-                || "plaguedoctor_grand_plague".equals(id);
+                || "plaguedoctor_grand_plague".equals(id) || "archivist_index".equals(id)
+                || "archivist_seal".equals(id) || "archivist_catalog".equals(id)
+                || "archivist_grand_archive".equals(id);
     }
 
     private static int relicCardBonus(State s, CardDef d) {
@@ -21543,6 +22071,16 @@ public final class GameCore {
                 || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_PLAGUEDOCTOR))) {
             bonus += 5;
         }
+        if (hasRelic(s, "archive_key") && (d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.block > 0
+                || d.exhaustTopDiscard || d.createEcho || d.skillChargeGain > 0 || cedesTempo(d.id)
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_ARCHIVIST))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "archive_crown") && (d.scry > 0 || d.upgradeRandom || d.vulnerable > 0
+                || d.bind > 0 || d.skillChargeGain > 0 || d.rarity == 2 || pressureCardId(d.id)
+                || salvageCardId(d.id) || d.profession.equals(PROF_ARCHIVIST))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "echoflow_charm") && (d.createEcho || d.exhaust || d.draw > 0 || d.energyGain > 0 || d.cost == 0 || cedesTempo(d.id))) {
             bonus += 4;
         }
@@ -21580,7 +22118,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -21619,6 +22157,7 @@ public final class GameCore {
         if (PROF_TIDECALLER.equals(s.profession)) return "tide_shell";
         if (PROF_FROSTBINDER.equals(s.profession)) return "frost_chain";
         if (PROF_PLAGUEDOCTOR.equals(s.profession)) return "plague_case";
+        if (PROF_ARCHIVIST.equals(s.profession)) return "archive_key";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -22019,6 +22558,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_PLAGUEDOCTOR.equals(s.profession) && "plague_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_ARCHIVIST.equals(s.profession) && ("archive_key".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "loom_shuttle".equals(id) || "void_abacus".equals(id)
+                || "curse_censer".equals(id) || "starforge_lens".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                || "resonance_prism".equals(id) || "echo_ledger".equals(id) || "stormglass_seal".equals(id))) {
+            return 2;
+        }
+        if (PROF_ARCHIVIST.equals(s.profession) && "archive_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -22508,6 +23058,20 @@ public final class GameCore {
         } else if ("plague_crown".equals(id)) {
             addUpgradedDeckCard(s, "plaguedoctor_grand_plague");
             addUpgradedDeckCard(s, "plaguedoctor_lancet");
+            removeStatusCard(s);
+            removeStatusCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("archive_key".equals(id)) {
+            addUpgradedDeckCard(s, "archivist_catalog");
+            upgradeRandomDeckCard(s);
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("archive_crown".equals(id)) {
+            addUpgradedDeckCard(s, "archivist_grand_archive");
+            addUpgradedDeckCard(s, "archivist_index");
+            upgradeRandomDeckCard(s);
             removeStatusCard(s);
             removeStatusCard(s);
             s.maxHp += 5;
@@ -23333,6 +23897,19 @@ public final class GameCore {
         c = addCard("plaguedoctor_grand_plague", "终局疫潮", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按病灶、药剂、状态、治疗和过载追加终局收益。", "更高伤害、格挡和疫潮返还。");
         c.profession = PROF_PLAGUEDOCTOR; c.draw = c.drawUp = 1; c.burn = 2; c.burnUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createPotion = true; c.createEcho = true; c.echoCardId = "plaguedoctor_lancet"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("archivist_index", "索引札", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并检视；案卷、升级牌和弃牌归档会提高收益。", "更高伤害、检视和案卷。");
+        c.profession = PROF_ARCHIVIST; c.draw = c.drawUp = 1; c.scry = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("archivist_seal", "封存印", "通用", 0, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌并净化状态；状态与升级牌会加厚防线。", "更多格挡、净化和职业技充能。");
+        c.profession = PROF_ARCHIVIST; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("archivist_catalog", "目录柜", "通用", 1, 1, 1, 0, 0, 6, 9, "获得格挡、抽牌、升级手牌并归档弃牌；制造临时索引札。", "更多格挡、升级和归档收益。");
+        c.profession = PROF_ARCHIVIST; c.draw = c.drawUp = 1; c.scry = 2; c.upgradeRandom = true; c.exhaustTopDiscard = true; c.createEcho = true; c.echoCardId = "archivist_index"; c.skillChargeGain = 1;
+        c = addCard("archivist_redline", "朱批裁页", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加印记、易伤和束缚；归档与状态会转成裁页爆发。", "更高伤害、控制和归档收益。");
+        c.profession = PROF_ARCHIVIST; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.exhaustTopDiscard = true; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("archivist_overfile", "过载归档", "通用", 1, 1, 1, 0, 0, 7, 10, "获得格挡、抽牌、升级和充能；过载与归档会追加裁切伤害。", "更多格挡、升级和职业技充能。");
+        c.profession = PROF_ARCHIVIST; c.draw = c.drawUp = 1; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("archivist_grand_archive", "终局大档案", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按案卷、升级、状态、归档、汇流和过载追加终局收益。", "更高伤害、格挡和索引返还。");
+        c.profession = PROF_ARCHIVIST; c.draw = c.drawUp = 1; c.scry = 2; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "archivist_index"; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -23622,6 +24199,8 @@ public final class GameCore {
         addRelicDef("frost_crown", "霜冠", "获得升级终局凛冬；霜缚者状态、束缚、抽牌、充能和稀有牌会滚动束缚、抽牌与碎霜追击。");
         addRelicDef("plague_case", "疫医箱", "瘟疫医师药剂、状态、治疗、异常和职业牌更快推动职业技；释放后制造柳叶并净化病灶。");
         addRelicDef("plague_crown", "疫冠", "获得升级终局疫潮；瘟疫医师药剂、状态、异常、治疗、充能和稀有牌会滚动标记、补药与疫潮追击。");
+        addRelicDef("archive_key", "档案钥", "档案员检视、升级、状态、归档和职业牌更快推动职业技；释放后制造索引并升级手牌。");
+        addRelicDef("archive_crown", "档案冠", "获得升级终局大档案；档案员检视、升级、归档、充能和稀有牌会滚动印记、抽牌与裁页追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -23876,6 +24455,9 @@ public final class GameCore {
         addTalent("t_plaguedoctor_lancet", PROF_PLAGUEDOCTOR, "疫血回路", "获得升级疫血柳叶和药剂；低费、抽牌、制药和燃灼牌追加标记，并把病灶转成穿透追击。");
         addTalent("t_plaguedoctor_mask", PROF_PLAGUEDOCTOR, "鸟喙防线", "获得生命和升级鸟喙面具；格挡、治疗、技能和状态牌提供额外防线，并在关键节奏净化状态。");
         addTalent("t_plaguedoctor_quarantine", PROF_PLAGUEDOCTOR, "隔离压制", "获得升级隔离病房；燃灼、束缚、易伤和充能牌会扩张感染压力并转成疫潮追击。");
+        addTalent("t_archivist_index", PROF_ARCHIVIST, "索引回路", "获得升级索引札并升级牌组；检视、抽牌、升级和档案牌追加印记，并把案卷转成穿透追击。");
+        addTalent("t_archivist_seal", PROF_ARCHIVIST, "封存防线", "获得生命和升级封存印；格挡、技能、升级和状态牌提供额外防线，并在关键节奏净化状态。");
+        addTalent("t_archivist_redline", PROF_ARCHIVIST, "朱批裁页", "获得升级朱批裁页；易伤、束缚、归档和充能牌会扩张控制压力并转成裁页追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -23914,6 +24496,7 @@ public final class GameCore {
         addTalent("t_tidecaller_grand", PROF_TIDECALLER, "终局潮汐", "获得升级终局潮汐；格挡、束缚、抽牌、连打与过载牌持续加固防线并把潮势印记转为回潮裁切。");
         addTalent("t_frostbinder_grand", PROF_FROSTBINDER, "终局凛冬", "获得升级终局凛冬；状态、束缚、格挡、消耗与过载牌持续加固防线并把霜纹印记转为凛冬裁切。");
         addTalent("t_plaguedoctor_grand", PROF_PLAGUEDOCTOR, "终局疫潮", "获得升级终局疫潮；药剂、状态、治疗、异常与过载牌持续抽牌、补药并把病灶印记转为疫潮裁切。");
+        addTalent("t_archivist_grand", PROF_ARCHIVIST, "终局大档案", "获得升级终局大档案；检视、升级、状态、归档与过载牌持续抽牌、升级并把案卷印记转为档案裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
