@@ -1506,6 +1506,22 @@ public final class GameView extends View {
             c.drawLine(cx + size * 0.54f, cy - size * 0.18f, cx + size * 0.2f, cy + size * 0.1f, p);
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx - size * 0.62f, cy - size * 0.46f, size * 0.1f, p);
+        } else if (GameCore.PROF_VOIDNAVIGATOR.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            c.drawCircle(cx, cy, size * 0.72f, p);
+            c.drawLine(cx - size * 0.56f, cy + size * 0.42f, cx + size * 0.56f, cy - size * 0.42f, p);
+            c.drawLine(cx - size * 0.62f, cy - size * 0.12f, cx + size * 0.38f, cy - size * 0.62f, p);
+            c.drawLine(cx - size * 0.38f, cy + size * 0.62f, cx + size * 0.62f, cy + size * 0.12f, p);
+            Path needle = new Path();
+            needle.moveTo(cx, cy - size * 0.88f);
+            needle.lineTo(cx + size * 0.18f, cy - size * 0.08f);
+            needle.lineTo(cx, cy + size * 0.88f);
+            needle.lineTo(cx - size * 0.18f, cy + size * 0.08f);
+            needle.close();
+            c.drawPath(needle, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy, size * 0.12f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

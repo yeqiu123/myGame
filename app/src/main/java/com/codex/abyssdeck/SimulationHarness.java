@@ -238,6 +238,7 @@ public final class SimulationHarness {
             if (GameCore.PROF_FROSTBINDER.equals(s.profession) && isFrostbinderSignal(d)) score += 14;
             if (GameCore.PROF_PLAGUEDOCTOR.equals(s.profession) && isPlaguedoctorSignal(d)) score += 14;
             if (GameCore.PROF_ARCHIVIST.equals(s.profession) && isArchivistSignal(d)) score += 14;
+            if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession) && isVoidnavigatorSignal(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -300,6 +301,7 @@ public final class SimulationHarness {
             if (isFrostbinderCard(d)) score += 14;
             if (isPlaguedoctorCard(d)) score += 14;
             if (isArchivistCard(d)) score += 14;
+            if (isVoidnavigatorCard(d)) score += 14;
             if ("hybrid_rift_engine".equals(d.id)) score += 10;
             if (s.relics.contains("split_anvil") && (d.upgradeRandom || d.rarity == 2)
                     && (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.addStatusToEnemy || d.createWound)) score += 16;
@@ -385,6 +387,10 @@ public final class SimulationHarness {
                     || d.upgradeRandom || d.draw > 0 || d.exhaustTopDiscard)) score += 18;
             if (s.relics.contains("archive_crown") && (isArchivistSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0)) score += 20;
+            if (s.relics.contains("void_compass") && (isVoidnavigatorSignal(d) || d.createEcho
+                    || d.exhaust || d.scry > 0 || d.draw > 0)) score += 18;
+            if (s.relics.contains("void_crown") && (isVoidnavigatorSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.createEcho || d.exhaust || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -574,6 +580,13 @@ public final class SimulationHarness {
                     || "bulwark_core".equals(id) || "stormglass_seal".equals(id) || "void_abacus".equals(id)
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id))) score += 36;
+            if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession) && ("void_crown".equals(id) || "void_compass".equals(id)
+                    || "echo_prism".equals(id) || "void_abacus".equals(id) || "hollow_crown".equals(id)
+                    || "rift_compass".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "overload_etch".equals(id)
+                    || "discipline_chart".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
+                    || "mosaic_core".equals(id) || "starforge_lens".equals(id) || "resonance_prism".equals(id)
+                    || "phase_lens".equals(id) || "fate_lantern".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -616,6 +629,7 @@ public final class SimulationHarness {
             if ("frost_chain".equals(id) || "frost_crown".equals(id)) score += 20;
             if ("plague_case".equals(id) || "plague_crown".equals(id)) score += 20;
             if ("archive_key".equals(id) || "archive_crown".equals(id)) score += 20;
+            if ("void_compass".equals(id) || "void_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -771,6 +785,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_ARCHIVIST.equals(s.profession) && ("pact_forge".equals(id) || "pact_suppression".equals(id)
                     || "pact_confluence".equals(id) || "pact_guardian".equals(id) || "pact_sprinter".equals(id)
                     || "pact_void".equals(id) || "pact_hunter".equals(id))) score += 24;
+            if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession) && ("pact_void".equals(id) || "pact_sprinter".equals(id)
+                    || "pact_confluence".equals(id) || "pact_suppression".equals(id) || "pact_hunter".equals(id)
+                    || "pact_guardian".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -949,6 +966,10 @@ public final class SimulationHarness {
                     || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
                     || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_salvage".equals(id)
                     || "spec_sustain".equals(id) || "spec_bulwark".equals(id) || "spec_assembly".equals(id))) score += 10;
+            if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_tempo".equals(id) || "spec_echoflow".equals(id) || "spec_control".equals(id)
+                    || "spec_markchain".equals(id) || "spec_pressure".equals(id) || "spec_burst".equals(id)
+                    || "spec_bulwark".equals(id) || "spec_assembly".equals(id))) score += 10;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -1303,6 +1324,19 @@ public final class SimulationHarness {
                     if (upgradedDeckCards(s) >= 5 && ("archivist_seal".equals(c.id) || "archivist_catalog".equals(c.id)
                             || "archivist_grand_archive".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession) && (isVoidnavigatorSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.createEcho || d.exhaust || d.exhaustTopDiscard || d.scry > 0 || d.draw > 0
+                            || c.temp || isVoidnavigatorCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isVoidnavigatorCard(d)
+                            || d.createEcho || d.exhaust)) score += 6;
+                    if (voidnavigatorEnemyPressure(s) >= 8 && ("voidnavigator_rift".equals(c.id)
+                            || "voidnavigator_overjump".equals(c.id) || "voidnavigator_grand_jump".equals(c.id))) score += 8;
+                    if ((tempOrEchoHandCards(s) >= 3 || s.exhaust.size() >= 5 || s.confluenceChain >= 3)
+                            && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isVoidnavigatorCard(d))) score += 5;
+                    if (tempOrEchoHandCards(s) >= 2 && ("voidnavigator_anchor".equals(c.id)
+                            || "voidnavigator_chart".equals(c.id) || "voidnavigator_grand_jump".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1485,6 +1519,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || d.exhaustTopDiscard || isArchivistCard(d))) score += 12;
                 if (s.talents.contains("t_archivist_grand") && (d.scry > 0 || d.upgradeRandom || c.upgraded
                         || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isArchivistCard(d))) score += 14;
+                if (s.talents.contains("t_voidnavigator_beacon") && (d.cost == 0 || d.scry > 0 || d.draw > 0
+                        || d.createEcho || c.temp || isVoidnavigatorCard(d))) score += 12;
+                if (s.talents.contains("t_voidnavigator_anchor") && (d.block > 0 || d.type == 1 || d.createEcho
+                        || d.exhaust || c.temp || isVoidnavigatorCard(d))) score += 12;
+                if (s.talents.contains("t_voidnavigator_rift") && (d.vulnerable > 0 || d.bind > 0
+                        || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard || isVoidnavigatorCard(d))) score += 12;
+                if (s.talents.contains("t_voidnavigator_grand") && (d.createEcho || c.temp || d.exhaust
+                        || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isVoidnavigatorCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1961,6 +2003,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_VOIDNAVIGATOR.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean jumpWindow = target >= 0 && (s.enemies.get(target).vulnerable > 0
+                    || s.enemies.get(target).mark >= 2 || s.enemies.get(target).bind >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || jumpWindow || tempOrEchoHandCards(s) >= 3
+                    || s.exhaust.size() >= 5 || s.confluenceChain >= 3 || voidnavigatorEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -1980,7 +2032,8 @@ public final class SimulationHarness {
                 || "t_mirrorist_reflect".equals(id) || "t_puppeteer_rehearse".equals(id)
                 || "t_scavenger_market".equals(id) || "t_plaguedoctor_lancet".equals(id)
                 || "t_plaguedoctor_grand".equals(id) || "t_archivist_index".equals(id)
-                || "t_archivist_grand".equals(id));
+                || "t_archivist_grand".equals(id) || "t_voidnavigator_beacon".equals(id)
+                || "t_voidnavigator_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2318,6 +2371,7 @@ public final class SimulationHarness {
                 || s.relics.contains("frost_chain") || s.relics.contains("frost_crown")
                 || s.relics.contains("plague_case") || s.relics.contains("plague_crown")
                 || s.relics.contains("archive_key") || s.relics.contains("archive_crown")
+                || s.relics.contains("void_compass") || s.relics.contains("void_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2603,6 +2657,31 @@ public final class SimulationHarness {
         return d != null && ("archivist_index".equals(d.id) || "archivist_seal".equals(d.id)
                 || "archivist_catalog".equals(d.id) || "archivist_redline".equals(d.id)
                 || "archivist_overfile".equals(d.id) || "archivist_grand_archive".equals(d.id));
+    }
+
+    private static boolean isVoidnavigatorSignal(GameCore.CardDef d) {
+        return d != null && (d.createEcho || d.exhaust || d.exhaustTopDiscard || d.scry > 0
+                || d.draw > 0 || d.energyGain > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || isHybridCore(d)
+                || GameCore.PROF_VOIDNAVIGATOR.equals(d.profession) || GameCore.PROF_ARCANIST.equals(d.profession));
+    }
+
+    private static boolean isVoidnavigatorCard(GameCore.CardDef d) {
+        return d != null && ("voidnavigator_beacon".equals(d.id) || "voidnavigator_anchor".equals(d.id)
+                || "voidnavigator_chart".equals(d.id) || "voidnavigator_rift".equals(d.id)
+                || "voidnavigator_overjump".equals(d.id) || "voidnavigator_grand_jump".equals(d.id));
+    }
+
+    private static int voidnavigatorEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 2 + e.burn;
+            }
+        }
+        pressure += Math.min(4, s.confluenceChain);
+        pressure += Math.min(5, s.exhaust.size() / 2);
+        return pressure;
     }
 
     private static int archivistEnemyPressure(GameCore.State s) {

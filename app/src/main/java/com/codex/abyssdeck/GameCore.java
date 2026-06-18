@@ -129,6 +129,7 @@ public final class GameCore {
     public static final String PROF_FROSTBINDER = "霜缚者";
     public static final String PROF_PLAGUEDOCTOR = "瘟疫医师";
     public static final String PROF_ARCHIVIST = "档案员";
+    public static final String PROF_VOIDNAVIGATOR = "虚空领航员";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -138,7 +139,7 @@ public final class GameCore {
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
-            PROF_ARCHIVIST
+            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -833,6 +834,7 @@ public final class GameCore {
         if (PROF_FROSTBINDER.equals(profession)) return "霜契";
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "疫方";
         if (PROF_ARCHIVIST.equals(profession)) return "归档";
+        if (PROF_VOIDNAVIGATOR.equals(profession)) return "跃迁";
         return "职业技";
     }
 
@@ -910,6 +912,7 @@ public final class GameCore {
         if (PROF_FROSTBINDER.equals(profession)) return "满充能：消耗霜纹缔结霜契，按状态牌、束缚、格挡、消耗和过载造成穿透，净化状态、抽牌并制造霜牌。";
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "满充能：消耗病灶配制疫方，按药剂、状态牌、治疗、燃缚易和过载造成穿透，净化状态、治疗、抽牌并制造疫医牌。";
         if (PROF_ARCHIVIST.equals(profession)) return "满充能：消耗案卷归档，按检视、升级、状态、弃牌消耗、汇流和过载造成穿透，净化状态、升级手牌并制造档案牌。";
+        if (PROF_VOIDNAVIGATOR.equals(profession)) return "满充能：消耗航迹跃迁，按临时牌、消耗、检视、汇流和过载造成穿透，抽牌返能并制造航标牌。";
         return "选择职业后可用。";
     }
 
@@ -2163,6 +2166,52 @@ public final class GameCore {
             addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, statuses / 2 + Math.max(1, pressure / 10)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, files / 2);
+        } else if (PROF_VOIDNAVIGATOR.equals(s.profession)) {
+            int routes = Math.max(1, s.professionCharge);
+            int echoes = Math.min(18, tempOrEchoHandCount(s) + tempOrEchoDeckCards(s) / 2 + s.pactTempCards);
+            int voidPulse = Math.min(18, s.exhaust.size() + exhaustDeckCards(s) / 2 + Math.max(0, s.voidEngine));
+            int scryPulse = Math.min(14, buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_ECHO)
+                    + buildFocusDeckCards(s, BUILD_OVERLOAD));
+            int chain = Math.min(12, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 2 + target.burn;
+            int damage = 9 + s.act * 3 + Math.min(74, routes * 3 + echoes * 4
+                    + voidPulse * 4 + scryPulse * 3 + chain * 4 + pressure) + overload * 7;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, routes / 3 + echoes / 4) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, voidPulse / 5 + chain / 5 + overload / 4);
+                if (echoes >= 3 || voidPulse >= 5 || hasTalent(s, "t_voidnavigator_rift")) {
+                    target.bind += 1 + s.bindPower / 2;
+                }
+            }
+            gainBlock(s, 5 + s.act * 2 + Math.min(36, routes * 2 + echoes * 3
+                    + voidPulse * 2 + scryPulse * 2 + chain * 3) + overload * 3);
+            draw(s, 1 + Math.min(3, routes / 5 + echoes / 4 + voidPulse / 5) + overload / 4);
+            if (echoes >= 3 || voidPulse >= 4 || chain >= 3 || overload >= 2) {
+                s.energy++;
+            }
+            if (!s.discard.isEmpty() && (voidPulse >= 4 || overload >= 2)) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+                addQuestProgress(s, QUEST_ECHO, 1);
+            }
+            Card beacon = new Card(overload >= 4 || hasTalent(s, "t_voidnavigator_grand")
+                    ? "voidnavigator_grand_jump" : "voidnavigator_beacon");
+            beacon.temp = true;
+            beacon.upgraded = routes >= 5 || hasTalent(s, "t_voidnavigator_beacon");
+            addToHand(s, beacon);
+            if (hasTalent(s, "t_voidnavigator_grand")) {
+                Card chart = new Card("voidnavigator_chart");
+                chart.temp = true;
+                chart.upgraded = true;
+                addToHand(s, chart);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.min(3, echoes / 3 + voidPulse / 4));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, Math.max(1, pressure / 10)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, routes / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3646,6 +3695,9 @@ public final class GameCore {
         if (PROF_ARCHIVIST.equals(profession)) {
             return "用检视、升级、状态封存和弃牌归档积累案卷，把牌序管理转成抽牌、控场、净化和归档爆发。适合工坊、循环、异常、回声和过载构筑。";
         }
+        if (PROF_VOIDNAVIGATOR.equals(profession)) {
+            return "用临时牌、消耗、检视和汇流积累航迹，把回声循环转成抽牌、返能、控场和跃迁爆发。适合回声、循环、汇流、过载和虚空构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3766,6 +3818,9 @@ public final class GameCore {
         }
         if (PROF_ARCHIVIST.equals(profession)) {
             return 0xffd8c58f;
+        }
+        if (PROF_VOIDNAVIGATOR.equals(profession)) {
+            return 0xff8fb8ff;
         }
         return 0xffd6c07a;
     }
@@ -4175,6 +4230,13 @@ public final class GameCore {
             s.hp += 2;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_VOIDNAVIGATOR.equals(profession)) {
+            s.deck.add(new Card("voidnavigator_beacon"));
+            s.deck.add(new Card("voidnavigator_anchor"));
+            s.deck.add(new Card("daze"));
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4235,6 +4297,7 @@ public final class GameCore {
         else if (PROF_FROSTBINDER.equals(profession)) upgradeDeckCard(s, "frostbinder_shard");
         else if (PROF_PLAGUEDOCTOR.equals(profession)) upgradeDeckCard(s, "plaguedoctor_lancet");
         else if (PROF_ARCHIVIST.equals(profession)) upgradeDeckCard(s, "archivist_index");
+        else if (PROF_VOIDNAVIGATOR.equals(profession)) upgradeDeckCard(s, "voidnavigator_beacon");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4397,6 +4460,10 @@ public final class GameCore {
             upgradeRandomDeckCard(s);
             removeStatusCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_VOIDNAVIGATOR.equals(profession)) {
+            addUpgradedDeckCard(s, "voidnavigator_chart");
+            addUpgradedDeckCard(s, "voidnavigator_beacon");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4440,6 +4507,7 @@ public final class GameCore {
         if (PROF_FROSTBINDER.equals(profession)) return "frostbinder_overfreeze";
         if (PROF_PLAGUEDOCTOR.equals(profession)) return "plaguedoctor_overdose";
         if (PROF_ARCHIVIST.equals(profession)) return "archivist_overfile";
+        if (PROF_VOIDNAVIGATOR.equals(profession)) return "voidnavigator_overjump";
         return "forge_signal";
     }
 
@@ -5016,6 +5084,20 @@ public final class GameCore {
         } else if ("t_archivist_grand".equals(id)) {
             addUpgradedDeckCard(s, "archivist_grand_archive");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_voidnavigator_beacon".equals(id)) {
+            addUpgradedDeckCard(s, "voidnavigator_beacon");
+            addUpgradedDeckCard(s, "voidnavigator_rift");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_voidnavigator_anchor".equals(id)) {
+            addUpgradedDeckCard(s, "voidnavigator_anchor");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_voidnavigator_rift".equals(id)) {
+            addUpgradedDeckCard(s, "voidnavigator_rift");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_voidnavigator_grand".equals(id)) {
+            addUpgradedDeckCard(s, "voidnavigator_grand_jump");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5461,7 +5543,7 @@ public final class GameCore {
                 || "t_witch_grand".equals(id) || "t_shifter_grand".equals(id)
                 || "t_fateseer_grand".equals(id) || "t_tidecaller_grand".equals(id)
                 || "t_frostbinder_grand".equals(id) || "t_plaguedoctor_grand".equals(id)
-                || "t_archivist_grand".equals(id);
+                || "t_archivist_grand".equals(id) || "t_voidnavigator_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5484,7 +5566,7 @@ public final class GameCore {
                 || "witch_grand_cauldron".equals(id) || "shifter_grand_paradox".equals(id)
                 || "fateseer_grand_design".equals(id) || "tidecaller_grand_tide".equals(id)
                 || "frostbinder_grand_winter".equals(id) || "plaguedoctor_grand_plague".equals(id)
-                || "archivist_grand_archive".equals(id);
+                || "archivist_grand_archive".equals(id) || "voidnavigator_grand_jump".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5506,7 +5588,7 @@ public final class GameCore {
                 || "dawn_beacon".equals(id) || "tectonic_crown".equals(id)
                 || "witch_moon_crown".equals(id) || "phase_crown".equals(id)
                 || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
-                || "plague_crown".equals(id) || "archive_crown".equals(id);
+                || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -6031,6 +6113,10 @@ public final class GameCore {
                 || d.draw > 0 || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard
                 || d.vulnerable > 0 || d.bind > 0 || d.createEcho || "wound".equals(d.id) || "daze".equals(d.id)
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_ARCHIVIST))) amount++;
+        else if (PROF_VOIDNAVIGATOR.equals(s.profession) && d != null && (d.createEcho || d.exhaust
+                || d.exhaustTopDiscard || d.scry > 0 || d.draw > 0 || d.energyGain > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_VOIDNAVIGATOR) || d.profession.equals(PROF_ARCANIST))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -8088,6 +8174,43 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "void_compass") && PROF_VOIDNAVIGATOR.equals(s.profession)) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(18, s.exhaust.size() + Math.max(0, s.voidEngine));
+            draw(s, 1);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + echoes / 2 + voidPulse / 5));
+            gainBlock(s, 5 + s.act + Math.min(18, s.professionCharge * 2 + echoes * 3
+                    + voidPulse * 2 + s.confluenceChain * 2));
+            Card beacon = new Card("voidnavigator_beacon");
+            beacon.temp = true;
+            beacon.upgraded = true;
+            addToHand(s, beacon);
+            if (s.confluenceChain >= 3 || voidPulse >= 5) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(26, target.mark * 2
+                        + s.professionCharge * 2 + echoes * 3 + voidPulse * 2), true);
+            }
+        }
+        if (hasRelic(s, "void_crown") && PROF_VOIDNAVIGATOR.equals(s.profession)) {
+            Card jump = new Card("voidnavigator_overjump");
+            jump.temp = true;
+            jump.upgraded = true;
+            addToHand(s, jump);
+            draw(s, 1);
+            if (s.professionCharge >= 5 || tempOrEchoHandCount(s) >= 3 || s.exhaust.size() >= 5
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -8172,6 +8295,9 @@ public final class GameCore {
         if (hasRelic(s, "archive_key") && PROF_ARCHIVIST.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || upgradedCardCount(s) >= 5 || statusDeckCards(s) + statusHandCards(s) > 0
                 || s.discard.size() + s.exhaust.size() >= 6 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "void_compass") && PROF_VOIDNAVIGATOR.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || tempOrEchoHandCount(s) >= 2 || s.exhaust.size() >= 4
+                || s.confluenceChain >= 2 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -9854,6 +9980,36 @@ public final class GameCore {
                 catalog.temp = true;
                 catalog.upgraded = true;
                 addToHand(s, catalog);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_VOIDNAVIGATOR.equals(s.profession) && s.turn == 1) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(12, s.exhaust.size() + Math.max(0, s.voidEngine));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, echoes + voidPulse / 3 + s.confluenceChain
+                    + buildFocusDeckCards(s, BUILD_ECHO) / 3);
+            gainBlock(s, 3 + s.act + Math.min(9, echoes * 2 + voidPulse + s.professionCharge));
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1 + (hasTalent(s, "t_voidnavigator_beacon") ? 1 : 0);
+                firstLiving(s).vulnerable += voidPulse >= 3 || hasTalent(s, "t_voidnavigator_rift") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_voidnavigator_beacon")) {
+                Card beacon = new Card("voidnavigator_beacon");
+                beacon.temp = true;
+                beacon.upgraded = true;
+                addToHand(s, beacon);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_voidnavigator_anchor")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_voidnavigator_grand")) {
+                Card chart = new Card("voidnavigator_chart");
+                chart.temp = true;
+                chart.upgraded = true;
+                addToHand(s, chart);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -13005,6 +13161,122 @@ public final class GameCore {
             addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("voidnavigator_beacon".equals(d.id) && target != null) {
+            int routes = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(16, s.exhaust.size() + Math.max(0, s.voidEngine));
+            damage += Math.min(c.upgraded ? 34 : 24, routes * 2 + echoes * 3
+                    + voidPulse + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            if (d.scry > 0 || c.upgraded || echoes >= 2) {
+                draw += 1;
+            }
+            if (routes >= 4 || voidPulse >= 6 || s.confluenceChain >= 3) {
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+        }
+        if ("voidnavigator_anchor".equals(d.id)) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(16, s.exhaust.size() + Math.max(0, s.voidEngine));
+            block += Math.min(c.upgraded ? 36 : 25, s.professionCharge * 2 + echoes * 4
+                    + voidPulse * 2 + s.confluenceChain * 2);
+            if (echoes >= 2 || s.confluenceChain >= 3 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+        }
+        if ("voidnavigator_chart".equals(d.id)) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(20, s.exhaust.size() + Math.max(0, s.voidEngine));
+            block += Math.min(c.upgraded ? 34 : 24, s.professionCharge * 2 + echoes * 3
+                    + voidPulse + s.confluenceChain * 3);
+            if (s.confluenceChain >= 3 || echoes >= 3 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            if (!s.discard.isEmpty() && (voidPulse >= 4 || echoes >= 3)) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+                addQuestProgress(s, QUEST_ECHO, 1);
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, focusMaskCount(s.confluenceMask)));
+        }
+        if ("voidnavigator_rift".equals(d.id) && target != null) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(22, s.exhaust.size() + Math.max(0, s.voidEngine));
+            int pressure = target.mark * 4 + target.vulnerable * 4 + target.bind * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 54 : 39, pressure + echoes * 4
+                    + voidPulse * 2 + s.professionCharge * 2 + s.confluenceChain * 3);
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            target.bind += 1 + s.bindPower / 2;
+            if (!s.discard.isEmpty()) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+            }
+            if (target.mark + target.vulnerable >= 4 || voidPulse >= 6 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+        }
+        if ("voidnavigator_overjump".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(24, s.exhaust.size() + Math.max(0, s.voidEngine));
+            block += Math.min(c.upgraded ? 42 : 30, s.professionCharge * 2 + echoes * 4
+                    + voidPulse * 2 + overloadNow * 7);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 64 : 46, overloadNow * 8 + echoes * 5
+                        + voidPulse * 2 + target.mark * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || echoes >= 3 || voidPulse >= 6 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, 1);
+        }
+        if ("voidnavigator_grand_jump".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(30, s.exhaust.size() + Math.max(0, s.voidEngine));
+            int labels = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 94 : 72, s.professionCharge * 4 + echoes * 7
+                    + voidPulse * 3 + labels * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 64 : 48, s.professionCharge * 3 + echoes * 5
+                    + voidPulse * 2 + labels * 3 + overloadNow * 6);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+                target.bind += 2 + s.bindPower / 2;
+            }
+            Card beacon = new Card("voidnavigator_beacon");
+            beacon.temp = true;
+            beacon.upgraded = true;
+            addToHand(s, beacon);
+            if (echoes >= 3 || voidPulse >= 6 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, labels / 3));
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
         if ("hybrid_coinwall".equals(d.id)) {
@@ -16578,6 +16850,86 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_VOIDNAVIGATOR.equals(s.profession) && (d.createEcho || c.temp || d.exhaust || d.exhaustTopDiscard
+                || d.scry > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.energyGain > 0
+                || d.profession.equals(PROF_VOIDNAVIGATOR) || d.profession.equals(PROF_ARCANIST))) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(18, s.exhaust.size() + Math.max(0, s.voidEngine));
+            s.professionCharge += 1 + Math.min(2, (echoes + voidPulse / 3 + d.scry
+                    + (d.createEcho || c.temp ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1;
+                    if (d.exhaust || d.exhaustTopDiscard || hasTalent(s, "t_voidnavigator_rift")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(32, e.mark * 2 + echoes * 3
+                            + voidPulse * 2 + s.confluenceChain * 2 + s.professionCharge * 2), true);
+                }
+                if (d.createEcho || c.temp || d.scry > 0 || hasTalent(s, "t_voidnavigator_anchor")) {
+                    gainBlock(s, 3 + s.act + Math.min(16, s.professionCharge + echoes * 2 + voidPulse));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || s.confluenceChain >= 3 || hasTalent(s, "t_voidnavigator_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_voidnavigator_beacon") && (d.cost == 0 || d.scry > 0 || d.draw > 0
+                || d.createEcho || c.temp || d.profession.equals(PROF_VOIDNAVIGATOR))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(26, e.mark * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || c.temp) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_voidnavigator_anchor") && (d.block > 0 || d.type == 1 || d.createEcho
+                || c.temp || d.exhaust || d.profession.equals(PROF_VOIDNAVIGATOR))) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            gainBlock(s, 4 + s.act + Math.min(16, s.professionCharge + echoes * 3 + s.exhaust.size()));
+            if (s.cardsPlayedThisTurn == 3 || echoes >= 3) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_voidnavigator_rift") && (d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0
+                || d.exhaust || d.exhaustTopDiscard || d.createEcho || c.temp || d.profession.equals(PROF_VOIDNAVIGATOR))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 8 || s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(30, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_voidnavigator_grand") && (d.createEcho || c.temp || d.exhaust || d.exhaustTopDiscard
+                || d.scry > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_VOIDNAVIGATOR))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || tempOrEchoHandCount(s) >= 3 || s.exhaust.size() >= 5)) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(36, e.mark * 2 + e.vulnerable * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2
+                        + s.confluenceChain * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                s.energy++;
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -17378,6 +17730,44 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "void_compass") && (d.createEcho || c.temp || d.exhaust || d.exhaustTopDiscard
+                || d.scry > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_VOIDNAVIGATOR))) {
+            addProfessionSkillCharge(s, 1);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int voidPulse = Math.min(18, s.exhaust.size() + Math.max(0, s.voidEngine));
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(13, s.professionCharge + echoes * 2 + voidPulse));
+                if (s.confluenceChain >= 3 && s.relicTriggersThisTurn == 0) {
+                    s.energy++;
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (d.createEcho || c.temp || voidPulse >= 5) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(27, e.mark * 2
+                            + echoes * 3 + voidPulse * 2 + s.professionCharge * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "void_crown") && (d.createEcho || c.temp || d.exhaust || d.exhaustTopDiscard
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.scry > 0 || d.profession.equals(PROF_VOIDNAVIGATOR))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.mark >= 4 || s.cardsPlayedThisTurn >= 4 || tempOrEchoHandCount(s) >= 3
+                        || s.exhaust.size() >= 5) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(32, e.mark * 2 + e.vulnerable * 2
+                            + s.professionCharge + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                s.energy++;
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -18836,6 +19226,9 @@ public final class GameCore {
         if (PROF_ARCHIVIST.equals(d.profession)) {
             return archivistFocusCardValue(d, focus);
         }
+        if (PROF_VOIDNAVIGATOR.equals(d.profession)) {
+            return voidnavigatorFocusCardValue(d, focus);
+        }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
@@ -19784,6 +20177,40 @@ public final class GameCore {
         return 0;
     }
 
+    private static int voidnavigatorFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.scry * 2 + (d.energyGain > 0 ? 4 : 0)
+                    + ("voidnavigator_beacon".equals(d.id) ? 8 : 0) + ("voidnavigator_rift".equals(d.id) ? 9 : 0)
+                    + ("voidnavigator_overjump".equals(d.id) ? 16 : 0) + ("voidnavigator_grand_jump".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + (d.exhaust ? 5 : 0) + (d.exhaustTopDiscard ? 6 : 0)
+                    + d.draw * 3 + ("voidnavigator_chart".equals(d.id) ? 14 : 0)
+                    + ("voidnavigator_beacon".equals(d.id) ? 10 : 0) + ("voidnavigator_grand_jump".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return d.scry * 4 + (d.rarity == 2 ? 3 : 0) + (d.upgradeRandom ? 5 : 0)
+                    + ("voidnavigator_beacon".equals(d.id) ? 14 : 0) + ("voidnavigator_chart".equals(d.id) ? 14 : 0)
+                    + ("voidnavigator_overjump".equals(d.id) ? 10 : 0) + ("voidnavigator_grand_jump".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.vulnerable * 7 + d.bind * 5 + d.skillChargeGain * 2
+                    + ("voidnavigator_rift".equals(d.id) ? 18 : 0) + ("voidnavigator_overjump".equals(d.id) ? 16 : 0)
+                    + ("voidnavigator_grand_jump".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 6 : 0) + d.skillChargeGain * 2
+                    + d.scry * 2 + (d.createEcho ? 5 : 0) + ("voidnavigator_beacon".equals(d.id) ? 16 : 0)
+                    + ("voidnavigator_chart".equals(d.id) ? 14 : 0) + ("voidnavigator_overjump".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.draw * 2 + (d.createEcho ? 4 : 0)
+                    + ("voidnavigator_anchor".equals(d.id) ? 18 : 0) + ("voidnavigator_chart".equals(d.id) ? 14 : 0)
+                    + ("voidnavigator_overjump".equals(d.id) ? 16 : 0) + ("voidnavigator_grand_jump".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -20209,6 +20636,15 @@ public final class GameCore {
                 + status * 2 + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS)
                 + buildFocusDeckCards(s, BUILD_GUARD) + buildFocusDeckCards(s, BUILD_ECHO)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_voidnavigator_beacon".equals(id)) bonus += zeroCost * 2 + tempOrEchoDeckCards(s) * 3
+                + buildFocusDeckCards(s, BUILD_ECHO) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_voidnavigator_anchor".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + tempOrEchoDeckCards(s) + exhaustDeckCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_voidnavigator_rift".equals(id)) bonus += buildFocusDeckCards(s, BUILD_STATUS) * 2
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + exhaustDeckCards(s) * 2 + tempOrEchoDeckCards(s) + professionCards;
+        else if ("t_voidnavigator_grand".equals(id)) bonus += professionCards + tempOrEchoDeckCards(s) * 2
+                + exhaustDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_ECHO)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + buildFocusDeckCards(s, BUILD_CYCLE);
         return Math.min(36, bonus);
     }
 
@@ -20231,6 +20667,12 @@ public final class GameCore {
             if (focus == BUILD_ECHO && isAny(id, "t_archivist_index", "t_archivist_grand")) return 3;
             if (focus == BUILD_STATUS && isAny(id, "t_archivist_redline", "t_archivist_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_archivist_seal", "t_archivist_grand")) return 3;
+        }
+        if (isAny(id, "t_voidnavigator_beacon", "t_voidnavigator_anchor", "t_voidnavigator_rift", "t_voidnavigator_grand")) {
+            if (focus == BUILD_ECHO || focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_voidnavigator_rift", "t_voidnavigator_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_voidnavigator_rift", "t_voidnavigator_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_voidnavigator_anchor", "t_voidnavigator_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -22118,7 +22560,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -22158,6 +22600,7 @@ public final class GameCore {
         if (PROF_FROSTBINDER.equals(s.profession)) return "frost_chain";
         if (PROF_PLAGUEDOCTOR.equals(s.profession)) return "plague_case";
         if (PROF_ARCHIVIST.equals(s.profession)) return "archive_key";
+        if (PROF_VOIDNAVIGATOR.equals(s.profession)) return "void_compass";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -22569,6 +23012,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_ARCHIVIST.equals(s.profession) && "archive_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_VOIDNAVIGATOR.equals(s.profession) && ("void_compass".equals(id) || "echo_prism".equals(id)
+                || "void_abacus".equals(id) || "hollow_crown".equals(id) || "rift_compass".equals(id)
+                || "echo_ledger".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
+                || "mosaic_core".equals(id) || "resonance_prism".equals(id) || "overload_etch".equals(id)
+                || "discipline_chart".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                || "phase_lens".equals(id) || "fate_lantern".equals(id))) {
+            return 2;
+        }
+        if (PROF_VOIDNAVIGATOR.equals(s.profession) && "void_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -23076,6 +23530,16 @@ public final class GameCore {
             removeStatusCard(s);
             s.maxHp += 5;
             s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("void_compass".equals(id)) {
+            addUpgradedDeckCard(s, "voidnavigator_chart");
+            addUpgradedDeckCard(s, "voidnavigator_beacon");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("void_crown".equals(id)) {
+            addUpgradedDeckCard(s, "voidnavigator_grand_jump");
+            addUpgradedDeckCard(s, "voidnavigator_beacon");
+            s.maxHp += 4;
+            s.hp += 4;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -23910,6 +24374,19 @@ public final class GameCore {
         c = addCard("archivist_grand_archive", "终局大档案", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按案卷、升级、状态、归档、汇流和过载追加终局收益。", "更高伤害、格挡和索引返还。");
         c.profession = PROF_ARCHIVIST; c.draw = c.drawUp = 1; c.scry = 2; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "archivist_index"; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("voidnavigator_beacon", "虚空航标", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并检视；临时牌、消耗和航迹会提高收益。", "更高伤害、检视和航迹。");
+        c.profession = PROF_VOIDNAVIGATOR; c.draw = c.drawUp = 1; c.scry = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("voidnavigator_anchor", "相位锚", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌并稳定航迹；临时牌和消耗会加厚防线。", "更多格挡、抽牌和充能。");
+        c.profession = PROF_VOIDNAVIGATOR; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("voidnavigator_chart", "跃迁星图", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌、检视并制造临时虚空航标；汇流会返能。", "更多格挡、检视和航标。");
+        c.profession = PROF_VOIDNAVIGATOR; c.draw = c.drawUp = 1; c.scry = 2; c.createEcho = true; c.echoCardId = "voidnavigator_beacon"; c.skillChargeGain = 1;
+        c = addCard("voidnavigator_rift", "裂隙折返", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加印记、易伤和束缚；消耗与回声会转成折返爆发。", "更高伤害、控制和折返收益。");
+        c.profession = PROF_VOIDNAVIGATOR; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.exhaustTopDiscard = true; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("voidnavigator_overjump", "过载跃迁", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、抽牌和充能；过载、临时牌与消耗会追加跃迁伤害。", "更多格挡、返能和职业技充能。");
+        c.profession = PROF_VOIDNAVIGATOR; c.draw = c.drawUp = 1; c.scry = 1; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("voidnavigator_grand_jump", "终局深空跃迁", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按航迹、临时牌、消耗、检视、汇流和过载追加终局收益。", "更高伤害、格挡和航标返还。");
+        c.profession = PROF_VOIDNAVIGATOR; c.draw = c.drawUp = 1; c.scry = 2; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "voidnavigator_beacon"; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -24201,6 +24678,8 @@ public final class GameCore {
         addRelicDef("plague_crown", "疫冠", "获得升级终局疫潮；瘟疫医师药剂、状态、异常、治疗、充能和稀有牌会滚动标记、补药与疫潮追击。");
         addRelicDef("archive_key", "档案钥", "档案员检视、升级、状态、归档和职业牌更快推动职业技；释放后制造索引并升级手牌。");
         addRelicDef("archive_crown", "档案冠", "获得升级终局大档案；档案员检视、升级、归档、充能和稀有牌会滚动印记、抽牌与裁页追击。");
+        addRelicDef("void_compass", "虚空罗盘", "虚空领航员临时牌、消耗、检视、汇流和职业牌更快推动职业技；释放后制造航标并返能。");
+        addRelicDef("void_crown", "深空冠", "获得升级终局深空跃迁；虚空领航员回声、消耗、过载和稀有牌会滚动印记、抽牌与跃迁追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -24458,6 +24937,9 @@ public final class GameCore {
         addTalent("t_archivist_index", PROF_ARCHIVIST, "索引回路", "获得升级索引札并升级牌组；检视、抽牌、升级和档案牌追加印记，并把案卷转成穿透追击。");
         addTalent("t_archivist_seal", PROF_ARCHIVIST, "封存防线", "获得生命和升级封存印；格挡、技能、升级和状态牌提供额外防线，并在关键节奏净化状态。");
         addTalent("t_archivist_redline", PROF_ARCHIVIST, "朱批裁页", "获得升级朱批裁页；易伤、束缚、归档和充能牌会扩张控制压力并转成裁页追击。");
+        addTalent("t_voidnavigator_beacon", PROF_VOIDNAVIGATOR, "航标回路", "获得升级虚空航标和裂隙折返；低费、检视、临时和虚空牌追加印记，并把航迹转成穿透追击。");
+        addTalent("t_voidnavigator_anchor", PROF_VOIDNAVIGATOR, "相位防线", "获得生命和升级相位锚；格挡、技能、临时牌和消耗牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_voidnavigator_rift", PROF_VOIDNAVIGATOR, "裂隙折返", "获得升级裂隙折返；易伤、束缚、消耗、回声和充能牌会扩张控制压力并转成折返追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -24497,6 +24979,7 @@ public final class GameCore {
         addTalent("t_frostbinder_grand", PROF_FROSTBINDER, "终局凛冬", "获得升级终局凛冬；状态、束缚、格挡、消耗与过载牌持续加固防线并把霜纹印记转为凛冬裁切。");
         addTalent("t_plaguedoctor_grand", PROF_PLAGUEDOCTOR, "终局疫潮", "获得升级终局疫潮；药剂、状态、治疗、异常与过载牌持续抽牌、补药并把病灶印记转为疫潮裁切。");
         addTalent("t_archivist_grand", PROF_ARCHIVIST, "终局大档案", "获得升级终局大档案；检视、升级、状态、归档与过载牌持续抽牌、升级并把案卷印记转为档案裁切。");
+        addTalent("t_voidnavigator_grand", PROF_VOIDNAVIGATOR, "终局深空", "获得升级终局深空跃迁；临时、消耗、检视、汇流与过载牌持续抽牌、返能并把航迹印记转为跃迁裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
