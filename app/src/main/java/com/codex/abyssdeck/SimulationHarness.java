@@ -244,6 +244,8 @@ public final class SimulationHarness {
             if (isBeastmasterCard(d)) score += 14;
             if (GameCore.PROF_DRAGONBINDER.equals(s.profession) && isDragonbinderSignal(d)) score += 14;
             if (isDragonbinderCard(d)) score += 14;
+            if (GameCore.PROF_SOULBINDER.equals(s.profession) && isSoulbinderSignal(d)) score += 14;
+            if (isSoulbinderCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -616,6 +618,12 @@ public final class SimulationHarness {
                     || "bulwark_core".equals(id) || "confluence_map".equals(id) || "echo_ledger".equals(id)
                     || "overload_etch".equals(id) || "discipline_chart".equals(id) || "resonance_prism".equals(id)
                     || "witch_bottle".equals(id) || "recipe_book".equals(id))) score += 36;
+            if (GameCore.PROF_SOULBINDER.equals(s.profession) && ("soul_crown".equals(id) || "soul_lantern".equals(id)
+                    || "spirit_planchette".equals(id) || "ancestral_planchette".equals(id) || "dreamcatcher_charm".equals(id)
+                    || "void_abacus".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bulwark_core".equals(id)
+                    || "confluence_map".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                    || "resonance_prism".equals(id) || "plague_case".equals(id) || "frost_chain".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -827,6 +835,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_DRAGONBINDER.equals(s.profession) && ("pact_brewer".equals(id) || "pact_guardian".equals(id)
                     || "pact_suppression".equals(id) || "pact_void".equals(id) || "pact_hunter".equals(id)
                     || "pact_confluence".equals(id))) score += 24;
+            if (GameCore.PROF_SOULBINDER.equals(s.profession) && ("pact_void".equals(id) || "pact_summon".equals(id)
+                    || "pact_guardian".equals(id) || "pact_suppression".equals(id) || "pact_hex".equals(id)
+                    || "pact_confluence".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -1020,6 +1031,10 @@ public final class SimulationHarness {
                     || "spec_echoflow".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
                     || "spec_pressure".equals(id) || "spec_sustain".equals(id) || "spec_bulwark".equals(id)
                     || "spec_tempo".equals(id))) score += 10;
+            if (GameCore.PROF_SOULBINDER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_echoflow".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
+                    || "spec_pressure".equals(id) || "spec_sustain".equals(id) || "spec_bulwark".equals(id)
+                    || "spec_tempo".equals(id) || "spec_salvage".equals(id))) score += 10;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -1097,7 +1112,7 @@ public final class SimulationHarness {
                         || isTacticianCard(d) || isPrismistCard(d) || isDreamwalkerCard(d) || isGardenerCard(d)
                         || isBardCard(d) || isMirroristCard(d) || isPuppeteerCard(d) || isScavengerCard(d)
                         || isGeomancerCard(d) || isWitchCard(d) || isFrostbinderCard(d) || isBeastmasterCard(d)
-                        || isDragonbinderCard(d))) score += 20;
+                        || isDragonbinderCard(d) || isSoulbinderCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -1427,6 +1442,19 @@ public final class SimulationHarness {
                     if (tempOrEchoHandCards(s) >= 2 && ("dragonbinder_scale".equals(c.id)
                             || "dragonbinder_hatch".equals(c.id) || "dragonbinder_grand_oath".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_SOULBINDER.equals(s.profession) && (isSoulbinderSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.createEcho || c.temp || d.exhaust || d.heal > 0 || d.block > 0
+                            || d.draw > 0 || isSoulbinderCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isSoulbinderCard(d)
+                            || d.createEcho || d.exhaust)) score += 6;
+                    if (soulbinderEnemyPressure(s) >= 8 && ("soulbinder_lash".equals(c.id)
+                            || "soulbinder_overbind".equals(c.id) || "soulbinder_grand_pact".equals(c.id))) score += 8;
+                    if ((tempOrEchoHandCards(s) >= 3 || s.exhaust.size() >= 4 || s.block >= 14)
+                            && (d.draw > 0 || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0 || isSoulbinderCard(d))) score += 5;
+                    if (tempOrEchoHandCards(s) >= 2 && ("soulbinder_veil".equals(c.id)
+                            || "soulbinder_pact".equals(c.id) || "soulbinder_grand_pact".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1642,6 +1670,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || d.createEcho || c.temp || isDragonbinderCard(d))) score += 12;
                 if (s.talents.contains("t_dragonbinder_grand") && (d.createEcho || c.temp || d.burn > 0
                         || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isDragonbinderCard(d))) score += 14;
+                if (s.talents.contains("t_soulbinder_thread") && (d.cost == 0 || d.draw > 0 || d.createEcho
+                        || c.temp || d.exhaust || d.bind > 0 || isSoulbinderCard(d))) score += 12;
+                if (s.talents.contains("t_soulbinder_veil") && (d.block > 0 || d.heal > 0 || d.type == 1
+                        || d.createEcho || c.temp || isSoulbinderCard(d))) score += 12;
+                if (s.talents.contains("t_soulbinder_pact") && (d.bind > 0 || d.vulnerable > 0
+                        || d.skillChargeGain > 0 || d.exhaust || d.createEcho || c.temp || isSoulbinderCard(d))) score += 12;
+                if (s.talents.contains("t_soulbinder_grand") && (d.createEcho || c.temp || d.exhaust || d.bind > 0
+                        || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isSoulbinderCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2158,6 +2194,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_SOULBINDER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean soulWindow = target >= 0 && (s.enemies.get(target).bind >= 3
+                    || s.enemies.get(target).vulnerable > 0 || s.enemies.get(target).mark >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || soulWindow || tempOrEchoHandCards(s) >= 3
+                    || s.exhaust.size() >= 4 || statusDeckCards(s) >= 1 || soulbinderEnemyPressure(s) >= 7
+                    || s.hp < s.maxHp * 0.75f || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2181,7 +2227,8 @@ public final class SimulationHarness {
                 || "t_voidnavigator_grand".equals(id) || "t_relicsmith_key".equals(id)
                 || "t_relicsmith_grand".equals(id) || "t_beastmaster_claw".equals(id)
                 || "t_beastmaster_grand".equals(id) || "t_dragonbinder_spark".equals(id)
-                || "t_dragonbinder_grand".equals(id));
+                || "t_dragonbinder_grand".equals(id) || "t_soulbinder_thread".equals(id)
+                || "t_soulbinder_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2523,6 +2570,7 @@ public final class SimulationHarness {
                 || s.relics.contains("relic_chisel") || s.relics.contains("vault_crown")
                 || s.relics.contains("beast_whistle") || s.relics.contains("alpha_crown")
                 || s.relics.contains("dragon_sigil") || s.relics.contains("elder_dragon_crown")
+                || s.relics.contains("soul_lantern") || s.relics.contains("soul_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2908,6 +2956,33 @@ public final class SimulationHarness {
         }
         pressure += Math.min(5, tempOrEchoHandCards(s));
         pressure += Math.min(4, s.block / 6);
+        return pressure;
+    }
+
+    private static boolean isSoulbinderSignal(GameCore.CardDef d) {
+        return d != null && (d.createEcho || d.exhaust || d.exhaustTopDiscard || d.heal > 0
+                || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.vulnerable > 0
+                || d.bind > 0 || d.createWound || "wound".equals(d.id) || "daze".equals(d.id)
+                || isHybridCore(d) || GameCore.PROF_SOULBINDER.equals(d.profession)
+                || GameCore.PROF_MEDIUM.equals(d.profession) || GameCore.PROF_DREAMWALKER.equals(d.profession)
+                || GameCore.PROF_PLAGUEDOCTOR.equals(d.profession));
+    }
+
+    private static boolean isSoulbinderCard(GameCore.CardDef d) {
+        return d != null && ("soulbinder_thread".equals(d.id) || "soulbinder_veil".equals(d.id)
+                || "soulbinder_pact".equals(d.id) || "soulbinder_lash".equals(d.id)
+                || "soulbinder_overbind".equals(d.id) || "soulbinder_grand_pact".equals(d.id));
+    }
+
+    private static int soulbinderEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(5, tempOrEchoHandCards(s));
+        pressure += Math.min(5, s.exhaust.size() / 2);
         return pressure;
     }
 

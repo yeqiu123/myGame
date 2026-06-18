@@ -133,6 +133,7 @@ public final class GameCore {
     public static final String PROF_RELICSMITH = "遗物匠";
     public static final String PROF_BEASTMASTER = "驯兽师";
     public static final String PROF_DRAGONBINDER = "龙契者";
+    public static final String PROF_SOULBINDER = "魂契师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -142,7 +143,7 @@ public final class GameCore {
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
-            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER
+            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -841,6 +842,7 @@ public final class GameCore {
         if (PROF_RELICSMITH.equals(profession)) return "开匣";
         if (PROF_BEASTMASTER.equals(profession)) return "群猎";
         if (PROF_DRAGONBINDER.equals(profession)) return "龙誓";
+        if (PROF_SOULBINDER.equals(profession)) return "魂契";
         return "职业技";
     }
 
@@ -922,6 +924,7 @@ public final class GameCore {
         if (PROF_RELICSMITH.equals(profession)) return "满充能：消耗匠印开匣，按遗物、金币、升级、格挡、汇流和过载造成穿透，获得金币、格挡并制造遗物牌。";
         if (PROF_BEASTMASTER.equals(profession)) return "满充能：消耗兽势群猎，按临时伙伴、束缚、治疗、格挡、汇流和过载造成穿透，治疗、控场并制造兽牌。";
         if (PROF_DRAGONBINDER.equals(profession)) return "满充能：消耗龙印龙誓，按燃烧、临时龙牌、格挡、治疗、汇流和过载造成穿透，点燃、护盾并制造龙牌。";
+        if (PROF_SOULBINDER.equals(profession)) return "满充能：消耗魂印魂契，按消耗、临时魂牌、治疗、状态、汇流和过载造成穿透，治疗、虚弱并制造魂牌。";
         return "选择职业后可用。";
     }
 
@@ -2352,6 +2355,49 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, oath / 2);
+        } else if (PROF_SOULBINDER.equals(s.profession)) {
+            int souls = Math.max(1, s.professionCharge);
+            int echoes = Math.min(20, tempOrEchoHandCount(s) + tempOrEchoDeckCards(s) / 2 + s.pactTempCards);
+            int exhausts = Math.min(20, s.exhaust.size() + exhaustDeckCards(s));
+            int healing = Math.min(16, healingDeckCards(s) + buildFocusDeckCards(s, BUILD_BLOOD));
+            int statuses = Math.min(18, statusDeckCards(s) + statusHandCards(s) + buildFocusDeckCards(s, BUILD_STATUS));
+            int guard = Math.min(14, s.block / 6 + buildFocusDeckCards(s, BUILD_GUARD));
+            int chain = Math.min(12, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 3 + target.burn;
+            int damage = 9 + s.act * 3 + Math.min(82, souls * 3 + echoes * 4
+                    + exhausts * 4 + healing * 4 + statuses * 3 + guard * 2 + chain * 4 + pressure) + overload * 7;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.bind += 2 + s.bindPower / 2 + Math.min(4, souls / 4 + exhausts / 5) + overload / 2;
+                target.mark += 2 + Math.min(3, echoes / 4 + chain / 4);
+                target.vulnerable += 1 + Math.min(2, overload / 4 + pressure / 18);
+            }
+            s.hp = Math.min(s.maxHp, s.hp + 4 + Math.min(16, souls / 2 + healing * 2 + echoes) + overload);
+            gainBlock(s, 5 + s.act * 2 + Math.min(38, souls * 2 + echoes * 3
+                    + exhausts * 2 + statuses * 2 + guard * 4) + overload * 3);
+            draw(s, 1 + Math.min(3, souls / 5 + echoes / 4 + healing / 4) + overload / 4);
+            if (echoes >= 3 || exhausts >= 4 || healing >= 3 || overload >= 2) {
+                s.energy++;
+            }
+            Card thread = new Card(overload >= 4 || hasTalent(s, "t_soulbinder_grand")
+                    ? "soulbinder_grand_pact" : "soulbinder_thread");
+            thread.temp = true;
+            thread.upgraded = souls >= 5 || hasTalent(s, "t_soulbinder_thread");
+            addToHand(s, thread);
+            if (hasTalent(s, "t_soulbinder_grand")) {
+                Card pact = new Card("soulbinder_pact");
+                pact.temp = true;
+                pact.upgraded = true;
+                addToHand(s, pact);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.min(3, echoes / 3));
+            addQuestProgress(s, QUEST_BLOODCOIN, 1 + Math.min(3, healing / 3));
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, statuses / 3 + pressure / 12));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, souls / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3847,6 +3893,9 @@ public final class GameCore {
         if (PROF_DRAGONBINDER.equals(profession)) {
             return "用燃烧、临时龙牌、格挡和治疗积累龙印，把火力与防线转成龙誓爆发。适合异常、守势、回声、汇流和过载构筑。";
         }
+        if (PROF_SOULBINDER.equals(profession)) {
+            return "用消耗、临时魂牌、治疗和状态牌积累魂印，把续航、控场与牌库净化转成魂契爆发。适合回声、血契、异常、守势和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -3979,6 +4028,9 @@ public final class GameCore {
         }
         if (PROF_DRAGONBINDER.equals(profession)) {
             return 0xffff8f66;
+        }
+        if (PROF_SOULBINDER.equals(profession)) {
+            return 0xffb68cff;
         }
         return 0xffd6c07a;
     }
@@ -4416,6 +4468,13 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_SOULBINDER.equals(profession)) {
+            s.deck.add(new Card("soulbinder_thread"));
+            s.deck.add(new Card("soulbinder_veil"));
+            s.deck.add(new Card("wound"));
+            s.maxHp += 4;
+            s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4480,6 +4539,7 @@ public final class GameCore {
         else if (PROF_RELICSMITH.equals(profession)) upgradeDeckCard(s, "relicsmith_key");
         else if (PROF_BEASTMASTER.equals(profession)) upgradeDeckCard(s, "beastmaster_claw");
         else if (PROF_DRAGONBINDER.equals(profession)) upgradeDeckCard(s, "dragonbinder_spark");
+        else if (PROF_SOULBINDER.equals(profession)) upgradeDeckCard(s, "soulbinder_thread");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4661,6 +4721,12 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_SOULBINDER.equals(profession)) {
+            addUpgradedDeckCard(s, "soulbinder_pact");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4708,6 +4774,7 @@ public final class GameCore {
         if (PROF_RELICSMITH.equals(profession)) return "relicsmith_overvault";
         if (PROF_BEASTMASTER.equals(profession)) return "beastmaster_overpack";
         if (PROF_DRAGONBINDER.equals(profession)) return "dragonbinder_overflame";
+        if (PROF_SOULBINDER.equals(profession)) return "soulbinder_overbind";
         return "forge_signal";
     }
 
@@ -5341,6 +5408,21 @@ public final class GameCore {
         } else if ("t_dragonbinder_grand".equals(id)) {
             addUpgradedDeckCard(s, "dragonbinder_grand_oath");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_soulbinder_thread".equals(id)) {
+            addUpgradedDeckCard(s, "soulbinder_thread");
+            addUpgradedDeckCard(s, "soulbinder_lash");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_soulbinder_veil".equals(id)) {
+            addUpgradedDeckCard(s, "soulbinder_veil");
+            removeStatusCard(s);
+            s.maxHp += 4;
+            s.hp += 4;
+        } else if ("t_soulbinder_pact".equals(id)) {
+            addUpgradedDeckCard(s, "soulbinder_pact");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_soulbinder_grand".equals(id)) {
+            addUpgradedDeckCard(s, "soulbinder_grand_pact");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5788,7 +5870,7 @@ public final class GameCore {
                 || "t_frostbinder_grand".equals(id) || "t_plaguedoctor_grand".equals(id)
                 || "t_archivist_grand".equals(id) || "t_voidnavigator_grand".equals(id)
                 || "t_relicsmith_grand".equals(id) || "t_beastmaster_grand".equals(id)
-                || "t_dragonbinder_grand".equals(id);
+                || "t_dragonbinder_grand".equals(id) || "t_soulbinder_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5813,7 +5895,7 @@ public final class GameCore {
                 || "frostbinder_grand_winter".equals(id) || "plaguedoctor_grand_plague".equals(id)
                 || "archivist_grand_archive".equals(id) || "voidnavigator_grand_jump".equals(id)
                 || "relicsmith_grand_vault".equals(id) || "beastmaster_grand_hunt".equals(id)
-                || "dragonbinder_grand_oath".equals(id);
+                || "dragonbinder_grand_oath".equals(id) || "soulbinder_grand_pact".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5836,7 +5918,8 @@ public final class GameCore {
                 || "witch_moon_crown".equals(id) || "phase_crown".equals(id)
                 || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
                 || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id)
-                || "vault_crown".equals(id) || "alpha_crown".equals(id) || "elder_dragon_crown".equals(id);
+                || "vault_crown".equals(id) || "alpha_crown".equals(id) || "elder_dragon_crown".equals(id)
+                || "soul_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -6378,6 +6461,12 @@ public final class GameCore {
                 || d.vulnerable > 0 || d.cost == 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_DRAGONBINDER) || d.profession.equals(PROF_ALCHEMIST)
                 || d.profession.equals(PROF_CHEF) || d.profession.equals(PROF_WITCH))) amount++;
+        else if (PROF_SOULBINDER.equals(s.profession) && d != null && (d.createEcho || d.exhaust
+                || d.exhaustTopDiscard || d.heal > 0 || d.block > 0 || d.draw > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.createWound
+                || "wound".equals(d.id) || "daze".equals(d.id) || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_SOULBINDER) || d.profession.equals(PROF_MEDIUM)
+                || d.profession.equals(PROF_DREAMWALKER) || d.profession.equals(PROF_PLAGUEDOCTOR))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -8574,6 +8663,40 @@ public final class GameCore {
                 target.mark += 2;
             }
         }
+        if (hasRelic(s, "soul_lantern") && PROF_SOULBINDER.equals(s.profession)) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int exhausts = s.exhaust.size() + exhaustDeckCards(s);
+            draw(s, 1);
+            s.hp = Math.min(s.maxHp, s.hp + 2 + s.act + Math.min(8, echoes + healingDeckCards(s)));
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + echoes / 2 + exhausts / 4));
+            gainBlock(s, 5 + s.act + Math.min(18, s.professionCharge * 2 + echoes * 3 + exhausts));
+            Card thread = new Card("soulbinder_thread");
+            thread.temp = true;
+            thread.upgraded = true;
+            addToHand(s, thread);
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2;
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(28, target.bind * 3
+                        + s.professionCharge * 2 + echoes * 3), true);
+            }
+        }
+        if (hasRelic(s, "soul_crown") && PROF_SOULBINDER.equals(s.profession)) {
+            Card bind = new Card("soulbinder_overbind");
+            bind.temp = true;
+            bind.upgraded = true;
+            addToHand(s, bind);
+            draw(s, 1);
+            if (s.professionCharge >= 5 || s.exhaust.size() >= 4 || tempOrEchoHandCount(s) >= 3
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+                target.mark += 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -8670,6 +8793,9 @@ public final class GameCore {
         if (hasRelic(s, "dragon_sigil") && PROF_DRAGONBINDER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || burnDeckCards(s) >= 2 || tempOrEchoHandCount(s) >= 2
                 || s.block >= 12 || firstLiving(s) != null && firstLiving(s).burn > 0)) amount++;
+        if (hasRelic(s, "soul_lantern") && PROF_SOULBINDER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || tempOrEchoHandCount(s) >= 2 || s.exhaust.size() >= 3
+                || s.hp < s.maxHp || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -10472,6 +10598,36 @@ public final class GameCore {
                 hatch.temp = true;
                 hatch.upgraded = true;
                 addToHand(s, hatch);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_SOULBINDER.equals(s.profession) && s.turn == 1) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int exhausts = Math.min(10, s.exhaust.size() + exhaustDeckCards(s));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, echoes + exhausts / 3 + healingDeckCards(s) / 3);
+            gainBlock(s, 4 + s.act + Math.min(10, echoes * 2 + exhausts + s.professionCharge));
+            s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+                firstLiving(s).mark += hasTalent(s, "t_soulbinder_thread") ? 2 : 1;
+            }
+            if (hasTalent(s, "t_soulbinder_thread")) {
+                Card thread = new Card("soulbinder_thread");
+                thread.temp = true;
+                thread.upgraded = true;
+                addToHand(s, thread);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_soulbinder_veil")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_soulbinder_grand")) {
+                Card pact = new Card("soulbinder_pact");
+                pact.temp = true;
+                pact.upgraded = true;
+                addToHand(s, pact);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -14077,6 +14233,120 @@ public final class GameCore {
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("soulbinder_thread".equals(d.id) && target != null) {
+            int souls = Math.max(0, s.professionCharge);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            damage += Math.min(c.upgraded ? 34 : 24, souls * 2 + echoes * 3 + target.bind * 3
+                    + s.exhaust.size() * 2 + target.mark * 2);
+            target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            target.mark += c.upgraded ? 2 : 1;
+            if (echoes >= 2 || target.bind >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 2 : 1);
+        }
+        if ("soulbinder_veil".equals(d.id)) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int healing = healingDeckCards(s);
+            block += Math.min(c.upgraded ? 38 : 27, s.professionCharge * 2 + echoes * 4
+                    + healing * 3 + s.exhaust.size() * 2);
+            heal += 2 + Math.min(c.upgraded ? 8 : 5, echoes + healing);
+            if (echoes >= 2 || s.hp < s.maxHp || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_BLOODCOIN, 1);
+        }
+        if ("soulbinder_pact".equals(d.id)) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            block += Math.min(c.upgraded ? 36 : 25, s.professionCharge * 2 + echoes * 4
+                    + s.exhaust.size() * 2 + healingDeckCards(s) * 2);
+            Card thread = new Card("soulbinder_thread");
+            thread.temp = true;
+            thread.upgraded = c.upgraded || echoes >= 3;
+            addToHand(s, thread);
+            if (echoes >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            removeStatusCard(s);
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, focusMaskCount(s.confluenceMask)));
+        }
+        if ("soulbinder_lash".equals(d.id) && target != null) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int pressure = target.bind * 4 + target.mark * 4 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 56 : 40, pressure + echoes * 5
+                    + s.professionCharge * 2 + s.exhaust.size() * 3 + healingDeckCards(s) * 2);
+            target.bind += 2 + s.bindPower / 2;
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            if (target.bind + target.mark >= 5 || echoes >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+        }
+        if ("soulbinder_overbind".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int exhausts = s.exhaust.size() + exhaustDeckCards(s);
+            block += Math.min(c.upgraded ? 46 : 32, s.professionCharge * 2 + echoes * 5
+                    + exhausts * 3 + overloadNow * 7);
+            heal += 2 + Math.min(10, echoes + exhausts / 2 + overloadNow * 2);
+            if (target != null) {
+                target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 68 : 48, overloadNow * 8 + echoes * 5
+                        + exhausts * 4 + target.bind * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || echoes >= 3 || exhausts >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, 1);
+        }
+        if ("soulbinder_grand_pact".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int exhausts = s.exhaust.size() + exhaustDeckCards(s);
+            int labels = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 96 : 74, s.professionCharge * 4 + echoes * 7
+                    + exhausts * 6 + healingDeckCards(s) * 3 + labels * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 68 : 50, s.professionCharge * 3 + echoes * 5
+                    + exhausts * 3 + labels * 3 + overloadNow * 6);
+            heal += 3 + Math.min(14, echoes + healingDeckCards(s) + overloadNow * 2);
+            if (target != null) {
+                target.bind += 3 + s.bindPower / 2;
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+            }
+            Card thread = new Card("soulbinder_thread");
+            thread.temp = true;
+            thread.upgraded = true;
+            addToHand(s, thread);
+            removeStatusCard(s);
+            if (echoes >= 3 || exhausts >= 4 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
@@ -17982,6 +18252,93 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_SOULBINDER.equals(s.profession) && (d.createEcho || c.temp || d.exhaust || d.exhaustTopDiscard
+                || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.createWound || d.profession.equals(PROF_SOULBINDER)
+                || d.profession.equals(PROF_MEDIUM) || d.profession.equals(PROF_DREAMWALKER)
+                || d.profession.equals(PROF_PLAGUEDOCTOR))) {
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int exhausts = Math.min(18, s.exhaust.size() + exhaustDeckCards(s));
+            s.professionCharge += 1 + Math.min(2, (echoes / 3 + exhausts / 4
+                    + (d.createEcho || c.temp ? 2 : 0) + (d.heal > 0 || d.exhaust ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.bind += 1 + s.bindPower / 2;
+                    e.mark += 1;
+                    if (d.bind > 0 || d.vulnerable > 0 || hasTalent(s, "t_soulbinder_pact")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(36, e.bind * 2 + e.mark * 2
+                            + echoes * 3 + exhausts * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.heal > 0 || hasTalent(s, "t_soulbinder_veil")) {
+                    gainBlock(s, 3 + s.act + Math.min(18, s.professionCharge + echoes * 2 + exhausts));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || echoes >= 3 || hasTalent(s, "t_soulbinder_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_soulbinder_thread") && (d.cost == 0 || d.draw > 0 || d.createEcho
+                || c.temp || d.exhaust || d.bind > 0 || d.profession.equals(PROF_SOULBINDER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(30, e.bind * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + s.exhaust.size()), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || c.temp) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_soulbinder_veil") && (d.block > 0 || d.heal > 0 || d.type == 1
+                || d.createEcho || c.temp || d.profession.equals(PROF_SOULBINDER))) {
+            gainBlock(s, 4 + s.act + Math.min(18, s.professionCharge + tempOrEchoHandCount(s) * 3
+                    + healingDeckCards(s) + s.exhaust.size()));
+            if (s.hp < s.maxHp && s.cardsPlayedThisTurn <= 3) {
+                s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
+            }
+            if (s.cardsPlayedThisTurn == 3 || s.hp < s.maxHp) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_soulbinder_pact") && (d.bind > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
+                || d.exhaust || d.createEcho || c.temp || d.profession.equals(PROF_SOULBINDER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 8 || s.cardsPlayedThisTurn >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(34, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_soulbinder_grand") && (d.createEcho || c.temp || d.exhaust || d.bind > 0
+                || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.rarity == 2 || d.profession.equals(PROF_SOULBINDER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || tempOrEchoHandCount(s) >= 3 || s.exhaust.size() >= 4)) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(40, e.bind * 2 + e.mark * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + s.exhaust.size() * 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -18928,6 +19285,44 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 gainBlock(s, 3 + s.act);
+            }
+        }
+        if (hasRelic(s, "soul_lantern") && (d.createEcho || c.temp || d.exhaust || d.heal > 0
+                || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_SOULBINDER))) {
+            addProfessionSkillCharge(s, 1);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge + echoes * 3 + s.exhaust.size()));
+                if (s.hp < s.maxHp) {
+                    s.hp = Math.min(s.maxHp, s.hp + 1 + s.act);
+                }
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                if (d.createEcho || c.temp || d.exhaust || e.bind >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(30, e.bind * 2
+                            + echoes * 3 + s.professionCharge * 2 + s.exhaust.size()), true);
+                }
+            }
+        }
+        if (hasRelic(s, "soul_crown") && (d.createEcho || c.temp || d.exhaust || d.bind > 0 || d.heal > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_SOULBINDER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.bind += 1 + s.bindPower / 2;
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.bind >= 4 || s.cardsPlayedThisTurn >= 4 || tempOrEchoHandCount(s) >= 3 || s.exhaust.size() >= 4) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(36, e.bind * 2 + e.mark * 2
+                            + s.professionCharge + tempOrEchoHandCount(s) * 3 + s.exhaust.size()), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -20398,6 +20793,9 @@ public final class GameCore {
         if (PROF_DRAGONBINDER.equals(d.profession)) {
             return dragonbinderFocusCardValue(d, focus);
         }
+        if (PROF_SOULBINDER.equals(d.profession)) {
+            return soulbinderFocusCardValue(d, focus);
+        }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
@@ -21477,6 +21875,42 @@ public final class GameCore {
         return 0;
     }
 
+    private static int soulbinderFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.heal * 2 + d.bind * 2 + (d.createEcho ? 4 : 0)
+                    + (d.exhaust ? 5 : 0) + ("soulbinder_thread".equals(d.id) ? 8 : 0)
+                    + ("soulbinder_lash".equals(d.id) ? 9 : 0) + ("soulbinder_overbind".equals(d.id) ? 16 : 0)
+                    + ("soulbinder_grand_pact".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 13 : 0) + d.draw * 3 + (d.exhaust ? 5 : 0) + (d.cost == 0 ? 6 : 0)
+                    + ("soulbinder_thread".equals(d.id) ? 12 : 0) + ("soulbinder_pact".equals(d.id) ? 16 : 0)
+                    + ("soulbinder_grand_pact".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return d.heal * 6 + (d.createWound ? 9 : 0) + ("wound".equals(d.id) ? 5 : 0)
+                    + ("soulbinder_veil".equals(d.id) ? 14 : 0) + ("soulbinder_pact".equals(d.id) ? 14 : 0)
+                    + ("soulbinder_grand_pact".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 6 + d.vulnerable * 7 + d.skillChargeGain * 2 + (d.createWound ? 8 : 0)
+                    + ("wound".equals(d.id) || "daze".equals(d.id) ? 5 : 0)
+                    + ("soulbinder_thread".equals(d.id) ? 10 : 0) + ("soulbinder_lash".equals(d.id) ? 18 : 0)
+                    + ("soulbinder_overbind".equals(d.id) ? 16 : 0) + ("soulbinder_grand_pact".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 7 : 0) + d.skillChargeGain * 2
+                    + (d.createEcho ? 5 : 0) + (d.exhaust ? 4 : 0) + ("soulbinder_thread".equals(d.id) ? 16 : 0)
+                    + ("soulbinder_pact".equals(d.id) ? 14 : 0) + ("soulbinder_grand_pact".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + d.heal * 5 + (d.type == 1 ? 5 : 0) + d.draw * 2 + (d.createEcho ? 4 : 0)
+                    + ("soulbinder_veil".equals(d.id) ? 18 : 0) + ("soulbinder_pact".equals(d.id) ? 16 : 0)
+                    + ("soulbinder_overbind".equals(d.id) ? 16 : 0) + ("soulbinder_grand_pact".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -21939,6 +22373,16 @@ public final class GameCore {
         else if ("t_dragonbinder_grand".equals(id)) bonus += professionCards + burnDeckCards(s) * 2
                 + tempOrEchoDeckCards(s) + healingDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_soulbinder_thread".equals(id)) bonus += zeroCost * 2 + tempOrEchoDeckCards(s) * 2
+                + exhaustDeckCards(s) + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_soulbinder_veil".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + healingDeckCards(s) * 2 + tempOrEchoDeckCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_soulbinder_pact".equals(id)) bonus += bindDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_BLOOD)
+                + exhaustDeckCards(s) + professionCards;
+        else if ("t_soulbinder_grand".equals(id)) bonus += professionCards + tempOrEchoDeckCards(s) * 2
+                + exhaustDeckCards(s) + healingDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -21987,6 +22431,13 @@ public final class GameCore {
             if (focus == BUILD_OVERLOAD && isAny(id, "t_dragonbinder_hatch", "t_dragonbinder_grand")) return 3;
             if (focus == BUILD_CYCLE && isAny(id, "t_dragonbinder_spark", "t_dragonbinder_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_dragonbinder_scale", "t_dragonbinder_grand")) return 3;
+        }
+        if (isAny(id, "t_soulbinder_thread", "t_soulbinder_veil", "t_soulbinder_pact", "t_soulbinder_grand")) {
+            if (focus == BUILD_ECHO || focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_BLOOD && isAny(id, "t_soulbinder_veil", "t_soulbinder_pact", "t_soulbinder_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_soulbinder_pact", "t_soulbinder_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_soulbinder_thread", "t_soulbinder_pact", "t_soulbinder_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_soulbinder_veil", "t_soulbinder_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -22731,6 +23182,10 @@ public final class GameCore {
             return focus == BUILD_BREW || focus == BUILD_STATUS || focus == BUILD_ECHO
                     || focus == BUILD_CYCLE || focus == BUILD_GUARD || focus == BUILD_OVERLOAD ? 3 : 0;
         }
+        if ("soul_lantern".equals(id) || "soul_crown".equals(id)) {
+            return focus == BUILD_ECHO || focus == BUILD_STATUS || focus == BUILD_CYCLE
+                    || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_BLOOD ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -22876,7 +23331,8 @@ public final class GameCore {
                 || (PROF_VOIDNAVIGATOR.equals(s.profession) && "void_compass".equals(id))
                 || (PROF_RELICSMITH.equals(s.profession) && "relic_chisel".equals(id))
                 || (PROF_BEASTMASTER.equals(s.profession) && "beast_whistle".equals(id))
-                || (PROF_DRAGONBINDER.equals(s.profession) && "dragon_sigil".equals(id));
+                || (PROF_DRAGONBINDER.equals(s.profession) && "dragon_sigil".equals(id))
+                || (PROF_SOULBINDER.equals(s.profession) && "soul_lantern".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -22931,6 +23387,7 @@ public final class GameCore {
                 || hasRelic(s, "archive_key") || hasRelic(s, "archive_crown")
                 || hasRelic(s, "beast_whistle") || hasRelic(s, "alpha_crown")
                 || hasRelic(s, "dragon_sigil") || hasRelic(s, "elder_dragon_crown")
+                || hasRelic(s, "soul_lantern") || hasRelic(s, "soul_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
@@ -23888,7 +24345,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -23932,6 +24389,7 @@ public final class GameCore {
         if (PROF_RELICSMITH.equals(s.profession)) return "relic_chisel";
         if (PROF_BEASTMASTER.equals(s.profession)) return "beast_whistle";
         if (PROF_DRAGONBINDER.equals(s.profession)) return "dragon_sigil";
+        if (PROF_SOULBINDER.equals(s.profession)) return "soul_lantern";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -24387,6 +24845,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_DRAGONBINDER.equals(s.profession) && "elder_dragon_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_SOULBINDER.equals(s.profession) && ("soul_lantern".equals(id) || "spirit_planchette".equals(id)
+                || "ancestral_planchette".equals(id) || "dreamcatcher_charm".equals(id) || "void_abacus".equals(id)
+                || "echo_ledger".equals(id) || "echoflow_charm".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "bulwark_core".equals(id) || "confluence_map".equals(id)
+                || "overload_etch".equals(id) || "discipline_chart".equals(id) || "resonance_prism".equals(id)
+                || "plague_case".equals(id) || "frost_chain".equals(id))) {
+            return 2;
+        }
+        if (PROF_SOULBINDER.equals(s.profession) && "soul_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -24936,6 +25405,19 @@ public final class GameCore {
         } else if ("elder_dragon_crown".equals(id)) {
             addUpgradedDeckCard(s, "dragonbinder_grand_oath");
             addUpgradedDeckCard(s, "dragonbinder_spark");
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("soul_lantern".equals(id)) {
+            addUpgradedDeckCard(s, "soulbinder_pact");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("soul_crown".equals(id)) {
+            addUpgradedDeckCard(s, "soulbinder_grand_pact");
+            addUpgradedDeckCard(s, "soulbinder_thread");
+            removeStatusCard(s);
             s.maxHp += 5;
             s.hp += 5;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
@@ -25822,6 +26304,18 @@ public final class GameCore {
         c.profession = PROF_DRAGONBINDER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.burn = 2; c.burnUp = 3; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("dragonbinder_grand_oath", "终局古龙誓", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按龙印、燃烧、龙牌、治疗、汇流和过载追加终局收益。", "更高伤害、格挡和龙牌返还。");
         c.profession = PROF_DRAGONBINDER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.burn = 3; c.burnUp = 4; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "dragonbinder_spark"; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("soulbinder_thread", "魂线牵引", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加束缚；临时魂牌、消耗和魂印会提高收益。", "更高伤害、束缚和魂印。");
+        c.profession = PROF_SOULBINDER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("soulbinder_veil", "魂幕护身", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌和治疗；临时魂牌与治疗牌会加厚防线。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_SOULBINDER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.skillChargeGain = 1;
+        c = addCard("soulbinder_pact", "结魂契", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌、净化状态并制造临时魂线牵引；魂牌足够时返能。", "更多格挡、魂牌和返能窗口。");
+        c.profession = PROF_SOULBINDER; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "soulbinder_thread"; c.skillChargeGain = 1;
+        c = addCard("soulbinder_lash", "魂鞭裁断", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加束缚、印记和易伤；消耗、魂牌与束缚会转成裁断爆发。", "更高伤害、束缚和压制。");
+        c.profession = PROF_SOULBINDER; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("soulbinder_overbind", "过载魂缚", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、治疗和充能；过载、消耗、魂牌与束缚会追加魂缚伤害。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_SOULBINDER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("soulbinder_grand_pact", "终局万魂契", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按魂印、魂牌、消耗、治疗、汇流和过载追加终局收益。", "更高伤害、格挡和魂牌返还。");
+        c.profession = PROF_SOULBINDER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "soulbinder_thread"; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -26122,6 +26616,8 @@ public final class GameCore {
         addRelicDef("alpha_crown", "头兽冠", "获得升级终局百兽猎；驯兽师伙伴、束缚、治疗、充能和稀有牌会滚动束缚、抽牌与群猎追击。");
         addRelicDef("dragon_sigil", "龙契印", "龙契者燃烧、临时龙牌、格挡和职业牌更快推动职业技；释放后制造契焰鳞并点燃。");
         addRelicDef("elder_dragon_crown", "古龙冠", "获得升级终局古龙誓；龙契者燃烧、龙牌、守势、充能和稀有牌会滚动燃烧、抽牌与龙誓追击。");
+        addRelicDef("soul_lantern", "引魂灯", "魂契师临时魂牌、消耗、治疗、状态和职业牌更快推动职业技；释放后制造魂线牵引并治疗。");
+        addRelicDef("soul_crown", "万魂冠", "获得升级终局万魂契；魂契师魂牌、消耗、治疗、充能和稀有牌会滚动束缚、抽牌与魂契追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -26391,6 +26887,9 @@ public final class GameCore {
         addTalent("t_dragonbinder_spark", PROF_DRAGONBINDER, "契焰回路", "获得升级契焰鳞和龙爪烙印；低费、抽牌、临时龙牌和燃烧牌追加印记，并把龙印转成穿透追击。");
         addTalent("t_dragonbinder_scale", PROF_DRAGONBINDER, "龙鳞防线", "获得生命和升级龙鳞誓盾；格挡、治疗、技能和龙牌提供额外防线，并在关键节奏治疗。");
         addTalent("t_dragonbinder_hatch", PROF_DRAGONBINDER, "幼龙巢火", "获得升级唤幼龙；燃烧、易伤、龙牌和充能牌会扩张灼烧压力并转成龙誓追击。");
+        addTalent("t_soulbinder_thread", PROF_SOULBINDER, "魂线回路", "获得升级魂线牵引和魂鞭裁断；低费、抽牌、临时魂牌和消耗牌追加印记，并把魂印转成穿透追击。");
+        addTalent("t_soulbinder_veil", PROF_SOULBINDER, "魂幕防线", "获得生命、净化状态和升级魂幕护身；格挡、治疗、技能和魂牌提供额外防线，并在关键节奏治疗。");
+        addTalent("t_soulbinder_pact", PROF_SOULBINDER, "结魂仪式", "获得升级结魂契；束缚、易伤、消耗、魂牌和充能牌会扩张控制压力并转成魂契追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -26434,6 +26933,7 @@ public final class GameCore {
         addTalent("t_relicsmith_grand", PROF_RELICSMITH, "终局万藏", "获得升级终局万藏匣；金币、遗物、升级、格挡与过载牌持续抽牌、升级并把匠印转为万藏裁切。");
         addTalent("t_beastmaster_grand", PROF_BEASTMASTER, "终局百兽", "获得升级终局百兽猎；伙伴、束缚、治疗、守势与过载牌持续抽牌、治疗并把兽势印记转为群猎裁切。");
         addTalent("t_dragonbinder_grand", PROF_DRAGONBINDER, "终局古龙", "获得升级终局古龙誓；燃烧、龙牌、治疗、守势与过载牌持续抽牌、护盾并把龙印印记转为龙誓裁切。");
+        addTalent("t_soulbinder_grand", PROF_SOULBINDER, "终局万魂", "获得升级终局万魂契；魂牌、消耗、治疗、守势与过载牌持续抽牌、治疗并把魂印印记转为魂契裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
