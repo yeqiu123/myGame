@@ -6092,6 +6092,11 @@ public final class GameCore {
             addUpgradedDeckCard(s, "scavenger_sort");
             s.gold += 18;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if ("spec_hybrid".equals(id)) {
+            addUpgradedDeckCard(s, "confluence_chord");
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -6164,6 +6169,11 @@ public final class GameCore {
             s.deck.add(c);
             removeStatusCard(s);
             s.gold += 8 + s.skillSpecLevel * 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + s.skillSpecLevel);
+        } else if ("spec_hybrid".equals(spec.id)) {
+            Card c = new Card(s.skillSpecLevel >= 3 ? "apex_confluence" : "prism_anchor");
+            c.upgraded = true;
+            s.deck.add(c);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + s.skillSpecLevel);
         }
         log(s, "职业技专修晋阶：" + spec.name + " " + skillSpecLevelSuffix(s));
@@ -7113,6 +7123,25 @@ public final class GameCore {
             addQuestProgress(s, QUEST_ECHO, 1 + Math.min(3, exhausted / 4));
             addQuestProgress(s, QUEST_TREASURE, 1 + Math.min(3, s.gold / 120));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+        } else if ("spec_hybrid".equals(spec.id)) {
+            int labels = Math.max(1, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            draw(s, 1 + (level >= 3 ? 1 : 0) + (labels >= 6 ? 1 : 0));
+            gainBlock(s, 5 + level * 3 + s.act + Math.min(22, labels * 2 + overload * 3));
+            addProfessionSkillCharge(s, level + overload / 2 + Math.min(3, labels / 3));
+            Card bridge = new Card(labels >= 5 || level >= 3 ? "prism_anchor" : "confluence_chord");
+            bridge.temp = true;
+            bridge.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, bridge);
+            if (target != null) {
+                target.mark += 1 + level / 2 + overload / 4;
+                target.vulnerable += labels >= 4 ? 1 : 0;
+                damageEnemy(s, target, 4 + level * 3 + overload * 2 + Math.min(30, labels * 3), true);
+            }
+            if (level >= 2 || labels >= 4 || overload >= 3) {
+                s.energy++;
+            }
+            addQuestProgress(s, QUEST_CONFLUENCE, 2 + Math.min(3, labels / 2));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
         }
         applySkillSpecRelics(s, target, overload, level, spec.id);
         log(s, "专修触发：" + spec.name + "。");
@@ -7241,6 +7270,19 @@ public final class GameCore {
                 target.mark += 1 + level / 2;
                 target.vulnerable += statuses > 0 ? 1 : 0;
                 damageEnemy(s, target, 4 + level * 3 + overload + Math.min(18, discard + exhausted * 2 + statuses * 4), true);
+            }
+        } else if ("spec_hybrid".equals(specId) && hasRelic(s, "hybrid_keystone")) {
+            int labels = Math.max(1, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            draw(s, labels >= 5 || level >= 3 ? 2 : 1);
+            gainBlock(s, 5 + level * 3 + Math.min(14, labels * 2 + overload * 2));
+            addProfessionSkillCharge(s, 2 + Math.min(3, labels / 3));
+            Card c = new Card(labels >= 6 || level >= 3 ? "apex_confluence" : "fusion_spark");
+            c.temp = true;
+            c.upgraded = level >= 2;
+            addToHand(s, c);
+            if (target != null) {
+                target.mark += 1 + level / 2;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(24, labels * 3 + overload * 3), true);
             }
         }
         if (hasRelic(s, "overload_etch") && overload > 0) {
@@ -9171,7 +9213,9 @@ public final class GameCore {
                 || PROF_TIDECALLER.equals(s.profession) || PROF_FROSTBINDER.equals(s.profession)
                 || PROF_PLAGUEDOCTOR.equals(s.profession)
                 || "spec_echoflow".equals(s.skillSpec) || "spec_markchain".equals(s.skillSpec)
+                || "spec_hybrid".equals(s.skillSpec)
                 || hasRelic(s, "confluence_map") || hasRelic(s, "prism_gear") || hasRelic(s, "resonance_prism")
+                || hasRelic(s, "hybrid_keystone")
                 || buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS) >= 8)) {
             return true;
         }
@@ -15683,6 +15727,20 @@ public final class GameCore {
             if (e != null && (d.goldGain > 0 || d.createWound || discard >= 8 || statuses > 0)) {
                 e.mark += 1;
                 damageEnemy(s, e, 2 + s.act + Math.min(10, discard / 2 + statuses * 3 + s.exhaust.size()), true);
+            }
+        }
+        if (hasRelic(s, "hybrid_keystone")
+                && (hybridFocusCount(d) >= 2 || "confluence_chord".equals(d.id) || "prism_anchor".equals(d.id)
+                || "apex_confluence".equals(d.id) || "fusion_spark".equals(d.id))) {
+            s.confluenceChain = Math.min(9, s.confluenceChain + 1);
+            gainBlock(s, 2 + s.act + Math.min(8, s.confluenceChain + focusMaskCount(s.confluenceMask)));
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || s.confluenceChain >= 5) {
+                addProfessionSkillCharge(s, 1);
+            }
+            Enemy e = firstLiving(s);
+            if (e != null && (s.confluenceChain >= 4 || hybridFocusCount(d) >= 3)) {
+                e.mark += 1;
+                damageEnemy(s, e, 2 + s.act + Math.min(12, s.confluenceChain * 2), true);
             }
         }
         if (hasRelic(s, "echo_ledger") && (d.exhaust || d.createEcho || c.temp)) {
@@ -23872,7 +23930,7 @@ public final class GameCore {
                 || hasRelic(s, "star_hammer") || hasRelic(s, "star_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
-                || hasRelic(s, "salvage_hook")
+                || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
 
@@ -24321,6 +24379,15 @@ public final class GameCore {
             if ("wound".equals(d.id) || "daze".equals(d.id)) bonus += 2;
             if (d.vulnerable > 0 || d.bind > 0 || d.addStatusToEnemy || d.spreadStatus) bonus += 1;
             if (salvageCardId(d.id)) bonus += 5;
+        } else if ("spec_hybrid".equals(spec.id)) {
+            if (hybridFocusCount(d) >= 2) bonus += 5;
+            if ("confluence_chord".equals(d.id) || "prism_anchor".equals(d.id) || "apex_confluence".equals(d.id)
+                    || "fusion_spark".equals(d.id) || "echo_forge_loop".equals(d.id)
+                    || "bloodcoin_catalyst".equals(d.id) || "prism_guard_matrix".equals(d.id)
+                    || "apex_resonance".equals(d.id)) bonus += 4;
+            if (d.skillChargeGain > 0 || d.draw > 0 || d.upgradeRandom || d.energyGain > 0) bonus += 2;
+            if (!"通用".equals(d.origin) && !d.origin.equals(s.origin)) bonus += 1;
+            if (d.profession.length() > 0 && !d.profession.equals(s.profession)) bonus += 1;
         }
         if (isAny(d.id, "plaguedoctor_lancet", "plaguedoctor_mask", "plaguedoctor_culture",
                 "plaguedoctor_quarantine", "plaguedoctor_overdose", "plaguedoctor_grand_plague")) {
@@ -25402,6 +25469,7 @@ public final class GameCore {
         if ("spec_markchain".equals(spec.id) && "markchain_seal".equals(id)) return 5;
         if ("spec_pressure".equals(spec.id) && "pressure_gauge".equals(id)) return 5;
         if ("spec_salvage".equals(spec.id) && "salvage_hook".equals(id)) return 5;
+        if ("spec_hybrid".equals(spec.id) && "hybrid_keystone".equals(id)) return 5;
         if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark", "conductor_baton")) return 1;
         if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork", "storm_rod", "shadow_sash", "eclipse_mask", "scrap_magnet", "scrap_king_crown")) return 1;
         if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist", "bloodspark_contract")) return 1;
@@ -25415,6 +25483,7 @@ public final class GameCore {
         if ("spec_markchain".equals(spec.id) && isAny(id, "hunter_mark", "root_drum", "stormglass_seal", "curse_censer", "apex_compass", "hex_moon", "conductor_baton", "judgment_codex", "warden_brand", "contract_stamp", "grand_ledger", "resonance_prism", "storm_rod", "tempest_crown", "shadow_sash", "eclipse_mask", "scrap_magnet", "scrap_king_crown")) return 1;
         if ("spec_pressure".equals(spec.id) && isAny(id, "root_drum", "green_bell", "stormglass_seal", "curse_censer", "emberroot_charm", "apex_compass", "hex_moon", "warden_brand", "markchain_seal", "resonance_prism", "storm_rod", "tempest_crown", "conductor_baton", "judgment_codex", "spirit_planchette", "songbook", "string_spool", "scrap_magnet", "scrap_king_crown")) return 1;
         if ("spec_salvage".equals(spec.id) && isAny(id, "scrap_magnet", "scrap_king_crown", "echo_ledger", "bloodcoin_broach", "curse_censer", "contract_stamp", "grand_ledger", "void_abacus", "tithe_box", "empty_coin", "bloodspark_contract", "echoflow_charm")) return 1;
+        if ("spec_hybrid".equals(spec.id) && isAny(id, "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism", "split_anvil", "echo_ledger", "bloodspark_contract", "assembly_frame")) return 1;
         if (isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
         if ("spec_burst".equals(spec.id) && "overload_etch".equals(id)) return 2;
         if ("spec_tempo".equals(spec.id) && "discipline_chart".equals(id)) return 2;
@@ -25428,6 +25497,7 @@ public final class GameCore {
         if ("spec_markchain".equals(spec.id) && "overload_etch".equals(id)) return 2;
         if ("spec_pressure".equals(spec.id) && isAny(id, "trial_ledger", "overload_etch")) return 2;
         if ("spec_salvage".equals(spec.id) && isAny(id, "discipline_chart", "trial_ledger")) return 2;
+        if ("spec_hybrid".equals(spec.id) && isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
         return 0;
     }
 
@@ -25448,6 +25518,7 @@ public final class GameCore {
         if ("spec_markchain".equals(spec.id)) return "markchain_seal";
         if ("spec_pressure".equals(spec.id)) return "pressure_gauge";
         if ("spec_salvage".equals(spec.id)) return "salvage_hook";
+        if ("spec_hybrid".equals(spec.id)) return "hybrid_keystone";
         return randomSkillRelicFor(s);
     }
 
@@ -25944,6 +26015,9 @@ public final class GameCore {
             s.gold += 35;
             s.maxHp += 2;
             s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("hybrid_keystone".equals(id)) {
+            addUpgradedDeckCard(s, "confluence_chord");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         } else if ("bulwark_core".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_guard_conduit");
@@ -27046,6 +27120,7 @@ public final class GameCore {
         addRelicDef("markchain_seal", "标链印", "标链专修释放职业技时扩散印记、易伤和束缚；异常、印记和充能牌会引发穿透追击。");
         addRelicDef("pressure_gauge", "压强计", "压强专修释放职业技时读取敌方异常压力并追加穿透、格挡、抽牌与充能；异常牌会校准压力。");
         addRelicDef("salvage_hook", "回收钩", "回收专修释放职业技时把弃牌、消耗和状态转为抽牌、格挡、金币与临时回收牌；回收牌会滚动充能与标记。");
+        addRelicDef("hybrid_keystone", "混融枢纽", "混融专修释放职业技时按汇流链抽牌、格挡、制造混搭牌并回充；多标签牌会滚动汇流链。");
         addRelicDef("discipline_chart", "专修图谱", "获得升级专修适配牌；打出专修适配牌会获得格挡、职业技充能，高阶专修可续抽。");
         addRelicDef("overload_etch", "过载刻针", "获得升级权能导管并提高初始充能；过载释放职业技时追加标记、穿透、格挡与充能回收。");
         addRelicDef("trial_ledger", "试炼卷宗", "获得金币并提高初始充能；目标达成和誓约兑现会转为格挡、抽牌、升级与职业技资源。");
@@ -27254,6 +27329,7 @@ public final class GameCore {
         addSkillSpec("spec_markchain", "标链专修", "职业技铺开印记、易伤和束缚，并把敌方异常压力转成连锁穿透追击。");
         addSkillSpec("spec_pressure", "压强专修", "职业技读取燃灼、束缚、易伤和印记压力，并把高压目标转成穿透、格挡、抽牌与充能。");
         addSkillSpec("spec_salvage", "回收专修", "职业技把弃牌、消耗、状态牌和金币转成抽牌、格挡、治疗、临时回收牌与额外资源。");
+        addSkillSpec("spec_hybrid", "混融专修", "职业技把汇流链和多构筑标签转成抽牌、格挡、临时汇流牌、能量与职业技回充。");
     }
 
     private static void addSkillSpec(String id, String name, String text) {

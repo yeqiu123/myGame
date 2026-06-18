@@ -411,6 +411,7 @@ public final class SimulationHarness {
             if (s.relics.contains("confluence_map") && isHybridCore(d)) score += 18;
             if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 20;
             if (s.relics.contains("resonance_prism") && (isHybridCore(d) || isConfluenceCore(d) || specSignal >= 4)) score += 20;
+            if (s.relics.contains("hybrid_keystone") && (isHybridCore(d) || isConfluenceCore(d) || specSignal >= 4)) score += 20;
             if (s.deck.size() > 34 && d.cost >= 2 && d.draw == 0) score -= 6;
             if (score > bestScore) {
                 bestScore = score;
@@ -887,6 +888,11 @@ public final class SimulationHarness {
             int score = 0;
             if ("spec_mastery".equals(id)) score += 34;
             else if ("spec_resonance".equals(id)) score += 30;
+            else if ("spec_hybrid".equals(id)) score += (GameCore.PROF_PRISMIST.equals(s.profession)
+                    || GameCore.PROF_TACTICIAN.equals(s.profession) || GameCore.PROF_MACHINIST.equals(s.profession)
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_GEOMANCER.equals(s.profession)
+                    || GameCore.PROF_FATESEER.equals(s.profession) || GameCore.PROF_VOIDNAVIGATOR.equals(s.profession)
+                    || GameCore.PROF_RELICSMITH.equals(s.profession) || GameCore.PROF_STARFORGER.equals(s.profession)) ? 34 : 27;
             else if ("spec_tempo".equals(id)) score += 28;
             else if ("spec_burst".equals(id)) score += (GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession)) ? 32 : 22;
@@ -1053,7 +1059,7 @@ public final class SimulationHarness {
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
-                    || "spec_pressure".equals(id) || "spec_salvage".equals(id))) score += 4;
+                    || "spec_pressure".equals(id) || "spec_salvage".equals(id) || "spec_hybrid".equals(id))) score += 4;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
@@ -2622,7 +2628,8 @@ public final class SimulationHarness {
                 || s.relics.contains("dragon_sigil") || s.relics.contains("elder_dragon_crown")
                 || s.relics.contains("soul_lantern") || s.relics.contains("soul_crown")
                 || s.relics.contains("star_hammer") || s.relics.contains("star_crown")
-                || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
+                || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
+                || s.relics.contains("hybrid_keystone");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
