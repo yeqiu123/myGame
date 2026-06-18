@@ -138,6 +138,7 @@ public final class GameCore {
     public static final String PROF_SOULBINDER = "魂契师";
     public static final String PROF_STARFORGER = "星炉师";
     public static final String PROF_PATHFINDER = "巡路者";
+    public static final String PROF_ARRAYIST = "牌阵师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -148,7 +149,7 @@ public final class GameCore {
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
-            PROF_STARFORGER, PROF_PATHFINDER
+            PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -875,6 +876,7 @@ public final class GameCore {
         if (PROF_SOULBINDER.equals(profession)) return "魂契";
         if (PROF_STARFORGER.equals(profession)) return "星铸";
         if (PROF_PATHFINDER.equals(profession)) return "寻径";
+        if (PROF_ARRAYIST.equals(profession)) return "布阵";
         return "职业技";
     }
 
@@ -959,6 +961,7 @@ public final class GameCore {
         if (PROF_SOULBINDER.equals(profession)) return "满充能：消耗魂印魂契，按消耗、临时魂牌、治疗、状态、汇流和过载造成穿透，治疗、虚弱并制造魂牌。";
         if (PROF_STARFORGER.equals(profession)) return "满充能：消耗星辉星铸，按升级、燃灼、格挡、汇流和过载造成穿透，升级手牌、加固并制造星炉牌。";
         if (PROF_PATHFINDER.equals(profession)) return "满充能：消耗路标寻径，按检视、格挡、汇流、标记和过载造成穿透，抽牌、加固并制造巡路牌。";
+        if (PROF_ARRAYIST.equals(profession)) return "满充能：消耗阵纹布阵，按连打、临时牌、牌型、汇流和过载造成穿透，抽牌、加固并制造牌阵牌。";
         return "选择职业后可用。";
     }
 
@@ -2517,6 +2520,50 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, routes / 2);
+        } else if (PROF_ARRAYIST.equals(s.profession)) {
+            int arrays = Math.max(1, s.professionCharge);
+            int tempo = Math.min(22, s.cardsPlayedThisTurn * 2 + buildFocusDeckCards(s, BUILD_CYCLE)
+                    + zeroCostDeckCards(s) / 2);
+            int echoes = Math.min(20, tempOrEchoHandCount(s) + tempOrEchoDeckCards(s) / 2
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int guard = Math.min(18, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int forge = Math.min(14, upgradedCardCount(s) / 2 + buildFocusDeckCards(s, BUILD_FORGE));
+            int chain = Math.min(14, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 3 + target.burn;
+            int damage = 9 + s.act * 3 + Math.min(88, arrays * 3 + tempo * 4
+                    + echoes * 4 + guard * 3 + forge * 3 + chain * 5 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, arrays / 4 + tempo / 5 + chain / 3);
+                target.bind += 1 + s.bindPower / 2 + Math.min(4, echoes / 4 + guard / 5) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, overload / 4 + pressure / 18);
+            }
+            gainBlock(s, 6 + s.act * 2 + Math.min(44, arrays * 2 + tempo * 2
+                    + echoes * 2 + guard * 4 + chain * 2) + overload * 3);
+            draw(s, 1 + Math.min(3, arrays / 5 + tempo / 5 + echoes / 5 + chain / 4) + overload / 4);
+            upgradeRandomHandCard(s);
+            if (tempo >= 5 || echoes >= 4 || chain >= 3 || overload >= 2) {
+                s.energy++;
+            }
+            Card glyph = new Card(overload >= 4 || hasTalent(s, "t_arrayist_grand")
+                    ? "arrayist_grand_array" : "arrayist_glyph");
+            glyph.temp = true;
+            glyph.upgraded = arrays >= 5 || hasTalent(s, "t_arrayist_glyph");
+            addToHand(s, glyph);
+            if (hasTalent(s, "t_arrayist_grand")) {
+                Card pivot = new Card("arrayist_pivot");
+                pivot.temp = true;
+                pivot.upgraded = true;
+                addToHand(s, pivot);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_COMBO, 1 + Math.min(3, tempo / 4));
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.min(3, echoes / 4));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, arrays / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -4029,6 +4076,9 @@ public final class GameCore {
         if (PROF_PATHFINDER.equals(profession)) {
             return "用路线、检视、汇流、格挡和职业技充能积累路标，把路径选择转成抽牌、加固、控场和寻径爆发。适合循环、工坊、守势、汇流和过载构筑。";
         }
+        if (PROF_ARRAYIST.equals(profession)) {
+            return "用不同牌型、低费连打、临时牌和汇流积累阵纹，把出牌顺序转成抽牌、返能、格挡和布阵爆发。适合循环、回声、守势、汇流和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4170,6 +4220,9 @@ public final class GameCore {
         }
         if (PROF_PATHFINDER.equals(profession)) {
             return 0xff8fd6c1;
+        }
+        if (PROF_ARRAYIST.equals(profession)) {
+            return 0xffd7e17a;
         }
         return 0xffd6c07a;
     }
@@ -4628,6 +4681,13 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_ARRAYIST.equals(profession)) {
+            s.deck.add(new Card("arrayist_glyph"));
+            s.deck.add(new Card("arrayist_bastion"));
+            upgradeRandomDeckCard(s);
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4695,6 +4755,7 @@ public final class GameCore {
         else if (PROF_SOULBINDER.equals(profession)) upgradeDeckCard(s, "soulbinder_thread");
         else if (PROF_STARFORGER.equals(profession)) upgradeDeckCard(s, "starforger_spark");
         else if (PROF_PATHFINDER.equals(profession)) upgradeDeckCard(s, "pathfinder_mark");
+        else if (PROF_ARRAYIST.equals(profession)) upgradeDeckCard(s, "arrayist_glyph");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4894,6 +4955,12 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_ARRAYIST.equals(profession)) {
+            addUpgradedDeckCard(s, "arrayist_pivot");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4944,6 +5011,7 @@ public final class GameCore {
         if (PROF_SOULBINDER.equals(profession)) return "soulbinder_overbind";
         if (PROF_STARFORGER.equals(profession)) return "starforger_overforge";
         if (PROF_PATHFINDER.equals(profession)) return "pathfinder_overroute";
+        if (PROF_ARRAYIST.equals(profession)) return "arrayist_overarray";
         return "forge_signal";
     }
 
@@ -5622,6 +5690,21 @@ public final class GameCore {
         } else if ("t_pathfinder_grand".equals(id)) {
             addUpgradedDeckCard(s, "pathfinder_grand_route");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_arrayist_glyph".equals(id)) {
+            addUpgradedDeckCard(s, "arrayist_glyph");
+            addUpgradedDeckCard(s, "arrayist_lance");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_arrayist_bastion".equals(id)) {
+            addUpgradedDeckCard(s, "arrayist_bastion");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_arrayist_pivot".equals(id)) {
+            addUpgradedDeckCard(s, "arrayist_pivot");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_arrayist_grand".equals(id)) {
+            addUpgradedDeckCard(s, "arrayist_grand_array");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -6070,7 +6153,8 @@ public final class GameCore {
                 || "t_archivist_grand".equals(id) || "t_voidnavigator_grand".equals(id)
                 || "t_relicsmith_grand".equals(id) || "t_beastmaster_grand".equals(id)
                 || "t_dragonbinder_grand".equals(id) || "t_soulbinder_grand".equals(id)
-                || "t_starforger_grand".equals(id) || "t_pathfinder_grand".equals(id);
+                || "t_starforger_grand".equals(id) || "t_pathfinder_grand".equals(id)
+                || "t_arrayist_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6096,7 +6180,8 @@ public final class GameCore {
                 || "archivist_grand_archive".equals(id) || "voidnavigator_grand_jump".equals(id)
                 || "relicsmith_grand_vault".equals(id) || "beastmaster_grand_hunt".equals(id)
                 || "dragonbinder_grand_oath".equals(id) || "soulbinder_grand_pact".equals(id)
-                || "starforger_grand_star".equals(id) || "pathfinder_grand_route".equals(id);
+                || "starforger_grand_star".equals(id) || "pathfinder_grand_route".equals(id)
+                || "arrayist_grand_array".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6120,7 +6205,8 @@ public final class GameCore {
                 || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
                 || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id)
                 || "vault_crown".equals(id) || "alpha_crown".equals(id) || "elder_dragon_crown".equals(id)
-                || "soul_crown".equals(id) || "star_crown".equals(id) || "route_crown".equals(id);
+                || "soul_crown".equals(id) || "star_crown".equals(id) || "route_crown".equals(id)
+                || "array_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -6730,6 +6816,11 @@ public final class GameCore {
                 || d.upgradeRandom || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_PATHFINDER) || d.profession.equals(PROF_TACTICIAN)
                 || d.profession.equals(PROF_FATESEER) || d.profession.equals(PROF_VOIDNAVIGATOR))) amount++;
+        else if (PROF_ARRAYIST.equals(s.profession) && d != null && (d.cost == 0 || d.draw > 0
+                || d.energyGain > 0 || d.createEcho || d.block > 0 || d.skillChargeGain > 0
+                || d.upgradeRandom || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_ARRAYIST) || d.profession.equals(PROF_BARD)
+                || d.profession.equals(PROF_DUELIST) || d.profession.equals(PROF_CHRONOMANCER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -9062,6 +9153,41 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "array_disc") && PROF_ARRAYIST.equals(s.profession)) {
+            int tempo = s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE);
+            int echoes = tempOrEchoHandCount(s) + tempOrEchoDeckCards(s) / 2;
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + tempo / 5 + echoes / 3));
+            gainBlock(s, 5 + s.act + Math.min(20, s.professionCharge * 2 + tempo * 2 + echoes * 2));
+            Card glyph = new Card("arrayist_glyph");
+            glyph.temp = true;
+            glyph.upgraded = true;
+            addToHand(s, glyph);
+            if (target != null) {
+                target.mark += 2;
+                target.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(30, target.mark * 2
+                        + s.professionCharge * 2 + tempo * 2 + echoes * 2), true);
+            }
+        }
+        if (hasRelic(s, "array_crown") && PROF_ARRAYIST.equals(s.profession)) {
+            Card over = new Card("arrayist_overarray");
+            over.temp = true;
+            over.upgraded = true;
+            addToHand(s, over);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.cardsPlayedThisTurn >= 4 || s.confluenceChain >= 3
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -9167,6 +9293,9 @@ public final class GameCore {
         if (hasRelic(s, "pathfinder_compass") && PROF_PATHFINDER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.confluenceChain >= 2 || upgradedCardCount(s) >= 5
                 || s.block >= 12 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "array_disc") && PROF_ARRAYIST.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.cardsPlayedThisTurn >= 3 || tempOrEchoHandCount(s) >= 2
+                || s.confluenceChain >= 2 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -11062,6 +11191,36 @@ public final class GameCore {
                 survey.temp = true;
                 survey.upgraded = true;
                 addToHand(s, survey);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_ARRAYIST.equals(s.profession) && s.turn == 1) {
+            int tempo = Math.min(10, buildFocusDeckCards(s, BUILD_CYCLE) + zeroCostDeckCards(s) / 2);
+            int echoes = Math.min(10, tempOrEchoDeckCards(s) + buildFocusDeckCards(s, BUILD_ECHO));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, tempo / 3 + echoes / 3 + s.confluenceChain);
+            gainBlock(s, 4 + s.act + Math.min(10, tempo * 2 + echoes + s.professionCharge));
+            upgradeRandomHandCard(s);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += hasTalent(s, "t_arrayist_glyph") ? 2 : 1;
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+            if (hasTalent(s, "t_arrayist_glyph")) {
+                Card glyph = new Card("arrayist_glyph");
+                glyph.temp = true;
+                glyph.upgraded = true;
+                addToHand(s, glyph);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_arrayist_bastion")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_arrayist_grand")) {
+                Card pivot = new Card("arrayist_pivot");
+                pivot.temp = true;
+                pivot.upgraded = true;
+                addToHand(s, pivot);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -15010,6 +15169,122 @@ public final class GameCore {
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_SWIFT, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("arrayist_glyph".equals(d.id) && target != null) {
+            int arrays = Math.max(0, s.professionCharge);
+            int tempo = s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE);
+            damage += Math.min(c.upgraded ? 36 : 25, arrays * 2 + tempo * 2 + target.mark * 3);
+            target.mark += c.upgraded ? 2 : 1;
+            target.bind += 1 + s.bindPower / 2;
+            if (tempo >= 4 || target.mark >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+        }
+        if ("arrayist_bastion".equals(d.id)) {
+            int arrays = Math.max(0, s.professionCharge);
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            int tempo = buildFocusDeckCards(s, BUILD_CYCLE) + s.cardsPlayedThisTurn;
+            block += Math.min(c.upgraded ? 40 : 28, arrays * 2 + guard * 3 + tempo * 2 + s.block / 3);
+            upgradeRandomHandCard(s);
+            if (guard >= 4 || s.cardsPlayedThisTurn >= 3 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("arrayist_pivot".equals(d.id)) {
+            int tempo = buildFocusDeckCards(s, BUILD_CYCLE) + s.cardsPlayedThisTurn;
+            int echoes = tempOrEchoHandCount(s) + tempOrEchoDeckCards(s) / 2;
+            int chain = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            block += Math.min(c.upgraded ? 38 : 26, s.professionCharge * 2 + tempo * 3
+                    + echoes * 3 + chain * 2);
+            Card glyph = new Card("arrayist_glyph");
+            glyph.temp = true;
+            glyph.upgraded = c.upgraded || tempo >= 5;
+            addToHand(s, glyph);
+            upgradeRandomHandCard(s);
+            if (tempo >= 5 || echoes >= 3 || chain >= 3 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, focusMaskCount(s.confluenceMask)));
+        }
+        if ("arrayist_lance".equals(d.id) && target != null) {
+            int tempo = s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE);
+            int pressure = target.mark * 4 + target.bind * 3 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 58 : 42, pressure + tempo * 3
+                    + s.professionCharge * 2 + s.confluenceChain * 3);
+            target.mark += c.upgraded ? 3 : 2;
+            target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            target.vulnerable += 1;
+            if (target.mark + target.bind >= 6 || tempo >= 5 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_COMBO, 1);
+        }
+        if ("arrayist_overarray".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tempo = s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE);
+            int echoes = tempOrEchoHandCount(s) + buildFocusDeckCards(s, BUILD_ECHO);
+            block += Math.min(c.upgraded ? 48 : 34, s.professionCharge * 2 + tempo * 4
+                    + echoes * 3 + overloadNow * 7);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 70 : 50, overloadNow * 8 + tempo * 4
+                        + echoes * 5 + target.mark * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || tempo >= 7 || echoes >= 3 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_COMBO, 1);
+        }
+        if ("arrayist_grand_array".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tempo = s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE);
+            int echoes = tempOrEchoHandCount(s) + tempOrEchoDeckCards(s) / 2;
+            int labels = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 100 : 76, s.professionCharge * 4 + tempo * 6
+                    + echoes * 6 + labels * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 70 : 52, s.professionCharge * 3 + tempo * 4
+                    + echoes * 4 + labels * 3 + overloadNow * 6);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            Card glyph = new Card("arrayist_glyph");
+            glyph.temp = true;
+            glyph.upgraded = true;
+            addToHand(s, glyph);
+            if (tempo >= 7 || echoes >= 3 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
@@ -19188,6 +19463,98 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_ARRAYIST.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.createEcho || c.temp || d.block > 0 || d.skillChargeGain > 0 || d.upgradeRandom
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_ARRAYIST)
+                || d.profession.equals(PROF_BARD) || d.profession.equals(PROF_DUELIST)
+                || d.profession.equals(PROF_CHRONOMANCER))) {
+            int tempo = Math.min(20, s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE)
+                    + zeroCostDeckCards(s) / 2);
+            int echoes = Math.min(18, tempOrEchoHandCount(s) + tempOrEchoDeckCards(s) / 2
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int guard = Math.min(18, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 6);
+            s.professionCharge += 1 + Math.min(2, (tempo / 5 + echoes / 4
+                    + (d.cost == 0 || d.draw > 0 ? 2 : 0)
+                    + (d.createEcho || c.temp || d.energyGain > 0 ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1;
+                    e.bind += 1 + s.bindPower / 2;
+                    if (echoes >= 4 || d.skillChargeGain > 0 || hasTalent(s, "t_arrayist_pivot")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(38, e.mark * 2 + e.bind * 2
+                            + tempo * 2 + echoes * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.upgradeRandom || hasTalent(s, "t_arrayist_bastion")) {
+                    gainBlock(s, 3 + s.act + Math.min(20, s.professionCharge + guard * 2 + echoes));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || tempo >= 7 || hasTalent(s, "t_arrayist_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_arrayist_glyph") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.createEcho || c.temp || d.profession.equals(PROF_ARRAYIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(32, e.mark * 2 + e.bind
+                        + s.professionCharge * 2 + buildFocusDeckCards(s, BUILD_CYCLE) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_arrayist_bastion") && (d.block > 0 || d.type == 1 || d.upgradeRandom
+                || d.createEcho || c.temp || d.profession.equals(PROF_ARRAYIST))) {
+            gainBlock(s, 4 + s.act + Math.min(20, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_GUARD) * 2 + tempOrEchoDeckCards(s) + s.block / 8));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 14) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_arrayist_pivot") && (d.createEcho || c.temp || d.draw > 0
+                || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || c.upgraded
+                || d.profession.equals(PROF_ARRAYIST))) {
+            Enemy e = firstLiving(s);
+            int chain = Math.max(s.confluenceChain, hybridFocusCount(d));
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 8 || s.cardsPlayedThisTurn >= 3 || chain >= 3) {
+                    e.bind += 1 + s.bindPower / 2;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + chain * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || tempOrEchoHandCount(s) >= 3 || chain >= 3) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_arrayist_grand") && (d.cost == 0 || d.draw > 0 || d.block > 0
+                || d.createEcho || c.temp || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_ARRAYIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || tempOrEchoHandCount(s) >= 3 || s.confluenceChain >= 3)) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3
+                        + s.confluenceChain * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -20241,6 +20608,46 @@ public final class GameCore {
                 if (e.mark >= 5 || s.cardsPlayedThisTurn >= 4 || s.confluenceChain >= 3) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(38, e.mark * 2 + e.bind * 2
                             + s.professionCharge + s.confluenceChain * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "array_disc") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.createEcho || c.temp || d.block > 0 || d.skillChargeGain > 0
+                || d.profession.equals(PROF_ARRAYIST))) {
+            addProfessionSkillCharge(s, 1);
+            int arrays = tempOrEchoHandCount(s) + Math.max(0, s.cardsPlayedThisTurn - 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge + arrays * 2
+                        + buildFocusDeckCards(s, BUILD_GUARD)));
+                upgradeRandomHandCard(s);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (d.cost == 0 || d.draw > 0 || d.createEcho || c.temp || e.mark >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(32, e.mark * 2
+                            + e.bind * 2 + arrays * 2 + s.professionCharge), true);
+                }
+            }
+        }
+        if (hasRelic(s, "array_crown") && (d.cost == 0 || d.draw > 0 || d.block > 0
+                || d.createEcho || c.temp || d.skillChargeGain > 0 || d.rarity == 2
+                || d.upgradeRandom || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_ARRAYIST))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (e.mark >= 5 || s.cardsPlayedThisTurn >= 4 || tempOrEchoHandCount(s) >= 3
+                        || s.confluenceChain >= 3) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(38, e.mark * 2 + e.bind * 2
+                            + s.professionCharge + tempOrEchoHandCount(s) * 3 + s.confluenceChain * 2), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -21619,6 +22026,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_FORGE ? 16 : focus == BUILD_GUARD ? 14
                     : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_STATUS ? 12 : focus == BUILD_ECHO ? 8 : 0;
         }
+        if (PROF_ARRAYIST.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_ECHO ? 16 : focus == BUILD_GUARD ? 14
+                    : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_FORGE ? 12 : focus == BUILD_STATUS ? 10 : 0;
+        }
         return 0;
     }
 
@@ -21745,6 +22156,9 @@ public final class GameCore {
         }
         if (PROF_PATHFINDER.equals(d.profession)) {
             return pathfinderFocusCardValue(d, focus);
+        }
+        if (PROF_ARRAYIST.equals(d.profession)) {
+            return arrayistFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -22940,6 +23354,57 @@ public final class GameCore {
         return 0;
     }
 
+    private static int arrayistFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + (d.createEcho ? 4 : 0) + d.block
+                    + (d.cost == 0 ? 5 : 0) + (d.upgradeRandom ? 3 : 0)
+                    + ("arrayist_glyph".equals(d.id) ? 8 : 0)
+                    + ("arrayist_lance".equals(d.id) ? 10 : 0)
+                    + ("arrayist_overarray".equals(d.id) ? 16 : 0)
+                    + ("arrayist_grand_array".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 12 : 0) + d.draw * 3 + (d.cost == 0 ? 6 : 0)
+                    + d.skillChargeGain * 2 + (d.energyGain > 0 ? 4 : 0)
+                    + ("arrayist_glyph".equals(d.id) ? 12 : 0)
+                    + ("arrayist_pivot".equals(d.id) ? 18 : 0)
+                    + ("arrayist_overarray".equals(d.id) ? 14 : 0)
+                    + ("arrayist_grand_array".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 8 : 0)
+                    + d.skillChargeGain * 2 + (d.createEcho ? 5 : 0)
+                    + ("arrayist_glyph".equals(d.id) ? 16 : 0)
+                    + ("arrayist_bastion".equals(d.id) ? 12 : 0)
+                    + ("arrayist_pivot".equals(d.id) ? 16 : 0)
+                    + ("arrayist_overarray".equals(d.id) ? 12 : 0)
+                    + ("arrayist_grand_array".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.draw * 2 + (d.createEcho ? 4 : 0)
+                    + (d.upgradeRandom ? 4 : 0) + ("arrayist_bastion".equals(d.id) ? 18 : 0)
+                    + ("arrayist_pivot".equals(d.id) ? 16 : 0)
+                    + ("arrayist_overarray".equals(d.id) ? 18 : 0)
+                    + ("arrayist_grand_array".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.scry * 2 + d.skillChargeGain * 2
+                    + (d.rarity == 2 ? 3 : 0) + (d.createEcho ? 4 : 0)
+                    + ("arrayist_bastion".equals(d.id) ? 14 : 0)
+                    + ("arrayist_pivot".equals(d.id) ? 18 : 0)
+                    + ("arrayist_overarray".equals(d.id) ? 16 : 0)
+                    + ("arrayist_grand_array".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("arrayist_glyph".equals(d.id) ? 10 : 0)
+                    + ("arrayist_lance".equals(d.id) ? 18 : 0)
+                    + ("arrayist_overarray".equals(d.id) ? 16 : 0)
+                    + ("arrayist_grand_array".equals(d.id) ? 18 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -23431,6 +23896,16 @@ public final class GameCore {
         else if ("t_pathfinder_grand".equals(id)) bonus += professionCards + upgraded * 2
                 + bindDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_arrayist_glyph".equals(id)) bonus += zeroCost * 2 + tempOrEchoDeckCards(s)
+                + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + professionCards;
+        else if ("t_arrayist_bastion".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + upgraded + tempOrEchoDeckCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_arrayist_pivot".equals(id)) bonus += buildFocusDeckCards(s, BUILD_ECHO) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD)
+                + professionCards;
+        else if ("t_arrayist_grand".equals(id)) bonus += professionCards + tempOrEchoDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_GUARD)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -23502,6 +23977,14 @@ public final class GameCore {
             if (focus == BUILD_STATUS && isAny(id, "t_pathfinder_mark", "t_pathfinder_survey", "t_pathfinder_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_pathfinder_shelter", "t_pathfinder_grand")) return 3;
             if (focus == BUILD_ECHO && isAny(id, "t_pathfinder_mark", "t_pathfinder_grand")) return 3;
+        }
+        if (isAny(id, "t_arrayist_glyph", "t_arrayist_bastion", "t_arrayist_pivot", "t_arrayist_grand")) {
+            if (focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_ECHO && isAny(id, "t_arrayist_glyph", "t_arrayist_pivot", "t_arrayist_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_arrayist_bastion", "t_arrayist_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_arrayist_pivot", "t_arrayist_grand")) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_arrayist_pivot", "t_arrayist_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_arrayist_glyph", "t_arrayist_pivot", "t_arrayist_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -24258,6 +24741,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE || focus == BUILD_FORGE || focus == BUILD_GUARD
                     || focus == BUILD_OVERLOAD || focus == BUILD_STATUS || focus == BUILD_ECHO ? 3 : 0;
         }
+        if ("array_disc".equals(id) || "array_crown".equals(id)) {
+            return focus == BUILD_CYCLE || focus == BUILD_ECHO || focus == BUILD_GUARD
+                    || focus == BUILD_OVERLOAD || focus == BUILD_FORGE || focus == BUILD_STATUS ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -24406,7 +24893,8 @@ public final class GameCore {
                 || (PROF_DRAGONBINDER.equals(s.profession) && "dragon_sigil".equals(id))
                 || (PROF_SOULBINDER.equals(s.profession) && "soul_lantern".equals(id))
                 || (PROF_STARFORGER.equals(s.profession) && "star_hammer".equals(id))
-                || (PROF_PATHFINDER.equals(s.profession) && "pathfinder_compass".equals(id));
+                || (PROF_PATHFINDER.equals(s.profession) && "pathfinder_compass".equals(id))
+                || (PROF_ARRAYIST.equals(s.profession) && "array_disc".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -24464,6 +24952,7 @@ public final class GameCore {
                 || hasRelic(s, "soul_lantern") || hasRelic(s, "soul_crown")
                 || hasRelic(s, "star_hammer") || hasRelic(s, "star_crown")
                 || hasRelic(s, "pathfinder_compass") || hasRelic(s, "route_crown")
+                || hasRelic(s, "array_disc") || hasRelic(s, "array_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
@@ -24700,6 +25189,11 @@ public final class GameCore {
         if (PROF_PATHFINDER.equals(s.profession) && (d.scry > 0 || d.draw > 0 || d.block > 0
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.upgradeRandom
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PATHFINDER))) {
+            return 4;
+        }
+        if (PROF_ARRAYIST.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.createEcho || d.block > 0 || d.skillChargeGain > 0 || d.upgradeRandom
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_ARRAYIST))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -25435,7 +25929,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -25482,6 +25976,7 @@ public final class GameCore {
         if (PROF_SOULBINDER.equals(s.profession)) return "soul_lantern";
         if (PROF_STARFORGER.equals(s.profession)) return "star_hammer";
         if (PROF_PATHFINDER.equals(s.profession)) return "pathfinder_compass";
+        if (PROF_ARRAYIST.equals(s.profession)) return "array_disc";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -25969,6 +26464,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_PATHFINDER.equals(s.profession) && "route_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_ARRAYIST.equals(s.profession) && ("array_disc".equals(id) || "tempo_metronome".equals(id)
+                || "amber_quill".equals(id) || "echo_ledger".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                || "resonance_prism".equals(id) || "tuning_fork".equals(id) || "conductor_baton".equals(id)
+                || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "bulwark_core".equals(id)
+                || "echoflow_charm".equals(id) || "discipline_chart".equals(id) || "overload_etch".equals(id))) {
+            return 2;
+        }
+        if (PROF_ARRAYIST.equals(s.profession) && "array_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -26560,6 +27066,19 @@ public final class GameCore {
         } else if ("route_crown".equals(id)) {
             addUpgradedDeckCard(s, "pathfinder_grand_route");
             addUpgradedDeckCard(s, "pathfinder_mark");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("array_disc".equals(id)) {
+            addUpgradedDeckCard(s, "arrayist_pivot");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("array_crown".equals(id)) {
+            addUpgradedDeckCard(s, "arrayist_grand_array");
+            addUpgradedDeckCard(s, "arrayist_glyph");
             upgradeRandomDeckCard(s);
             s.maxHp += 5;
             s.hp += 5;
@@ -27486,6 +28005,18 @@ public final class GameCore {
         c.profession = PROF_PATHFINDER; c.draw = c.drawUp = 1; c.scry = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("pathfinder_grand_route", "终局星路", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按路标、检视、守势、汇流和过载追加终局收益。", "更高伤害、格挡和路标返还。");
         c.profession = PROF_PATHFINDER; c.draw = c.drawUp = 1; c.scry = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "pathfinder_mark"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("arrayist_glyph", "阵纹引", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并登记阵纹；低费、连打和临时牌会提高收益。", "更高伤害、束缚和阵纹。");
+        c.profession = PROF_ARRAYIST; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("arrayist_bastion", "错位护阵", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌并升级手牌；阵纹和守势会加厚护阵。", "更多格挡、升级和职业技充能。");
+        c.profession = PROF_ARRAYIST; c.draw = c.drawUp = 1; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("arrayist_pivot", "换位排布", "通用", 1, 1, 1, 0, 0, 7, 11, "获得格挡、抽牌、升级手牌并制造临时阵纹；临时牌足够时返能。", "更多格挡、阵纹和返能窗口。");
+        c.profession = PROF_ARRAYIST; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "arrayist_glyph"; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("arrayist_lance", "阵眼穿刺", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加束缚、印记和易伤；阵纹与连打会转成穿刺爆发。", "更高伤害、束缚和压制。");
+        c.profession = PROF_ARRAYIST; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("arrayist_overarray", "过载排阵", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、抽牌、升级和充能；过载、临时牌与阵纹会追加布阵追击。", "更多格挡、升级和职业技充能。");
+        c.profession = PROF_ARRAYIST; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "arrayist_glyph"; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("arrayist_grand_array", "终局万象阵", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按阵纹、临时牌、连打、汇流和过载追加终局收益。", "更高伤害、格挡和阵纹返还。");
+        c.profession = PROF_ARRAYIST; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "arrayist_glyph"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -27793,6 +28324,8 @@ public final class GameCore {
         addRelicDef("star_crown", "坠星冠", "获得升级终局坠星炉；星炉师升级、燃烧、守势、充能和稀有牌会滚动燃烧、升级与星铸追击。");
         addRelicDef("pathfinder_compass", "巡路罗盘", "巡路者检视、路线、格挡、汇流和职业牌更快推动职业技；释放后制造路标并升级手牌。");
         addRelicDef("route_crown", "星路冠", "获得升级终局星路；巡路者检视、格挡、汇流、充能和稀有牌会滚动印记、升级与寻径追击。");
+        addRelicDef("array_disc", "万象阵盘", "牌阵师低费、连打、临时、回声和职业牌更快推动职业技；释放后制造阵纹并升级手牌。");
+        addRelicDef("array_crown", "万象阵冠", "获得升级终局万象阵；牌阵师低费、临时、汇流、充能和稀有牌会滚动印记、升级与布阵追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -28073,6 +28606,9 @@ public final class GameCore {
         addTalent("t_pathfinder_mark", PROF_PATHFINDER, "路标回路", "获得升级路标刻痕和捷径突袭；低费、抽牌、检视和路线牌追加印记，并把路标转成穿透追击。");
         addTalent("t_pathfinder_shelter", PROF_PATHFINDER, "营帐防线", "获得生命和升级临途营帐；格挡、技能、检视和路线牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_pathfinder_survey", PROF_PATHFINDER, "星图勘测", "获得升级路线勘测并升级牌组；检视、汇流、易伤和充能牌会扩张路线压力并转成寻径追击。");
+        addTalent("t_arrayist_glyph", PROF_ARRAYIST, "阵纹回路", "获得升级阵纹引和阵眼穿刺；低费、抽牌、临时和牌阵牌追加印记，并把阵纹转成穿透追击。");
+        addTalent("t_arrayist_bastion", PROF_ARRAYIST, "错位防线", "获得生命和升级错位护阵；格挡、技能、临时和牌阵牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_arrayist_pivot", PROF_ARRAYIST, "换位枢纽", "获得升级换位排布并升级牌组；临时、汇流、抽牌和充能牌会扩张阵纹压力并转成布阵追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -28119,6 +28655,7 @@ public final class GameCore {
         addTalent("t_soulbinder_grand", PROF_SOULBINDER, "终局万魂", "获得升级终局万魂契；魂牌、消耗、治疗、守势与过载牌持续抽牌、治疗并把魂印印记转为魂契裁切。");
         addTalent("t_starforger_grand", PROF_STARFORGER, "终局坠星", "获得升级终局坠星炉；升级、燃烧、守势、汇流与过载牌持续抽牌、升级并把星辉印记转为星铸裁切。");
         addTalent("t_pathfinder_grand", PROF_PATHFINDER, "终局星路", "获得升级终局星路；检视、格挡、汇流、路线与过载牌持续抽牌、升级并把路标印记转为寻径裁切。");
+        addTalent("t_arrayist_grand", PROF_ARRAYIST, "终局万象", "获得升级终局万象阵；低费、临时、格挡、汇流与过载牌持续抽牌、升级并把阵纹印记转为布阵裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
