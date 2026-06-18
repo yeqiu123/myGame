@@ -1572,6 +1572,25 @@ public final class GameView extends View {
             p.setStyle(Paint.Style.FILL);
             c.drawCircle(cx - size * 0.18f, cy - size * 0.08f, size * 0.07f, p);
             c.drawCircle(cx + size * 0.18f, cy - size * 0.08f, size * 0.07f, p);
+        } else if (GameCore.PROF_STARFORGER.equals(profession)) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            Path star = new Path();
+            star.moveTo(cx, cy - size * 0.82f);
+            star.lineTo(cx + size * 0.2f, cy - size * 0.18f);
+            star.lineTo(cx + size * 0.78f, cy - size * 0.18f);
+            star.lineTo(cx + size * 0.3f, cy + size * 0.18f);
+            star.lineTo(cx + size * 0.48f, cy + size * 0.78f);
+            star.lineTo(cx, cy + size * 0.42f);
+            star.lineTo(cx - size * 0.48f, cy + size * 0.78f);
+            star.lineTo(cx - size * 0.3f, cy + size * 0.18f);
+            star.lineTo(cx - size * 0.78f, cy - size * 0.18f);
+            star.lineTo(cx - size * 0.2f, cy - size * 0.18f);
+            star.close();
+            c.drawPath(star, p);
+            c.drawCircle(cx, cy + size * 0.12f, size * 0.34f, p);
+            p.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy + size * 0.12f, size * 0.1f, p);
         } else {
             c.drawArc(new RectF(cx - size, cy - size, cx + size, cy + size), 210, 300, false, p);
             c.drawLine(cx - size * 0.7f, cy - size * 0.15f, cx + size * 0.7f, cy - size * 0.15f, p);

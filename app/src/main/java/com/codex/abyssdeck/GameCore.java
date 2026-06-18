@@ -134,6 +134,7 @@ public final class GameCore {
     public static final String PROF_BEASTMASTER = "驯兽师";
     public static final String PROF_DRAGONBINDER = "龙契者";
     public static final String PROF_SOULBINDER = "魂契师";
+    public static final String PROF_STARFORGER = "星炉师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -143,7 +144,8 @@ public final class GameCore {
             PROF_TACTICIAN, PROF_PRISMIST, PROF_DREAMWALKER, PROF_GARDENER, PROF_CHEF,
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
-            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER
+            PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
+            PROF_STARFORGER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -843,6 +845,7 @@ public final class GameCore {
         if (PROF_BEASTMASTER.equals(profession)) return "群猎";
         if (PROF_DRAGONBINDER.equals(profession)) return "龙誓";
         if (PROF_SOULBINDER.equals(profession)) return "魂契";
+        if (PROF_STARFORGER.equals(profession)) return "星铸";
         return "职业技";
     }
 
@@ -925,6 +928,7 @@ public final class GameCore {
         if (PROF_BEASTMASTER.equals(profession)) return "满充能：消耗兽势群猎，按临时伙伴、束缚、治疗、格挡、汇流和过载造成穿透，治疗、控场并制造兽牌。";
         if (PROF_DRAGONBINDER.equals(profession)) return "满充能：消耗龙印龙誓，按燃烧、临时龙牌、格挡、治疗、汇流和过载造成穿透，点燃、护盾并制造龙牌。";
         if (PROF_SOULBINDER.equals(profession)) return "满充能：消耗魂印魂契，按消耗、临时魂牌、治疗、状态、汇流和过载造成穿透，治疗、虚弱并制造魂牌。";
+        if (PROF_STARFORGER.equals(profession)) return "满充能：消耗星辉星铸，按升级、燃灼、格挡、汇流和过载造成穿透，升级手牌、加固并制造星炉牌。";
         return "选择职业后可用。";
     }
 
@@ -2398,6 +2402,49 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, souls / 2);
+        } else if (PROF_STARFORGER.equals(s.profession)) {
+            int stars = Math.max(1, s.professionCharge);
+            int forge = Math.min(22, upgradedCardCount(s) / 2 + buildFocusDeckCards(s, BUILD_FORGE));
+            int flames = Math.min(20, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW)
+                    + buildFocusDeckCards(s, BUILD_STATUS));
+            int guard = Math.min(18, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int cycle = Math.min(16, buildFocusDeckCards(s, BUILD_CYCLE) + tempOrEchoHandCount(s) / 2);
+            int chain = Math.min(14, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.burn * 4 + target.bind * 2;
+            int damage = 10 + s.act * 3 + Math.min(86, stars * 3 + forge * 5
+                    + flames * 4 + guard * 3 + cycle * 2 + chain * 5 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.burn += 2 + s.burnPower + Math.min(5, forge / 5 + flames / 4) + overload / 2;
+                target.mark += 2 + Math.min(4, stars / 4 + chain / 3);
+                target.vulnerable += 1 + Math.min(2, overload / 4 + pressure / 18);
+            }
+            gainBlock(s, 7 + s.act * 2 + Math.min(44, stars * 2 + forge * 3
+                    + flames * 2 + guard * 4 + chain * 2) + overload * 3);
+            draw(s, 1 + Math.min(3, stars / 5 + forge / 5 + cycle / 5) + overload / 4);
+            upgradeRandomHandCard(s);
+            if (forge >= 5 || flames >= 4 || chain >= 3 || overload >= 2) {
+                s.energy++;
+            }
+            Card spark = new Card(overload >= 4 || hasTalent(s, "t_starforger_grand")
+                    ? "starforger_grand_star" : "starforger_spark");
+            spark.temp = true;
+            spark.upgraded = stars >= 5 || hasTalent(s, "t_starforger_spark");
+            addToHand(s, spark);
+            if (hasTalent(s, "t_starforger_grand")) {
+                Card crucible = new Card("starforger_crucible");
+                crucible.temp = true;
+                crucible.upgraded = true;
+                addToHand(s, crucible);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, forge / 4));
+            addQuestProgress(s, QUEST_BREW, 1 + Math.min(3, flames / 4));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, stars / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3896,6 +3943,9 @@ public final class GameCore {
         if (PROF_SOULBINDER.equals(profession)) {
             return "用消耗、临时魂牌、治疗和状态牌积累魂印，把续航、控场与牌库净化转成魂契爆发。适合回声、血契、异常、守势和过载构筑。";
         }
+        if (PROF_STARFORGER.equals(profession)) {
+            return "用升级、燃灼、格挡和汇流积累星辉，把锻造节奏转成星铸爆发。适合工坊、异常、守势、汇流和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4031,6 +4081,9 @@ public final class GameCore {
         }
         if (PROF_SOULBINDER.equals(profession)) {
             return 0xffb68cff;
+        }
+        if (PROF_STARFORGER.equals(profession)) {
+            return 0xffffc766;
         }
         return 0xffd6c07a;
     }
@@ -4475,6 +4528,13 @@ public final class GameCore {
             s.maxHp += 4;
             s.hp += 4;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_STARFORGER.equals(profession)) {
+            s.deck.add(new Card("starforger_spark"));
+            s.deck.add(new Card("starforger_guard"));
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4540,6 +4600,7 @@ public final class GameCore {
         else if (PROF_BEASTMASTER.equals(profession)) upgradeDeckCard(s, "beastmaster_claw");
         else if (PROF_DRAGONBINDER.equals(profession)) upgradeDeckCard(s, "dragonbinder_spark");
         else if (PROF_SOULBINDER.equals(profession)) upgradeDeckCard(s, "soulbinder_thread");
+        else if (PROF_STARFORGER.equals(profession)) upgradeDeckCard(s, "starforger_spark");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4727,6 +4788,12 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_STARFORGER.equals(profession)) {
+            addUpgradedDeckCard(s, "starforger_crucible");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4775,6 +4842,7 @@ public final class GameCore {
         if (PROF_BEASTMASTER.equals(profession)) return "beastmaster_overpack";
         if (PROF_DRAGONBINDER.equals(profession)) return "dragonbinder_overflame";
         if (PROF_SOULBINDER.equals(profession)) return "soulbinder_overbind";
+        if (PROF_STARFORGER.equals(profession)) return "starforger_overforge";
         return "forge_signal";
     }
 
@@ -5423,6 +5491,21 @@ public final class GameCore {
         } else if ("t_soulbinder_grand".equals(id)) {
             addUpgradedDeckCard(s, "soulbinder_grand_pact");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_starforger_spark".equals(id)) {
+            addUpgradedDeckCard(s, "starforger_spark");
+            addUpgradedDeckCard(s, "starforger_hammer");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_starforger_guard".equals(id)) {
+            addUpgradedDeckCard(s, "starforger_guard");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_starforger_crucible".equals(id)) {
+            addUpgradedDeckCard(s, "starforger_crucible");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_starforger_grand".equals(id)) {
+            addUpgradedDeckCard(s, "starforger_grand_star");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5870,7 +5953,8 @@ public final class GameCore {
                 || "t_frostbinder_grand".equals(id) || "t_plaguedoctor_grand".equals(id)
                 || "t_archivist_grand".equals(id) || "t_voidnavigator_grand".equals(id)
                 || "t_relicsmith_grand".equals(id) || "t_beastmaster_grand".equals(id)
-                || "t_dragonbinder_grand".equals(id) || "t_soulbinder_grand".equals(id);
+                || "t_dragonbinder_grand".equals(id) || "t_soulbinder_grand".equals(id)
+                || "t_starforger_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -5895,7 +5979,8 @@ public final class GameCore {
                 || "frostbinder_grand_winter".equals(id) || "plaguedoctor_grand_plague".equals(id)
                 || "archivist_grand_archive".equals(id) || "voidnavigator_grand_jump".equals(id)
                 || "relicsmith_grand_vault".equals(id) || "beastmaster_grand_hunt".equals(id)
-                || "dragonbinder_grand_oath".equals(id) || "soulbinder_grand_pact".equals(id);
+                || "dragonbinder_grand_oath".equals(id) || "soulbinder_grand_pact".equals(id)
+                || "starforger_grand_star".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -5919,7 +6004,7 @@ public final class GameCore {
                 || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
                 || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id)
                 || "vault_crown".equals(id) || "alpha_crown".equals(id) || "elder_dragon_crown".equals(id)
-                || "soul_crown".equals(id);
+                || "soul_crown".equals(id) || "star_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -6467,6 +6552,11 @@ public final class GameCore {
                 || "wound".equals(d.id) || "daze".equals(d.id) || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_SOULBINDER) || d.profession.equals(PROF_MEDIUM)
                 || d.profession.equals(PROF_DREAMWALKER) || d.profession.equals(PROF_PLAGUEDOCTOR))) amount++;
+        else if (PROF_STARFORGER.equals(s.profession) && d != null && (d.upgradeRandom || d.scry > 0
+                || d.burn > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_STARFORGER) || d.profession.equals(PROF_RUNEBLADE)
+                || d.profession.equals(PROF_MACHINIST) || d.profession.equals(PROF_GEOMANCER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -8697,6 +8787,41 @@ public final class GameCore {
                 target.mark += 2;
             }
         }
+        if (hasRelic(s, "star_hammer") && PROF_STARFORGER.equals(s.profession)) {
+            int forge = upgradedCardCount(s) + buildFocusDeckCards(s, BUILD_FORGE);
+            int flames = burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + forge / 6 + flames / 4));
+            gainBlock(s, 6 + s.act + Math.min(20, s.professionCharge * 2 + forge * 2 + flames * 2));
+            Card spark = new Card("starforger_spark");
+            spark.temp = true;
+            spark.upgraded = true;
+            addToHand(s, spark);
+            if (target != null) {
+                target.burn += 2 + s.burnPower + Math.min(3, forge / 6);
+                target.mark += 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(30, target.burn * 2
+                        + s.professionCharge * 2 + forge * 2 + flames * 2), true);
+            }
+        }
+        if (hasRelic(s, "star_crown") && PROF_STARFORGER.equals(s.profession)) {
+            Card overforge = new Card("starforger_overforge");
+            overforge.temp = true;
+            overforge.upgraded = true;
+            addToHand(s, overforge);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || upgradedCardCount(s) >= 8 || s.confluenceChain >= 3
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.burn += 3 + s.burnPower;
+                target.vulnerable += 1;
+                target.mark += 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -8796,6 +8921,9 @@ public final class GameCore {
         if (hasRelic(s, "soul_lantern") && PROF_SOULBINDER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || tempOrEchoHandCount(s) >= 2 || s.exhaust.size() >= 3
                 || s.hp < s.maxHp || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
+        if (hasRelic(s, "star_hammer") && PROF_STARFORGER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || upgradedCardCount(s) >= 6 || s.block >= 12
+                || s.confluenceChain >= 2 || firstLiving(s) != null && firstLiving(s).burn > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -10628,6 +10756,36 @@ public final class GameCore {
                 pact.temp = true;
                 pact.upgraded = true;
                 addToHand(s, pact);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_STARFORGER.equals(s.profession) && s.turn == 1) {
+            int forge = Math.min(10, upgradedCardCount(s) + buildFocusDeckCards(s, BUILD_FORGE));
+            int flames = Math.min(10, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, forge / 3 + flames / 3 + s.block / 8);
+            gainBlock(s, 4 + s.act + Math.min(10, forge * 2 + flames + s.professionCharge));
+            upgradeRandomHandCard(s);
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += 1 + s.burnPower;
+                firstLiving(s).mark += hasTalent(s, "t_starforger_spark") ? 2 : 1;
+            }
+            if (hasTalent(s, "t_starforger_spark")) {
+                Card spark = new Card("starforger_spark");
+                spark.temp = true;
+                spark.upgraded = true;
+                addToHand(s, spark);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_starforger_guard")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_starforger_grand")) {
+                Card crucible = new Card("starforger_crucible");
+                crucible.temp = true;
+                crucible.upgraded = true;
+                addToHand(s, crucible);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -14347,6 +14505,120 @@ public final class GameCore {
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("starforger_spark".equals(d.id) && target != null) {
+            int stars = Math.max(0, s.professionCharge);
+            int forge = upgradedCardCount(s);
+            damage += Math.min(c.upgraded ? 36 : 25, stars * 2 + forge * 2 + target.burn * 3 + target.mark * 2);
+            target.burn += 1 + s.burnPower + (c.upgraded ? 1 : 0);
+            target.mark += c.upgraded ? 2 : 1;
+            if (forge >= 5 || target.burn >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_BREW, 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("starforger_guard".equals(d.id)) {
+            int forge = upgradedCardCount(s);
+            int flames = burnDeckCards(s);
+            block += Math.min(c.upgraded ? 40 : 28, s.professionCharge * 2 + forge * 3
+                    + flames * 2 + s.block / 3);
+            upgradeRandomHandCard(s);
+            if (forge >= 5 || s.block >= 14 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += 1 + s.burnPower;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("starforger_crucible".equals(d.id)) {
+            int forge = upgradedCardCount(s);
+            int chain = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            block += Math.min(c.upgraded ? 38 : 26, s.professionCharge * 2 + forge * 3
+                    + buildFocusDeckCards(s, BUILD_FORGE) * 2 + chain * 2);
+            Card spark = new Card("starforger_spark");
+            spark.temp = true;
+            spark.upgraded = c.upgraded || forge >= 6;
+            addToHand(s, spark);
+            upgradeRandomHandCard(s);
+            if (forge >= 5 || chain >= 3 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, focusMaskCount(s.confluenceMask)));
+        }
+        if ("starforger_hammer".equals(d.id) && target != null) {
+            int forge = upgradedCardCount(s);
+            int pressure = target.burn * 4 + target.mark * 4 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 58 : 42, pressure + forge * 3
+                    + s.professionCharge * 2 + s.block / 3);
+            target.burn += 2 + s.burnPower + (c.upgraded ? 1 : 0);
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            if (target.burn + target.mark >= 6 || forge >= 7 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
+        }
+        if ("starforger_overforge".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int forge = upgradedCardCount(s);
+            int flames = burnDeckCards(s);
+            block += Math.min(c.upgraded ? 48 : 34, s.professionCharge * 2 + forge * 4
+                    + flames * 3 + overloadNow * 7);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.burn += 2 + s.burnPower + (c.upgraded ? 1 : 0);
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 70 : 50, overloadNow * 8 + forge * 4
+                        + flames * 5 + target.burn * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || forge >= 7 || flames >= 3 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("starforger_grand_star".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int forge = upgradedCardCount(s);
+            int flames = burnDeckCards(s);
+            int labels = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 100 : 76, s.professionCharge * 4 + forge * 6
+                    + flames * 6 + s.block / 2 + labels * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 70 : 52, s.professionCharge * 3 + forge * 4
+                    + flames * 3 + labels * 3 + overloadNow * 6);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.burn += 4 + s.burnPower;
+                target.mark += c.upgraded ? 5 : 4;
+                target.vulnerable += 1;
+            }
+            Card spark = new Card("starforger_spark");
+            spark.temp = true;
+            spark.upgraded = true;
+            addToHand(s, spark);
+            if (forge >= 7 || flames >= 3 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
@@ -18339,6 +18611,90 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_STARFORGER.equals(s.profession) && (d.upgradeRandom || d.scry > 0 || c.upgraded
+                || d.burn > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_STARFORGER)
+                || d.profession.equals(PROF_RUNEBLADE) || d.profession.equals(PROF_MACHINIST)
+                || d.profession.equals(PROF_GEOMANCER))) {
+            int forge = Math.min(20, upgradedCardCount(s) + buildFocusDeckCards(s, BUILD_FORGE));
+            int flames = Math.min(18, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW));
+            s.professionCharge += 1 + Math.min(2, (forge / 5 + flames / 4
+                    + (d.upgradeRandom || c.upgraded ? 2 : 0) + (d.burn > 0 || d.block > 0 ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.burn += 1 + s.burnPower;
+                    e.mark += 1;
+                    if (d.burn > 0 || d.vulnerable > 0 || hasTalent(s, "t_starforger_crucible")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(38, e.burn * 2 + e.mark * 2
+                            + forge * 2 + flames * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.upgradeRandom || hasTalent(s, "t_starforger_guard")) {
+                    gainBlock(s, 3 + s.act + Math.min(20, s.professionCharge + forge * 2 + s.block / 6));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || forge >= 7 || hasTalent(s, "t_starforger_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_starforger_spark") && (d.cost == 0 || d.draw > 0 || c.upgraded
+                || d.upgradeRandom || d.burn > 0 || d.profession.equals(PROF_STARFORGER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower;
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(32, e.burn * 2
+                        + s.professionCharge * 2 + upgradedCardCount(s) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_starforger_guard") && (d.block > 0 || d.type == 1 || d.upgradeRandom
+                || c.upgraded || d.profession.equals(PROF_STARFORGER))) {
+            gainBlock(s, 4 + s.act + Math.min(20, s.professionCharge + upgradedCardCount(s) * 2
+                    + burnDeckCards(s) * 2 + s.block / 8));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 14) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_starforger_crucible") && (d.burn > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || d.upgradeRandom || c.upgraded || d.profession.equals(PROF_STARFORGER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 2 + s.burnPower;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 8 || s.cardsPlayedThisTurn >= 3 || upgradedCardCount(s) >= 7) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + upgradedCardCount(s) * 2 + burnDeckCards(s) * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_starforger_grand") && (d.upgradeRandom || c.upgraded || d.burn > 0
+                || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_STARFORGER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || upgradedCardCount(s) >= 8 || burnDeckCards(s) >= 3)) {
+                e.burn += 2 + s.burnPower;
+                e.mark += 1;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.burn * 2 + e.mark * 2
+                        + s.professionCharge * 2 + upgradedCardCount(s) * 2 + burnDeckCards(s) * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -19323,6 +19679,42 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 s.hp = Math.min(s.maxHp, s.hp + 2 + s.act);
+            }
+        }
+        if (hasRelic(s, "star_hammer") && (d.upgradeRandom || c.upgraded || d.burn > 0 || d.block > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.profession.equals(PROF_STARFORGER))) {
+            addProfessionSkillCharge(s, 1);
+            int forge = upgradedCardCount(s);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge + forge * 2 + burnDeckCards(s) * 2));
+                upgradeRandomHandCard(s);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower;
+                e.mark += 1;
+                if (d.upgradeRandom || c.upgraded || e.burn >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(32, e.burn * 2
+                            + forge * 2 + s.professionCharge * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "star_crown") && (d.upgradeRandom || c.upgraded || d.burn > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_STARFORGER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 2 + s.burnPower;
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (e.burn >= 5 || s.cardsPlayedThisTurn >= 4 || upgradedCardCount(s) >= 8) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(38, e.burn * 2 + e.mark * 2
+                            + s.professionCharge + upgradedCardCount(s) * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -20796,6 +21188,9 @@ public final class GameCore {
         if (PROF_SOULBINDER.equals(d.profession)) {
             return soulbinderFocusCardValue(d, focus);
         }
+        if (PROF_STARFORGER.equals(d.profession)) {
+            return starforgerFocusCardValue(d, focus);
+        }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
                     + ("overload_conduit".equals(d.id) ? 10 : 0) + ("cycle_metronome".equals(d.id) ? 4 : 0)
@@ -21911,6 +22306,40 @@ public final class GameCore {
         return 0;
     }
 
+    private static int starforgerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.burn * 2 + d.block + (d.upgradeRandom ? 5 : 0)
+                    + ("starforger_spark".equals(d.id) ? 8 : 0) + ("starforger_hammer".equals(d.id) ? 9 : 0)
+                    + ("starforger_overforge".equals(d.id) ? 16 : 0) + ("starforger_grand_star".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 14 : 0) + d.scry * 3 + d.skillChargeGain * 2 + (d.rarity == 2 ? 3 : 0)
+                    + ("starforger_guard".equals(d.id) ? 14 : 0) + ("starforger_crucible".equals(d.id) ? 18 : 0)
+                    + ("starforger_overforge".equals(d.id) ? 18 : 0) + ("starforger_grand_star".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return d.burn * 6 + d.vulnerable * 6 + d.skillChargeGain * 2 + (d.upgradeRandom ? 4 : 0)
+                    + ("starforger_spark".equals(d.id) ? 14 : 0) + ("starforger_hammer".equals(d.id) ? 16 : 0)
+                    + ("starforger_overforge".equals(d.id) ? 18 : 0) + ("starforger_grand_star".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 5 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("starforger_spark".equals(d.id) ? 10 : 0) + ("starforger_hammer".equals(d.id) ? 18 : 0)
+                    + ("starforger_overforge".equals(d.id) ? 16 : 0) + ("starforger_grand_star".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 7 : 0) + d.skillChargeGain * 2
+                    + ("starforger_spark".equals(d.id) ? 16 : 0) + ("starforger_crucible".equals(d.id) ? 14 : 0)
+                    + ("starforger_grand_star".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.draw * 2 + d.burn * 2 + (d.upgradeRandom ? 5 : 0)
+                    + ("starforger_guard".equals(d.id) ? 18 : 0) + ("starforger_crucible".equals(d.id) ? 16 : 0)
+                    + ("starforger_overforge".equals(d.id) ? 16 : 0) + ("starforger_grand_star".equals(d.id) ? 16 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -22383,6 +22812,16 @@ public final class GameCore {
         else if ("t_soulbinder_grand".equals(id)) bonus += professionCards + tempOrEchoDeckCards(s) * 2
                 + exhaustDeckCards(s) + healingDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_starforger_spark".equals(id)) bonus += zeroCost * 2 + upgraded * 2
+                + burnDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_starforger_guard".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + upgraded * 2 + burnDeckCards(s) + professionCards;
+        else if ("t_starforger_crucible".equals(id)) bonus += burnDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_FORGE)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_starforger_grand".equals(id)) bonus += professionCards + upgraded * 2
+                + burnDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_GUARD)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -22438,6 +22877,14 @@ public final class GameCore {
             if (focus == BUILD_OVERLOAD && isAny(id, "t_soulbinder_pact", "t_soulbinder_grand")) return 3;
             if (focus == BUILD_STATUS && isAny(id, "t_soulbinder_thread", "t_soulbinder_pact", "t_soulbinder_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_soulbinder_veil", "t_soulbinder_grand")) return 3;
+        }
+        if (isAny(id, "t_starforger_spark", "t_starforger_guard", "t_starforger_crucible", "t_starforger_grand")) {
+            if (focus == BUILD_FORGE) return 3;
+            if (focus == BUILD_BREW && isAny(id, "t_starforger_spark", "t_starforger_crucible", "t_starforger_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_starforger_crucible", "t_starforger_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_starforger_spark", "t_starforger_crucible", "t_starforger_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_starforger_guard", "t_starforger_grand")) return 3;
+            if (focus == BUILD_CYCLE && isAny(id, "t_starforger_spark", "t_starforger_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -23186,6 +23633,10 @@ public final class GameCore {
             return focus == BUILD_ECHO || focus == BUILD_STATUS || focus == BUILD_CYCLE
                     || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_BLOOD ? 3 : 0;
         }
+        if ("star_hammer".equals(id) || "star_crown".equals(id)) {
+            return focus == BUILD_FORGE || focus == BUILD_BREW || focus == BUILD_STATUS
+                    || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_CYCLE ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -23332,7 +23783,8 @@ public final class GameCore {
                 || (PROF_RELICSMITH.equals(s.profession) && "relic_chisel".equals(id))
                 || (PROF_BEASTMASTER.equals(s.profession) && "beast_whistle".equals(id))
                 || (PROF_DRAGONBINDER.equals(s.profession) && "dragon_sigil".equals(id))
-                || (PROF_SOULBINDER.equals(s.profession) && "soul_lantern".equals(id));
+                || (PROF_SOULBINDER.equals(s.profession) && "soul_lantern".equals(id))
+                || (PROF_STARFORGER.equals(s.profession) && "star_hammer".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -23388,6 +23840,7 @@ public final class GameCore {
                 || hasRelic(s, "beast_whistle") || hasRelic(s, "alpha_crown")
                 || hasRelic(s, "dragon_sigil") || hasRelic(s, "elder_dragon_crown")
                 || hasRelic(s, "soul_lantern") || hasRelic(s, "soul_crown")
+                || hasRelic(s, "star_hammer") || hasRelic(s, "star_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook")
@@ -24345,7 +24798,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -24390,6 +24843,7 @@ public final class GameCore {
         if (PROF_BEASTMASTER.equals(s.profession)) return "beast_whistle";
         if (PROF_DRAGONBINDER.equals(s.profession)) return "dragon_sigil";
         if (PROF_SOULBINDER.equals(s.profession)) return "soul_lantern";
+        if (PROF_STARFORGER.equals(s.profession)) return "star_hammer";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -24856,6 +25310,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_SOULBINDER.equals(s.profession) && "soul_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_STARFORGER.equals(s.profession) && ("star_hammer".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "split_anvil".equals(id) || "starforge_lens".equals(id)
+                || "stormglass_seal".equals(id) || "emberroot_charm".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "bulwark_core".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                || "resonance_prism".equals(id) || "gyro_wrench".equals(id) || "rune_stylus".equals(id))) {
+            return 2;
+        }
+        if (PROF_STARFORGER.equals(s.profession) && "star_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -25418,6 +25883,19 @@ public final class GameCore {
             addUpgradedDeckCard(s, "soulbinder_grand_pact");
             addUpgradedDeckCard(s, "soulbinder_thread");
             removeStatusCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("star_hammer".equals(id)) {
+            addUpgradedDeckCard(s, "starforger_crucible");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("star_crown".equals(id)) {
+            addUpgradedDeckCard(s, "starforger_grand_star");
+            addUpgradedDeckCard(s, "starforger_spark");
+            upgradeRandomDeckCard(s);
             s.maxHp += 5;
             s.hp += 5;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
@@ -26316,6 +26794,18 @@ public final class GameCore {
         c.profession = PROF_SOULBINDER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("soulbinder_grand_pact", "终局万魂契", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按魂印、魂牌、消耗、治疗、汇流和过载追加终局收益。", "更高伤害、格挡和魂牌返还。");
         c.profession = PROF_SOULBINDER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "soulbinder_thread"; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("starforger_spark", "星炉火花", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加燃烧；升级牌、星辉和燃烧会提高收益。", "更高伤害、燃烧和星辉。");
+        c.profession = PROF_STARFORGER; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("starforger_guard", "星铁护盾", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡并升级手牌；升级牌与燃烧会加厚防线。", "更多格挡、升级和职业技充能。");
+        c.profession = PROF_STARFORGER; c.draw = c.drawUp = 1; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("starforger_crucible", "星炉熔台", "通用", 1, 1, 1, 0, 0, 8, 12, "获得格挡、升级手牌并制造临时星炉火花；升级牌足够时返能。", "更多格挡、火花和返能窗口。");
+        c.profession = PROF_STARFORGER; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "starforger_spark"; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("starforger_hammer", "陨星锤", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加燃烧、印记和易伤；升级牌与燃烧会转成锻击爆发。", "更高伤害、燃烧和压制。");
+        c.profession = PROF_STARFORGER; c.burn = 2; c.burnUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("starforger_overforge", "过载星锻", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、升级和充能；过载、升级牌与燃烧会追加星锻伤害。", "更多格挡、升级和职业技充能。");
+        c.profession = PROF_STARFORGER; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("starforger_grand_star", "终局坠星炉", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按星辉、升级、燃烧、守势、汇流和过载追加终局收益。", "更高伤害、格挡和火花返还。");
+        c.profession = PROF_STARFORGER; c.draw = c.drawUp = 1; c.burn = 3; c.burnUp = 4; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "starforger_spark"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -26618,6 +27108,8 @@ public final class GameCore {
         addRelicDef("elder_dragon_crown", "古龙冠", "获得升级终局古龙誓；龙契者燃烧、龙牌、守势、充能和稀有牌会滚动燃烧、抽牌与龙誓追击。");
         addRelicDef("soul_lantern", "引魂灯", "魂契师临时魂牌、消耗、治疗、状态和职业牌更快推动职业技；释放后制造魂线牵引并治疗。");
         addRelicDef("soul_crown", "万魂冠", "获得升级终局万魂契；魂契师魂牌、消耗、治疗、充能和稀有牌会滚动束缚、抽牌与魂契追击。");
+        addRelicDef("star_hammer", "星炉锤", "星炉师升级、燃烧、格挡和职业牌更快推动职业技；释放后制造星炉火花并升级手牌。");
+        addRelicDef("star_crown", "坠星冠", "获得升级终局坠星炉；星炉师升级、燃烧、守势、充能和稀有牌会滚动燃烧、升级与星铸追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -26890,6 +27382,9 @@ public final class GameCore {
         addTalent("t_soulbinder_thread", PROF_SOULBINDER, "魂线回路", "获得升级魂线牵引和魂鞭裁断；低费、抽牌、临时魂牌和消耗牌追加印记，并把魂印转成穿透追击。");
         addTalent("t_soulbinder_veil", PROF_SOULBINDER, "魂幕防线", "获得生命、净化状态和升级魂幕护身；格挡、治疗、技能和魂牌提供额外防线，并在关键节奏治疗。");
         addTalent("t_soulbinder_pact", PROF_SOULBINDER, "结魂仪式", "获得升级结魂契；束缚、易伤、消耗、魂牌和充能牌会扩张控制压力并转成魂契追击。");
+        addTalent("t_starforger_spark", PROF_STARFORGER, "星火回路", "获得升级星炉火花和陨星锤；低费、抽牌、升级和燃烧牌追加印记，并把星辉转成穿透追击。");
+        addTalent("t_starforger_guard", PROF_STARFORGER, "星铁防线", "获得生命和升级星铁护盾；格挡、技能、升级和星炉牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_starforger_crucible", PROF_STARFORGER, "坠星熔台", "获得升级星炉熔台；燃烧、易伤、升级和充能牌会扩张锻造压力并转成星铸追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -26934,6 +27429,7 @@ public final class GameCore {
         addTalent("t_beastmaster_grand", PROF_BEASTMASTER, "终局百兽", "获得升级终局百兽猎；伙伴、束缚、治疗、守势与过载牌持续抽牌、治疗并把兽势印记转为群猎裁切。");
         addTalent("t_dragonbinder_grand", PROF_DRAGONBINDER, "终局古龙", "获得升级终局古龙誓；燃烧、龙牌、治疗、守势与过载牌持续抽牌、护盾并把龙印印记转为龙誓裁切。");
         addTalent("t_soulbinder_grand", PROF_SOULBINDER, "终局万魂", "获得升级终局万魂契；魂牌、消耗、治疗、守势与过载牌持续抽牌、治疗并把魂印印记转为魂契裁切。");
+        addTalent("t_starforger_grand", PROF_STARFORGER, "终局坠星", "获得升级终局坠星炉；升级、燃烧、守势、汇流与过载牌持续抽牌、升级并把星辉印记转为星铸裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

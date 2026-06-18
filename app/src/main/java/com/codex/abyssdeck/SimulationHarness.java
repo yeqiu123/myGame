@@ -246,6 +246,8 @@ public final class SimulationHarness {
             if (isDragonbinderCard(d)) score += 14;
             if (GameCore.PROF_SOULBINDER.equals(s.profession) && isSoulbinderSignal(d)) score += 14;
             if (isSoulbinderCard(d)) score += 14;
+            if (GameCore.PROF_STARFORGER.equals(s.profession) && isStarforgerSignal(d)) score += 14;
+            if (isStarforgerCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -624,6 +626,13 @@ public final class SimulationHarness {
                     || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bulwark_core".equals(id)
                     || "confluence_map".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
                     || "resonance_prism".equals(id) || "plague_case".equals(id) || "frost_chain".equals(id))) score += 36;
+            if (GameCore.PROF_STARFORGER.equals(s.profession) && ("star_crown".equals(id) || "star_hammer".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "split_anvil".equals(id)
+                    || "starforge_lens".equals(id) || "stormglass_seal".equals(id) || "emberroot_charm".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bulwark_core".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "overload_etch".equals(id)
+                    || "discipline_chart".equals(id) || "resonance_prism".equals(id) || "gyro_wrench".equals(id)
+                    || "rune_stylus".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -838,6 +847,9 @@ public final class SimulationHarness {
             if (GameCore.PROF_SOULBINDER.equals(s.profession) && ("pact_void".equals(id) || "pact_summon".equals(id)
                     || "pact_guardian".equals(id) || "pact_suppression".equals(id) || "pact_hex".equals(id)
                     || "pact_confluence".equals(id))) score += 24;
+            if (GameCore.PROF_STARFORGER.equals(s.profession) && ("pact_forge".equals(id) || "pact_brewer".equals(id)
+                    || "pact_guardian".equals(id) || "pact_suppression".equals(id) || "pact_confluence".equals(id)
+                    || "pact_hunter".equals(id))) score += 24;
             if (s.ascension >= 6 && "pact_blood".equals(id) && !GameCore.PROF_BLOODBOUND.equals(s.profession)) score -= 8;
             if (score > bestScore) {
                 bestScore = score;
@@ -1035,6 +1047,9 @@ public final class SimulationHarness {
                     || "spec_echoflow".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
                     || "spec_pressure".equals(id) || "spec_sustain".equals(id) || "spec_bulwark".equals(id)
                     || "spec_tempo".equals(id) || "spec_salvage".equals(id))) score += 10;
+            if (GameCore.PROF_STARFORGER.equals(s.profession) && ("spec_mastery".equals(id) || "spec_resonance".equals(id)
+                    || "spec_assembly".equals(id) || "spec_control".equals(id) || "spec_markchain".equals(id)
+                    || "spec_pressure".equals(id) || "spec_bulwark".equals(id) || "spec_tempo".equals(id))) score += 10;
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
@@ -1112,7 +1127,7 @@ public final class SimulationHarness {
                         || isTacticianCard(d) || isPrismistCard(d) || isDreamwalkerCard(d) || isGardenerCard(d)
                         || isBardCard(d) || isMirroristCard(d) || isPuppeteerCard(d) || isScavengerCard(d)
                         || isGeomancerCard(d) || isWitchCard(d) || isFrostbinderCard(d) || isBeastmasterCard(d)
-                        || isDragonbinderCard(d) || isSoulbinderCard(d))) score += 20;
+                        || isDragonbinderCard(d) || isSoulbinderCard(d) || isStarforgerCard(d))) score += 20;
                 if (s.combatQuest == GameCore.QUEST_OVERLOAD && d.skillChargeGain > 0) score += 24;
                 if (GameCore.PROF_BLOODBOUND.equals(s.profession) && (d.hpLoss > 0 || "wound".equals(c.id))) {
                     score += 14;
@@ -1455,6 +1470,19 @@ public final class SimulationHarness {
                     if (tempOrEchoHandCards(s) >= 2 && ("soulbinder_veil".equals(c.id)
                             || "soulbinder_pact".equals(c.id) || "soulbinder_grand_pact".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_STARFORGER.equals(s.profession) && (isStarforgerSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.upgradeRandom || c.upgraded || d.burn > 0 || d.block > 0
+                            || d.draw > 0 || isStarforgerCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isStarforgerCard(d)
+                            || d.upgradeRandom || d.burn > 0)) score += 6;
+                    if (starforgerEnemyPressure(s) >= 8 && ("starforger_hammer".equals(c.id)
+                            || "starforger_overforge".equals(c.id) || "starforger_grand_star".equals(c.id))) score += 8;
+                    if ((upgradedDeckCards(s) >= 7 || statusDeckCards(s) >= 1 || s.block >= 14)
+                            && (d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || isStarforgerCard(d))) score += 5;
+                    if (upgradedDeckCards(s) >= 6 && ("starforger_guard".equals(c.id)
+                            || "starforger_crucible".equals(c.id) || "starforger_grand_star".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1678,6 +1706,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || d.exhaust || d.createEcho || c.temp || isSoulbinderCard(d))) score += 12;
                 if (s.talents.contains("t_soulbinder_grand") && (d.createEcho || c.temp || d.exhaust || d.bind > 0
                         || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isSoulbinderCard(d))) score += 14;
+                if (s.talents.contains("t_starforger_spark") && (d.cost == 0 || d.draw > 0 || d.upgradeRandom
+                        || c.upgraded || d.burn > 0 || isStarforgerCard(d))) score += 12;
+                if (s.talents.contains("t_starforger_guard") && (d.block > 0 || d.type == 1
+                        || d.upgradeRandom || c.upgraded || isStarforgerCard(d))) score += 12;
+                if (s.talents.contains("t_starforger_crucible") && (d.burn > 0 || d.vulnerable > 0
+                        || d.skillChargeGain > 0 || d.upgradeRandom || c.upgraded || isStarforgerCard(d))) score += 12;
+                if (s.talents.contains("t_starforger_grand") && (d.upgradeRandom || c.upgraded || d.burn > 0
+                        || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isStarforgerCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2204,6 +2240,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_STARFORGER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean starWindow = target >= 0 && (s.enemies.get(target).burn >= 3
+                    || s.enemies.get(target).vulnerable > 0 || s.enemies.get(target).mark >= 2);
+            if (s.professionCharge >= 4 || overload >= 1 || starWindow || upgradedDeckCards(s) >= 7
+                    || statusDeckCards(s) >= 1 || s.block >= 18 || s.confluenceChain >= 3
+                    || starforgerEnemyPressure(s) >= 7 || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2228,7 +2274,8 @@ public final class SimulationHarness {
                 || "t_relicsmith_grand".equals(id) || "t_beastmaster_claw".equals(id)
                 || "t_beastmaster_grand".equals(id) || "t_dragonbinder_spark".equals(id)
                 || "t_dragonbinder_grand".equals(id) || "t_soulbinder_thread".equals(id)
-                || "t_soulbinder_grand".equals(id));
+                || "t_soulbinder_grand".equals(id) || "t_starforger_spark".equals(id)
+                || "t_starforger_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2571,6 +2618,7 @@ public final class SimulationHarness {
                 || s.relics.contains("beast_whistle") || s.relics.contains("alpha_crown")
                 || s.relics.contains("dragon_sigil") || s.relics.contains("elder_dragon_crown")
                 || s.relics.contains("soul_lantern") || s.relics.contains("soul_crown")
+                || s.relics.contains("star_hammer") || s.relics.contains("star_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook");
     }
 
@@ -2983,6 +3031,31 @@ public final class SimulationHarness {
         }
         pressure += Math.min(5, tempOrEchoHandCards(s));
         pressure += Math.min(5, s.exhaust.size() / 2);
+        return pressure;
+    }
+
+    private static boolean isStarforgerSignal(GameCore.CardDef d) {
+        return d != null && (d.upgradeRandom || d.scry > 0 || d.burn > 0 || d.block > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.vulnerable > 0 || isHybridCore(d)
+                || GameCore.PROF_STARFORGER.equals(d.profession) || GameCore.PROF_RUNEBLADE.equals(d.profession)
+                || GameCore.PROF_MACHINIST.equals(d.profession) || GameCore.PROF_GEOMANCER.equals(d.profession));
+    }
+
+    private static boolean isStarforgerCard(GameCore.CardDef d) {
+        return d != null && ("starforger_spark".equals(d.id) || "starforger_guard".equals(d.id)
+                || "starforger_crucible".equals(d.id) || "starforger_hammer".equals(d.id)
+                || "starforger_overforge".equals(d.id) || "starforger_grand_star".equals(d.id));
+    }
+
+    private static int starforgerEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.burn * 3 + e.bind;
+            }
+        }
+        pressure += Math.min(6, upgradedDeckCards(s) / 2);
+        pressure += Math.min(4, s.block / 6);
         return pressure;
     }
 
