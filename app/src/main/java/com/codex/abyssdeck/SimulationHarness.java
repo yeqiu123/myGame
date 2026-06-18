@@ -248,6 +248,8 @@ public final class SimulationHarness {
             if (isSoulbinderCard(d)) score += 14;
             if (GameCore.PROF_STARFORGER.equals(s.profession) && isStarforgerSignal(d)) score += 14;
             if (isStarforgerCard(d)) score += 14;
+            if (GameCore.PROF_PATHFINDER.equals(s.profession) && isPathfinderSignal(d)) score += 14;
+            if (isPathfinderCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -405,6 +407,10 @@ public final class SimulationHarness {
                     || d.upgradeRandom || d.block > 0 || d.draw > 0)) score += 18;
             if (s.relics.contains("vault_crown") && (isRelicsmithSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.goldGain > 0 || d.upgradeRandom || d.vulnerable > 0)) score += 20;
+            if (s.relics.contains("pathfinder_compass") && (isPathfinderSignal(d) || d.scry > 0
+                    || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("route_crown") && (isPathfinderSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.bind > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -634,6 +640,12 @@ public final class SimulationHarness {
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "overload_etch".equals(id)
                     || "discipline_chart".equals(id) || "resonance_prism".equals(id) || "gyro_wrench".equals(id)
                     || "rune_stylus".equals(id))) score += 36;
+            if (GameCore.PROF_PATHFINDER.equals(s.profession) && ("route_crown".equals(id) || "pathfinder_compass".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "starforge_lens".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bulwark_core".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "overload_etch".equals(id)
+                    || "discipline_chart".equals(id) || "resonance_prism".equals(id) || "fate_lantern".equals(id)
+                    || "war_table".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -678,6 +690,7 @@ public final class SimulationHarness {
             if ("archive_key".equals(id) || "archive_crown".equals(id)) score += 20;
             if ("void_compass".equals(id) || "void_crown".equals(id)) score += 20;
             if ("relic_chisel".equals(id) || "vault_crown".equals(id)) score += 20;
+            if ("pathfinder_compass".equals(id) || "route_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -1731,6 +1744,14 @@ public final class SimulationHarness {
                         || d.skillChargeGain > 0 || d.upgradeRandom || c.upgraded || isStarforgerCard(d))) score += 12;
                 if (s.talents.contains("t_starforger_grand") && (d.upgradeRandom || c.upgraded || d.burn > 0
                         || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isStarforgerCard(d))) score += 14;
+                if (s.talents.contains("t_pathfinder_mark") && (d.cost == 0 || d.draw > 0
+                        || d.scry > 0 || d.bind > 0 || isPathfinderCard(d))) score += 12;
+                if (s.talents.contains("t_pathfinder_shelter") && (d.block > 0 || d.type == 1
+                        || d.scry > 0 || d.upgradeRandom || isPathfinderCard(d))) score += 12;
+                if (s.talents.contains("t_pathfinder_survey") && (d.scry > 0 || d.vulnerable > 0
+                        || d.bind > 0 || d.skillChargeGain > 0 || isPathfinderCard(d))) score += 12;
+                if (s.talents.contains("t_pathfinder_grand") && (d.scry > 0 || d.block > 0
+                        || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || isPathfinderCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1812,6 +1833,9 @@ public final class SimulationHarness {
                 if ("archivist_grand_archive".equals(c.id) || "archivist_overfile".equals(c.id)) score += 18;
                 if ("archivist_index".equals(c.id) || "archivist_seal".equals(c.id)
                         || "archivist_catalog".equals(c.id) || "archivist_redline".equals(c.id)) score += 14;
+                if ("pathfinder_grand_route".equals(c.id) || "pathfinder_overroute".equals(c.id)) score += 18;
+                if ("pathfinder_mark".equals(c.id) || "pathfinder_shelter".equals(c.id)
+                        || "pathfinder_survey".equals(c.id) || "pathfinder_shortcut".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -1955,6 +1979,10 @@ public final class SimulationHarness {
                         || d.scry > 0 || d.upgradeRandom || d.draw > 0 || d.exhaustTopDiscard)) score += 14;
                 if (s.relics.contains("archive_crown") && (isArchivistSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0)) score += 16;
+                if (s.relics.contains("pathfinder_compass") && (isPathfinderSignal(d) || c.temp
+                        || d.scry > 0 || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("route_crown") && (isPathfinderSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom || d.bind > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2267,6 +2295,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_PATHFINDER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean routeWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || routeWindow || upgradedDeckCards(s) >= 6
+                    || s.confluenceChain >= 3 || s.block >= 18 || pathfinderEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2292,7 +2330,8 @@ public final class SimulationHarness {
                 || "t_beastmaster_grand".equals(id) || "t_dragonbinder_spark".equals(id)
                 || "t_dragonbinder_grand".equals(id) || "t_soulbinder_thread".equals(id)
                 || "t_soulbinder_grand".equals(id) || "t_starforger_spark".equals(id)
-                || "t_starforger_grand".equals(id));
+                || "t_starforger_grand".equals(id) || "t_pathfinder_mark".equals(id)
+                || "t_pathfinder_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2636,6 +2675,7 @@ public final class SimulationHarness {
                 || s.relics.contains("dragon_sigil") || s.relics.contains("elder_dragon_crown")
                 || s.relics.contains("soul_lantern") || s.relics.contains("soul_crown")
                 || s.relics.contains("star_hammer") || s.relics.contains("star_crown")
+                || s.relics.contains("pathfinder_compass") || s.relics.contains("route_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3073,6 +3113,32 @@ public final class SimulationHarness {
             }
         }
         pressure += Math.min(6, upgradedDeckCards(s) / 2);
+        pressure += Math.min(4, s.block / 6);
+        return pressure;
+    }
+
+    private static boolean isPathfinderSignal(GameCore.CardDef d) {
+        return d != null && (d.scry > 0 || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || d.upgradeRandom || isHybridCore(d)
+                || GameCore.PROF_PATHFINDER.equals(d.profession) || GameCore.PROF_TACTICIAN.equals(d.profession)
+                || GameCore.PROF_FATESEER.equals(d.profession) || GameCore.PROF_VOIDNAVIGATOR.equals(d.profession));
+    }
+
+    private static boolean isPathfinderCard(GameCore.CardDef d) {
+        return d != null && ("pathfinder_mark".equals(d.id) || "pathfinder_shelter".equals(d.id)
+                || "pathfinder_survey".equals(d.id) || "pathfinder_shortcut".equals(d.id)
+                || "pathfinder_overroute".equals(d.id) || "pathfinder_grand_route".equals(d.id));
+    }
+
+    private static int pathfinderEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(5, upgradedDeckCards(s) / 2);
+        pressure += Math.min(4, s.confluenceChain);
         pressure += Math.min(4, s.block / 6);
         return pressure;
     }

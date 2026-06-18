@@ -137,6 +137,7 @@ public final class GameCore {
     public static final String PROF_DRAGONBINDER = "龙契者";
     public static final String PROF_SOULBINDER = "魂契师";
     public static final String PROF_STARFORGER = "星炉师";
+    public static final String PROF_PATHFINDER = "巡路者";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -147,7 +148,7 @@ public final class GameCore {
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
-            PROF_STARFORGER
+            PROF_STARFORGER, PROF_PATHFINDER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -873,6 +874,7 @@ public final class GameCore {
         if (PROF_DRAGONBINDER.equals(profession)) return "龙誓";
         if (PROF_SOULBINDER.equals(profession)) return "魂契";
         if (PROF_STARFORGER.equals(profession)) return "星铸";
+        if (PROF_PATHFINDER.equals(profession)) return "寻径";
         return "职业技";
     }
 
@@ -956,6 +958,7 @@ public final class GameCore {
         if (PROF_DRAGONBINDER.equals(profession)) return "满充能：消耗龙印龙誓，按燃烧、临时龙牌、格挡、治疗、汇流和过载造成穿透，点燃、护盾并制造龙牌。";
         if (PROF_SOULBINDER.equals(profession)) return "满充能：消耗魂印魂契，按消耗、临时魂牌、治疗、状态、汇流和过载造成穿透，治疗、虚弱并制造魂牌。";
         if (PROF_STARFORGER.equals(profession)) return "满充能：消耗星辉星铸，按升级、燃灼、格挡、汇流和过载造成穿透，升级手牌、加固并制造星炉牌。";
+        if (PROF_PATHFINDER.equals(profession)) return "满充能：消耗路标寻径，按检视、格挡、汇流、标记和过载造成穿透，抽牌、加固并制造巡路牌。";
         return "选择职业后可用。";
     }
 
@@ -2472,6 +2475,48 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, stars / 2);
+        } else if (PROF_PATHFINDER.equals(s.profession)) {
+            int routes = Math.max(1, s.professionCharge);
+            int scouts = Math.min(22, buildFocusDeckCards(s, BUILD_CYCLE)
+                    + buildFocusDeckCards(s, BUILD_FORGE) + upgradedCardCount(s) / 3);
+            int guard = Math.min(18, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int control = Math.min(20, bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS));
+            int chain = Math.min(14, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 3 + target.burn;
+            int damage = 9 + s.act * 3 + Math.min(86, routes * 3 + scouts * 4
+                    + guard * 3 + control * 3 + chain * 5 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, routes / 4 + chain / 3);
+                target.bind += 2 + s.bindPower / 2 + Math.min(4, control / 4 + scouts / 5) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, overload / 4 + pressure / 18);
+            }
+            gainBlock(s, 6 + s.act * 2 + Math.min(42, routes * 2 + scouts * 2
+                    + guard * 4 + chain * 2) + overload * 3);
+            draw(s, 1 + Math.min(3, routes / 5 + scouts / 5 + chain / 4) + overload / 4);
+            upgradeRandomHandCard(s);
+            if (scouts >= 5 || guard >= 5 || chain >= 3 || overload >= 2) {
+                s.energy++;
+            }
+            Card mark = new Card(overload >= 4 || hasTalent(s, "t_pathfinder_grand")
+                    ? "pathfinder_grand_route" : "pathfinder_mark");
+            mark.temp = true;
+            mark.upgraded = routes >= 5 || hasTalent(s, "t_pathfinder_mark");
+            addToHand(s, mark);
+            if (hasTalent(s, "t_pathfinder_grand")) {
+                Card survey = new Card("pathfinder_survey");
+                survey.temp = true;
+                survey.upgraded = true;
+                addToHand(s, survey);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_SWIFT, 1 + Math.min(3, scouts / 4));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, control / 4 + pressure / 14));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, routes / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -3981,6 +4026,9 @@ public final class GameCore {
         if (PROF_STARFORGER.equals(profession)) {
             return "用升级、燃灼、格挡和汇流积累星辉，把锻造节奏转成星铸爆发。适合工坊、异常、守势、汇流和过载构筑。";
         }
+        if (PROF_PATHFINDER.equals(profession)) {
+            return "用路线、检视、汇流、格挡和职业技充能积累路标，把路径选择转成抽牌、加固、控场和寻径爆发。适合循环、工坊、守势、汇流和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4119,6 +4167,9 @@ public final class GameCore {
         }
         if (PROF_STARFORGER.equals(profession)) {
             return 0xffffc766;
+        }
+        if (PROF_PATHFINDER.equals(profession)) {
+            return 0xff8fd6c1;
         }
         return 0xffd6c07a;
     }
@@ -4570,6 +4621,13 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_PATHFINDER.equals(profession)) {
+            s.deck.add(new Card("pathfinder_mark"));
+            s.deck.add(new Card("pathfinder_shelter"));
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4636,6 +4694,7 @@ public final class GameCore {
         else if (PROF_DRAGONBINDER.equals(profession)) upgradeDeckCard(s, "dragonbinder_spark");
         else if (PROF_SOULBINDER.equals(profession)) upgradeDeckCard(s, "soulbinder_thread");
         else if (PROF_STARFORGER.equals(profession)) upgradeDeckCard(s, "starforger_spark");
+        else if (PROF_PATHFINDER.equals(profession)) upgradeDeckCard(s, "pathfinder_mark");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -4829,6 +4888,12 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_PATHFINDER.equals(profession)) {
+            addUpgradedDeckCard(s, "pathfinder_survey");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -4878,6 +4943,7 @@ public final class GameCore {
         if (PROF_DRAGONBINDER.equals(profession)) return "dragonbinder_overflame";
         if (PROF_SOULBINDER.equals(profession)) return "soulbinder_overbind";
         if (PROF_STARFORGER.equals(profession)) return "starforger_overforge";
+        if (PROF_PATHFINDER.equals(profession)) return "pathfinder_overroute";
         return "forge_signal";
     }
 
@@ -5541,6 +5607,21 @@ public final class GameCore {
         } else if ("t_starforger_grand".equals(id)) {
             addUpgradedDeckCard(s, "starforger_grand_star");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_pathfinder_mark".equals(id)) {
+            addUpgradedDeckCard(s, "pathfinder_mark");
+            addUpgradedDeckCard(s, "pathfinder_shortcut");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_pathfinder_shelter".equals(id)) {
+            addUpgradedDeckCard(s, "pathfinder_shelter");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_pathfinder_survey".equals(id)) {
+            addUpgradedDeckCard(s, "pathfinder_survey");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_pathfinder_grand".equals(id)) {
+            addUpgradedDeckCard(s, "pathfinder_grand_route");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -5989,7 +6070,7 @@ public final class GameCore {
                 || "t_archivist_grand".equals(id) || "t_voidnavigator_grand".equals(id)
                 || "t_relicsmith_grand".equals(id) || "t_beastmaster_grand".equals(id)
                 || "t_dragonbinder_grand".equals(id) || "t_soulbinder_grand".equals(id)
-                || "t_starforger_grand".equals(id);
+                || "t_starforger_grand".equals(id) || "t_pathfinder_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6015,7 +6096,7 @@ public final class GameCore {
                 || "archivist_grand_archive".equals(id) || "voidnavigator_grand_jump".equals(id)
                 || "relicsmith_grand_vault".equals(id) || "beastmaster_grand_hunt".equals(id)
                 || "dragonbinder_grand_oath".equals(id) || "soulbinder_grand_pact".equals(id)
-                || "starforger_grand_star".equals(id);
+                || "starforger_grand_star".equals(id) || "pathfinder_grand_route".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6039,7 +6120,7 @@ public final class GameCore {
                 || "fate_crown".equals(id) || "tide_crown".equals(id) || "frost_crown".equals(id)
                 || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id)
                 || "vault_crown".equals(id) || "alpha_crown".equals(id) || "elder_dragon_crown".equals(id)
-                || "soul_crown".equals(id) || "star_crown".equals(id);
+                || "soul_crown".equals(id) || "star_crown".equals(id) || "route_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -6644,6 +6725,11 @@ public final class GameCore {
                 || d.vulnerable > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_STARFORGER) || d.profession.equals(PROF_RUNEBLADE)
                 || d.profession.equals(PROF_MACHINIST) || d.profession.equals(PROF_GEOMANCER))) amount++;
+        else if (PROF_PATHFINDER.equals(s.profession) && d != null && (d.scry > 0 || d.draw > 0
+                || d.block > 0 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.upgradeRandom || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_PATHFINDER) || d.profession.equals(PROF_TACTICIAN)
+                || d.profession.equals(PROF_FATESEER) || d.profession.equals(PROF_VOIDNAVIGATOR))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -8941,6 +9027,41 @@ public final class GameCore {
                 target.mark += 2;
             }
         }
+        if (hasRelic(s, "pathfinder_compass") && PROF_PATHFINDER.equals(s.profession)) {
+            int routes = s.professionCharge + buildFocusDeckCards(s, BUILD_CYCLE);
+            int guard = s.block / 6 + buildFocusDeckCards(s, BUILD_GUARD);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + routes / 5 + s.confluenceChain / 2));
+            gainBlock(s, 5 + s.act + Math.min(20, s.professionCharge * 2 + routes * 2 + guard * 2));
+            Card mark = new Card("pathfinder_mark");
+            mark.temp = true;
+            mark.upgraded = true;
+            addToHand(s, mark);
+            if (target != null) {
+                target.mark += 2;
+                target.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(30, target.mark * 2
+                        + target.bind * 2 + s.professionCharge * 2 + routes * 2), true);
+            }
+        }
+        if (hasRelic(s, "route_crown") && PROF_PATHFINDER.equals(s.profession)) {
+            Card route = new Card("pathfinder_overroute");
+            route.temp = true;
+            route.upgraded = true;
+            addToHand(s, route);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.confluenceChain >= 3 || upgradedCardCount(s) >= 7
+                    || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -9043,6 +9164,9 @@ public final class GameCore {
         if (hasRelic(s, "star_hammer") && PROF_STARFORGER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || upgradedCardCount(s) >= 6 || s.block >= 12
                 || s.confluenceChain >= 2 || firstLiving(s) != null && firstLiving(s).burn > 0)) amount++;
+        if (hasRelic(s, "pathfinder_compass") && PROF_PATHFINDER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.confluenceChain >= 2 || upgradedCardCount(s) >= 5
+                || s.block >= 12 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -10908,6 +11032,36 @@ public final class GameCore {
                 crucible.temp = true;
                 crucible.upgraded = true;
                 addToHand(s, crucible);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_PATHFINDER.equals(s.profession) && s.turn == 1) {
+            int scouts = Math.min(10, buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE));
+            int guard = Math.min(10, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 6);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, scouts / 3 + guard / 3 + s.confluenceChain);
+            gainBlock(s, 4 + s.act + Math.min(10, scouts * 2 + guard + s.professionCharge));
+            upgradeRandomHandCard(s);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += hasTalent(s, "t_pathfinder_mark") ? 2 : 1;
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+            if (hasTalent(s, "t_pathfinder_mark")) {
+                Card mark = new Card("pathfinder_mark");
+                mark.temp = true;
+                mark.upgraded = true;
+                addToHand(s, mark);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_pathfinder_shelter")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_pathfinder_grand")) {
+                Card survey = new Card("pathfinder_survey");
+                survey.temp = true;
+                survey.upgraded = true;
+                addToHand(s, survey);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -14741,6 +14895,121 @@ public final class GameCore {
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("pathfinder_mark".equals(d.id) && target != null) {
+            int routes = Math.max(0, s.professionCharge);
+            int scouts = buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE);
+            damage += Math.min(c.upgraded ? 36 : 25, routes * 2 + scouts * 2 + target.mark * 3 + target.bind * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            if (scouts >= 5 || target.mark >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_SWIFT, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+        }
+        if ("pathfinder_shelter".equals(d.id)) {
+            int routes = Math.max(0, s.professionCharge);
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            int scouts = buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE);
+            block += Math.min(c.upgraded ? 40 : 28, routes * 2 + guard * 3 + scouts * 2 + s.block / 3);
+            upgradeRandomHandCard(s);
+            if (guard >= 4 || s.block >= 14 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("pathfinder_survey".equals(d.id)) {
+            int scouts = buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE);
+            int chain = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            block += Math.min(c.upgraded ? 38 : 26, s.professionCharge * 2 + scouts * 3
+                    + buildFocusDeckCards(s, BUILD_GUARD) * 2 + chain * 2);
+            Card mark = new Card("pathfinder_mark");
+            mark.temp = true;
+            mark.upgraded = c.upgraded || scouts >= 6;
+            addToHand(s, mark);
+            upgradeRandomHandCard(s);
+            if (scouts >= 5 || chain >= 3 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_SWIFT, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(2, focusMaskCount(s.confluenceMask)));
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("pathfinder_shortcut".equals(d.id) && target != null) {
+            int routes = Math.max(0, s.professionCharge);
+            int pressure = target.mark * 4 + target.bind * 4 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 58 : 42, pressure + routes * 3
+                    + s.cardsPlayedThisTurn * 2 + s.confluenceChain * 3);
+            target.mark += c.upgraded ? 3 : 2;
+            target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            target.vulnerable += 1;
+            if (target.mark + target.bind >= 6 || routes >= 5 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_SWIFT, 1);
+        }
+        if ("pathfinder_overroute".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int scouts = buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE);
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            block += Math.min(c.upgraded ? 48 : 34, s.professionCharge * 2 + scouts * 4
+                    + guard * 3 + overloadNow * 7);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 70 : 50, overloadNow * 8 + scouts * 4
+                        + guard * 3 + target.mark * 2 + target.bind * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || scouts >= 7 || guard >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_SWIFT, 1);
+        }
+        if ("pathfinder_grand_route".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int scouts = buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE);
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            int labels = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 100 : 76, s.professionCharge * 4 + scouts * 6
+                    + guard * 4 + labels * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 70 : 52, s.professionCharge * 3 + scouts * 4
+                    + guard * 3 + labels * 3 + overloadNow * 6);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            Card mark = new Card("pathfinder_mark");
+            mark.temp = true;
+            mark.upgraded = true;
+            addToHand(s, mark);
+            if (scouts >= 7 || guard >= 4 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_SWIFT, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
@@ -18831,6 +19100,94 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_PATHFINDER.equals(s.profession) && (d.scry > 0 || d.draw > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.upgradeRandom
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PATHFINDER)
+                || d.profession.equals(PROF_TACTICIAN) || d.profession.equals(PROF_FATESEER)
+                || d.profession.equals(PROF_VOIDNAVIGATOR))) {
+            int scouts = Math.min(20, buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_FORGE));
+            int guard = Math.min(18, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 6);
+            int control = Math.min(18, bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS));
+            s.professionCharge += 1 + Math.min(2, (scouts / 5 + guard / 5
+                    + (d.scry > 0 || d.draw > 0 ? 2 : 0) + (d.block > 0 || d.skillChargeGain > 0 ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1;
+                    e.bind += 1 + s.bindPower / 2;
+                    if (control >= 5 || d.vulnerable > 0 || hasTalent(s, "t_pathfinder_survey")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(38, e.mark * 2 + e.bind * 2
+                            + scouts * 2 + guard + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.upgradeRandom || hasTalent(s, "t_pathfinder_shelter")) {
+                    gainBlock(s, 3 + s.act + Math.min(20, s.professionCharge + guard * 2 + s.block / 6));
+                }
+                if (s.cardsPlayedThisTurn >= 3 || scouts >= 7 || hasTalent(s, "t_pathfinder_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_pathfinder_mark") && (d.cost == 0 || d.draw > 0 || d.scry > 0
+                || d.bind > 0 || d.profession.equals(PROF_PATHFINDER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(32, e.mark * 2 + e.bind
+                        + s.professionCharge * 2 + buildFocusDeckCards(s, BUILD_CYCLE) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.cardsPlayedThisTurn == 5 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_pathfinder_shelter") && (d.block > 0 || d.type == 1 || d.upgradeRandom
+                || d.scry > 0 || d.profession.equals(PROF_PATHFINDER))) {
+            gainBlock(s, 4 + s.act + Math.min(20, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_GUARD) * 2 + upgradedCardCount(s) + s.block / 8));
+            if (s.cardsPlayedThisTurn == 3 || s.block >= 14) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_pathfinder_survey") && (d.scry > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || d.bind > 0 || d.upgradeRandom || d.profession.equals(PROF_PATHFINDER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 8 || s.cardsPlayedThisTurn >= 3 || s.confluenceChain >= 3) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + buildFocusDeckCards(s, BUILD_CYCLE) * 2
+                            + s.confluenceChain * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || bestEnemyPressure(s) >= 12 || s.confluenceChain >= 3) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_pathfinder_grand") && (d.scry > 0 || d.block > 0 || d.draw > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                || d.profession.equals(PROF_PATHFINDER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.cardsPlayedThisTurn >= 3 || s.professionCharge >= 4
+                    || s.confluenceChain >= 3 || upgradedCardCount(s) >= 8)) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + buildFocusDeckCards(s, BUILD_CYCLE) * 2
+                        + s.confluenceChain * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -19846,6 +20203,44 @@ public final class GameCore {
                 if (e.burn >= 5 || s.cardsPlayedThisTurn >= 4 || upgradedCardCount(s) >= 8) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(38, e.burn * 2 + e.mark * 2
                             + s.professionCharge + upgradedCardCount(s) * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "pathfinder_compass") && (d.scry > 0 || d.draw > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.profession.equals(PROF_PATHFINDER))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge
+                        + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + buildFocusDeckCards(s, BUILD_GUARD)));
+                upgradeRandomHandCard(s);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (d.scry > 0 || d.draw > 0 || e.mark >= 4) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(32, e.mark * 2
+                            + e.bind * 2 + s.professionCharge * 2), true);
+                }
+            }
+        }
+        if (hasRelic(s, "route_crown") && (d.scry > 0 || d.draw > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom || d.bind > 0
+                || d.profession.equals(PROF_PATHFINDER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (e.mark >= 5 || s.cardsPlayedThisTurn >= 4 || s.confluenceChain >= 3) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(38, e.mark * 2 + e.bind * 2
+                            + s.professionCharge + s.confluenceChain * 3), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -21220,6 +21615,10 @@ public final class GameCore {
             return focus == BUILD_STATUS ? 18 : focus == BUILD_GUARD ? 16 : focus == BUILD_ECHO ? 13
                     : focus == BUILD_OVERLOAD ? 13 : focus == BUILD_CYCLE ? 10 : focus == BUILD_FORGE ? 5 : 0;
         }
+        if (PROF_PATHFINDER.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_FORGE ? 16 : focus == BUILD_GUARD ? 14
+                    : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_STATUS ? 12 : focus == BUILD_ECHO ? 8 : 0;
+        }
         return 0;
     }
 
@@ -21343,6 +21742,9 @@ public final class GameCore {
         }
         if (PROF_STARFORGER.equals(d.profession)) {
             return starforgerFocusCardValue(d, focus);
+        }
+        if (PROF_PATHFINDER.equals(d.profession)) {
+            return pathfinderFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -22493,6 +22895,51 @@ public final class GameCore {
         return 0;
     }
 
+    private static int pathfinderFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.scry * 2 + d.block + d.bind * 2
+                    + (d.upgradeRandom ? 4 : 0) + ("pathfinder_mark".equals(d.id) ? 8 : 0)
+                    + ("pathfinder_shortcut".equals(d.id) ? 9 : 0)
+                    + ("pathfinder_overroute".equals(d.id) ? 16 : 0)
+                    + ("pathfinder_grand_route".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.scry * 4 + d.skillChargeGain * 2 + (d.rarity == 2 ? 3 : 0)
+                    + ("pathfinder_shelter".equals(d.id) ? 14 : 0)
+                    + ("pathfinder_survey".equals(d.id) ? 18 : 0)
+                    + ("pathfinder_overroute".equals(d.id) ? 16 : 0)
+                    + ("pathfinder_grand_route".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2 + d.scry * 2
+                    + ("pathfinder_mark".equals(d.id) ? 12 : 0)
+                    + ("pathfinder_shortcut".equals(d.id) ? 18 : 0)
+                    + ("pathfinder_overroute".equals(d.id) ? 16 : 0)
+                    + ("pathfinder_grand_route".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.scry * 3 + d.energyGain * 8 + (d.cost == 0 ? 7 : 0)
+                    + d.skillChargeGain * 2 + (d.createEcho ? 5 : 0)
+                    + ("pathfinder_mark".equals(d.id) ? 16 : 0)
+                    + ("pathfinder_survey".equals(d.id) ? 14 : 0)
+                    + ("pathfinder_grand_route".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.draw * 2 + d.bind * 2
+                    + (d.upgradeRandom ? 4 : 0) + ("pathfinder_shelter".equals(d.id) ? 18 : 0)
+                    + ("pathfinder_survey".equals(d.id) ? 16 : 0)
+                    + ("pathfinder_overroute".equals(d.id) ? 16 : 0)
+                    + ("pathfinder_grand_route".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 10 : 0) + d.draw * 3 + d.scry * 2 + (d.cost == 0 ? 5 : 0)
+                    + ("pathfinder_mark".equals(d.id) ? 10 : 0)
+                    + ("pathfinder_survey".equals(d.id) ? 14 : 0)
+                    + ("pathfinder_grand_route".equals(d.id) ? 14 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -22975,6 +23422,15 @@ public final class GameCore {
         else if ("t_starforger_grand".equals(id)) bonus += professionCards + upgraded * 2
                 + burnDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_pathfinder_mark".equals(id)) bonus += zeroCost * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + bindDeckCards(s) + professionCards;
+        else if ("t_pathfinder_shelter".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + upgraded * 2 + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_pathfinder_survey".equals(id)) bonus += buildFocusDeckCards(s, BUILD_FORGE) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_pathfinder_grand".equals(id)) bonus += professionCards + upgraded * 2
+                + bindDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -23038,6 +23494,14 @@ public final class GameCore {
             if (focus == BUILD_STATUS && isAny(id, "t_starforger_spark", "t_starforger_crucible", "t_starforger_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_starforger_guard", "t_starforger_grand")) return 3;
             if (focus == BUILD_CYCLE && isAny(id, "t_starforger_spark", "t_starforger_grand")) return 3;
+        }
+        if (isAny(id, "t_pathfinder_mark", "t_pathfinder_shelter", "t_pathfinder_survey", "t_pathfinder_grand")) {
+            if (focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_pathfinder_survey", "t_pathfinder_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_pathfinder_survey", "t_pathfinder_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_pathfinder_mark", "t_pathfinder_survey", "t_pathfinder_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_pathfinder_shelter", "t_pathfinder_grand")) return 3;
+            if (focus == BUILD_ECHO && isAny(id, "t_pathfinder_mark", "t_pathfinder_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -23790,6 +24254,10 @@ public final class GameCore {
             return focus == BUILD_FORGE || focus == BUILD_BREW || focus == BUILD_STATUS
                     || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_CYCLE ? 3 : 0;
         }
+        if ("pathfinder_compass".equals(id) || "route_crown".equals(id)) {
+            return focus == BUILD_CYCLE || focus == BUILD_FORGE || focus == BUILD_GUARD
+                    || focus == BUILD_OVERLOAD || focus == BUILD_STATUS || focus == BUILD_ECHO ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -23937,7 +24405,8 @@ public final class GameCore {
                 || (PROF_BEASTMASTER.equals(s.profession) && "beast_whistle".equals(id))
                 || (PROF_DRAGONBINDER.equals(s.profession) && "dragon_sigil".equals(id))
                 || (PROF_SOULBINDER.equals(s.profession) && "soul_lantern".equals(id))
-                || (PROF_STARFORGER.equals(s.profession) && "star_hammer".equals(id));
+                || (PROF_STARFORGER.equals(s.profession) && "star_hammer".equals(id))
+                || (PROF_PATHFINDER.equals(s.profession) && "pathfinder_compass".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -23994,6 +24463,7 @@ public final class GameCore {
                 || hasRelic(s, "dragon_sigil") || hasRelic(s, "elder_dragon_crown")
                 || hasRelic(s, "soul_lantern") || hasRelic(s, "soul_crown")
                 || hasRelic(s, "star_hammer") || hasRelic(s, "star_crown")
+                || hasRelic(s, "pathfinder_compass") || hasRelic(s, "route_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
@@ -24225,6 +24695,11 @@ public final class GameCore {
                 || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard || d.vulnerable > 0
                 || d.bind > 0 || d.createEcho || "wound".equals(d.id) || "daze".equals(d.id)
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_ARCHIVIST))) {
+            return 4;
+        }
+        if (PROF_PATHFINDER.equals(s.profession) && (d.scry > 0 || d.draw > 0 || d.block > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.upgradeRandom
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_PATHFINDER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -24960,7 +25435,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -25006,6 +25481,7 @@ public final class GameCore {
         if (PROF_DRAGONBINDER.equals(s.profession)) return "dragon_sigil";
         if (PROF_SOULBINDER.equals(s.profession)) return "soul_lantern";
         if (PROF_STARFORGER.equals(s.profession)) return "star_hammer";
+        if (PROF_PATHFINDER.equals(s.profession)) return "pathfinder_compass";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -25483,6 +25959,16 @@ public final class GameCore {
             return 2;
         }
         if (PROF_STARFORGER.equals(s.profession) && "star_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_PATHFINDER.equals(s.profession) && ("pathfinder_compass".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "starforge_lens".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "bulwark_core".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id)
+                || "resonance_prism".equals(id) || "fate_lantern".equals(id) || "war_table".equals(id))) {
+            return 2;
+        }
+        if (PROF_PATHFINDER.equals(s.profession) && "route_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -26061,6 +26547,19 @@ public final class GameCore {
         } else if ("star_crown".equals(id)) {
             addUpgradedDeckCard(s, "starforger_grand_star");
             addUpgradedDeckCard(s, "starforger_spark");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("pathfinder_compass".equals(id)) {
+            addUpgradedDeckCard(s, "pathfinder_survey");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("route_crown".equals(id)) {
+            addUpgradedDeckCard(s, "pathfinder_grand_route");
+            addUpgradedDeckCard(s, "pathfinder_mark");
             upgradeRandomDeckCard(s);
             s.maxHp += 5;
             s.hp += 5;
@@ -26975,6 +27474,18 @@ public final class GameCore {
         c.profession = PROF_STARFORGER; c.draw = c.drawUp = 1; c.burn = 1; c.burnUp = 2; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("starforger_grand_star", "终局坠星炉", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按星辉、升级、燃烧、守势、汇流和过载追加终局收益。", "更高伤害、格挡和火花返还。");
         c.profession = PROF_STARFORGER; c.draw = c.drawUp = 1; c.burn = 3; c.burnUp = 4; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "starforger_spark"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("pathfinder_mark", "路标刻痕", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加路标束缚；检视、路线和标记会提高收益。", "更高伤害、束缚和路标。");
+        c.profession = PROF_PATHFINDER; c.draw = c.drawUp = 1; c.scry = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("pathfinder_shelter", "临途营帐", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡、抽牌并升级手牌；守势、检视和路标会加厚防线。", "更多格挡、升级和职业技充能。");
+        c.profession = PROF_PATHFINDER; c.draw = c.drawUp = 1; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("pathfinder_survey", "路线勘测", "通用", 1, 1, 1, 0, 0, 7, 11, "获得格挡、检视、升级手牌并制造临时路标刻痕；路线足够时返能。", "更多格挡、路标和返能窗口。");
+        c.profession = PROF_PATHFINDER; c.draw = c.drawUp = 1; c.scry = 3; c.createEcho = true; c.echoCardId = "pathfinder_mark"; c.upgradeRandom = true; c.skillChargeGain = 1;
+        c = addCard("pathfinder_shortcut", "捷径突袭", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加束缚、印记和易伤；路标与控制会转成突袭爆发。", "更高伤害、束缚和压制。");
+        c.profession = PROF_PATHFINDER; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("pathfinder_overroute", "过载寻路", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、检视、升级和充能；过载、路线与标记会追加寻路伤害。", "更多格挡、升级和职业技充能。");
+        c.profession = PROF_PATHFINDER; c.draw = c.drawUp = 1; c.scry = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("pathfinder_grand_route", "终局星路", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按路标、检视、守势、汇流和过载追加终局收益。", "更高伤害、格挡和路标返还。");
+        c.profession = PROF_PATHFINDER; c.draw = c.drawUp = 1; c.scry = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "pathfinder_mark"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -27280,6 +27791,8 @@ public final class GameCore {
         addRelicDef("soul_crown", "万魂冠", "获得升级终局万魂契；魂契师魂牌、消耗、治疗、充能和稀有牌会滚动束缚、抽牌与魂契追击。");
         addRelicDef("star_hammer", "星炉锤", "星炉师升级、燃烧、格挡和职业牌更快推动职业技；释放后制造星炉火花并升级手牌。");
         addRelicDef("star_crown", "坠星冠", "获得升级终局坠星炉；星炉师升级、燃烧、守势、充能和稀有牌会滚动燃烧、升级与星铸追击。");
+        addRelicDef("pathfinder_compass", "巡路罗盘", "巡路者检视、路线、格挡、汇流和职业牌更快推动职业技；释放后制造路标并升级手牌。");
+        addRelicDef("route_crown", "星路冠", "获得升级终局星路；巡路者检视、格挡、汇流、充能和稀有牌会滚动印记、升级与寻径追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -27557,6 +28070,9 @@ public final class GameCore {
         addTalent("t_starforger_spark", PROF_STARFORGER, "星火回路", "获得升级星炉火花和陨星锤；低费、抽牌、升级和燃烧牌追加印记，并把星辉转成穿透追击。");
         addTalent("t_starforger_guard", PROF_STARFORGER, "星铁防线", "获得生命和升级星铁护盾；格挡、技能、升级和星炉牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_starforger_crucible", PROF_STARFORGER, "坠星熔台", "获得升级星炉熔台；燃烧、易伤、升级和充能牌会扩张锻造压力并转成星铸追击。");
+        addTalent("t_pathfinder_mark", PROF_PATHFINDER, "路标回路", "获得升级路标刻痕和捷径突袭；低费、抽牌、检视和路线牌追加印记，并把路标转成穿透追击。");
+        addTalent("t_pathfinder_shelter", PROF_PATHFINDER, "营帐防线", "获得生命和升级临途营帐；格挡、技能、检视和路线牌提供额外防线，并在关键节奏补职业技。");
+        addTalent("t_pathfinder_survey", PROF_PATHFINDER, "星图勘测", "获得升级路线勘测并升级牌组；检视、汇流、易伤和充能牌会扩张路线压力并转成寻径追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -27602,6 +28118,7 @@ public final class GameCore {
         addTalent("t_dragonbinder_grand", PROF_DRAGONBINDER, "终局古龙", "获得升级终局古龙誓；燃烧、龙牌、治疗、守势与过载牌持续抽牌、护盾并把龙印印记转为龙誓裁切。");
         addTalent("t_soulbinder_grand", PROF_SOULBINDER, "终局万魂", "获得升级终局万魂契；魂牌、消耗、治疗、守势与过载牌持续抽牌、治疗并把魂印印记转为魂契裁切。");
         addTalent("t_starforger_grand", PROF_STARFORGER, "终局坠星", "获得升级终局坠星炉；升级、燃烧、守势、汇流与过载牌持续抽牌、升级并把星辉印记转为星铸裁切。");
+        addTalent("t_pathfinder_grand", PROF_PATHFINDER, "终局星路", "获得升级终局星路；检视、格挡、汇流、路线与过载牌持续抽牌、升级并把路标印记转为寻径裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
