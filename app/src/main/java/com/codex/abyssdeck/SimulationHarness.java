@@ -254,6 +254,8 @@ public final class SimulationHarness {
             if (isArrayistCard(d)) score += 14;
             if (GameCore.PROF_GAMBITER.equals(s.profession) && isGambiterSignal(d)) score += 14;
             if (isGambiterCard(d)) score += 14;
+            if (GameCore.PROF_GRAVEKEEPER.equals(s.profession) && isGravekeeperSignal(d)) score += 14;
+            if (isGravekeeperCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -423,6 +425,11 @@ public final class SimulationHarness {
                     || d.draw > 0 || d.block > 0 || d.bind > 0 || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("checkmate_crown") && (isGambiterSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.bind > 0)) score += 20;
+            if (s.relics.contains("grave_lantern") && (isGravekeeperSignal(d) || d.exhaust || d.exhaustTopDiscard
+                    || d.createWound || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("requiem_crown") && (isGravekeeperSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard || d.bind > 0
+                    || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -672,6 +679,14 @@ public final class SimulationHarness {
                     || "resonance_prism".equals(id) || "tuning_fork".equals(id) || "conductor_baton".equals(id)
                     || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "bulwark_core".equals(id)
                     || "discipline_chart".equals(id) || "overload_etch".equals(id))) score += 36;
+            if (GameCore.PROF_GRAVEKEEPER.equals(s.profession) && ("requiem_crown".equals(id) || "grave_lantern".equals(id)
+                    || "void_abacus".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "starforge_lens".equals(id)
+                    || "stormglass_seal".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                    || "overload_etch".equals(id) || "discipline_chart".equals(id) || "salvage_hook".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "resonance_prism".equals(id)
+                    || "spirit_planchette".equals(id) || "frost_chain".equals(id) || "plague_case".equals(id)
+                    || "soul_lantern".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -719,6 +734,7 @@ public final class SimulationHarness {
             if ("pathfinder_compass".equals(id) || "route_crown".equals(id)) score += 20;
             if ("array_disc".equals(id) || "array_crown".equals(id)) score += 20;
             if ("gambit_clock".equals(id) || "checkmate_crown".equals(id)) score += 20;
+            if ("grave_lantern".equals(id) || "requiem_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -1568,6 +1584,19 @@ public final class SimulationHarness {
                     if (s.block >= 12 && ("gambiter_castle".equals(c.id) || "gambiter_fork".equals(c.id)
                             || "gambiter_grand_endgame".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_GRAVEKEEPER.equals(s.profession) && (isGravekeeperSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.exhaust || d.exhaustTopDiscard || d.createWound || d.heal > 0 || d.block > 0
+                            || d.draw > 0 || d.bind > 0 || d.vulnerable > 0 || isGravekeeperCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isGravekeeperCard(d)
+                            || d.exhaust || d.exhaustTopDiscard || d.heal > 0 || d.block > 0)) score += 6;
+                    if (gravekeeperEnemyPressure(s) >= 8 && ("gravekeeper_dirge".equals(c.id)
+                            || "gravekeeper_overwake".equals(c.id) || "gravekeeper_grand_requiem".equals(c.id))) score += 8;
+                    if (((statusDeckCards(s) + statusHandCards(s)) >= 2 || s.exhaust.size() >= 4 || s.block >= 14)
+                            && (d.draw > 0 || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0 || isGravekeeperCard(d))) score += 5;
+                    if ((statusDeckCards(s) + statusHandCards(s)) >= 1 && ("gravekeeper_shroud".equals(c.id)
+                            || "gravekeeper_interment".equals(c.id) || "gravekeeper_grand_requiem".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1825,6 +1854,16 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_gambiter_grand") && (d.cost == 0 || d.draw > 0
                         || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
                         || d.upgradeRandom || isGambiterCard(d))) score += 14;
+                if (s.talents.contains("t_gravekeeper_lantern") && (d.draw > 0 || d.exhaust || d.exhaustTopDiscard
+                        || d.bind > 0 || "wound".equals(c.id) || "daze".equals(c.id) || isGravekeeperCard(d))) score += 12;
+                if (s.talents.contains("t_gravekeeper_shroud") && (d.block > 0 || d.heal > 0 || d.type == 1
+                        || "wound".equals(c.id) || "daze".equals(c.id) || isGravekeeperCard(d))) score += 12;
+                if (s.talents.contains("t_gravekeeper_interment") && (d.exhaust || d.exhaustTopDiscard || d.createWound
+                        || d.bind > 0 || d.skillChargeGain > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                        || isGravekeeperCard(d))) score += 12;
+                if (s.talents.contains("t_gravekeeper_grand") && (d.exhaust || d.exhaustTopDiscard || d.heal > 0
+                        || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                        || "wound".equals(c.id) || "daze".equals(c.id) || isGravekeeperCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1915,6 +1954,9 @@ public final class SimulationHarness {
                 if ("gambiter_grand_endgame".equals(c.id) || "gambiter_overmate".equals(c.id)) score += 18;
                 if ("gambiter_pawn".equals(c.id) || "gambiter_castle".equals(c.id)
                         || "gambiter_gambit".equals(c.id) || "gambiter_fork".equals(c.id)) score += 14;
+                if ("gravekeeper_grand_requiem".equals(c.id) || "gravekeeper_overwake".equals(c.id)) score += 18;
+                if ("gravekeeper_lantern".equals(c.id) || "gravekeeper_shroud".equals(c.id)
+                        || "gravekeeper_interment".equals(c.id) || "gravekeeper_dirge".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -2070,6 +2112,12 @@ public final class SimulationHarness {
                         || d.cost == 0 || d.draw > 0 || d.block > 0 || d.bind > 0 || d.skillChargeGain > 0)) score += 14;
                 if (s.relics.contains("checkmate_crown") && (isGambiterSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom || d.bind > 0)) score += 16;
+                if (s.relics.contains("grave_lantern") && (isGravekeeperSignal(d) || c.temp
+                        || d.exhaust || d.exhaustTopDiscard || d.createWound || d.heal > 0 || d.block > 0
+                        || d.draw > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("requiem_crown") && (isGravekeeperSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.exhaust || d.exhaustTopDiscard
+                        || d.bind > 0 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2412,6 +2460,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_GRAVEKEEPER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean requiemWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || requiemWindow
+                    || (statusDeckCards(s) + statusHandCards(s)) > 0 || s.exhaust.size() >= 4
+                    || s.block >= 18 || gravekeeperEnemyPressure(s) >= 7
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2440,7 +2499,8 @@ public final class SimulationHarness {
                 || "t_starforger_grand".equals(id) || "t_pathfinder_mark".equals(id)
                 || "t_pathfinder_grand".equals(id) || "t_arrayist_glyph".equals(id)
                 || "t_arrayist_grand".equals(id) || "t_gambiter_pawn".equals(id)
-                || "t_gambiter_grand".equals(id));
+                || "t_gambiter_grand".equals(id) || "t_gravekeeper_lantern".equals(id)
+                || "t_gravekeeper_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2787,6 +2847,7 @@ public final class SimulationHarness {
                 || s.relics.contains("pathfinder_compass") || s.relics.contains("route_crown")
                 || s.relics.contains("array_disc") || s.relics.contains("array_crown")
                 || s.relics.contains("gambit_clock") || s.relics.contains("checkmate_crown")
+                || s.relics.contains("grave_lantern") || s.relics.contains("requiem_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3307,6 +3368,33 @@ public final class SimulationHarness {
         return pressure;
     }
 
+    private static boolean isGravekeeperSignal(GameCore.CardDef d) {
+        return d != null && (d.exhaust || d.exhaustTopDiscard || d.createWound || d.heal > 0 || d.block > 0
+                || d.draw > 0 || d.skillChargeGain > 0 || d.bind > 0 || d.vulnerable > 0
+                || d.type == 1 || GameCore.PROF_GRAVEKEEPER.equals(d.profession)
+                || GameCore.PROF_SOULBINDER.equals(d.profession) || GameCore.PROF_PLAGUEDOCTOR.equals(d.profession)
+                || GameCore.PROF_FROSTBINDER.equals(d.profession));
+    }
+
+    private static boolean isGravekeeperCard(GameCore.CardDef d) {
+        return d != null && ("gravekeeper_lantern".equals(d.id) || "gravekeeper_shroud".equals(d.id)
+                || "gravekeeper_interment".equals(d.id) || "gravekeeper_dirge".equals(d.id)
+                || "gravekeeper_overwake".equals(d.id) || "gravekeeper_grand_requiem".equals(d.id));
+    }
+
+    private static int gravekeeperEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 4 + e.burn;
+            }
+        }
+        pressure += Math.min(4, s.exhaust.size());
+        pressure += Math.min(4, statusDeckCards(s) + statusHandCards(s));
+        pressure += Math.min(4, s.block / 6);
+        return pressure;
+    }
+
     private static int archivistEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -3556,6 +3644,14 @@ public final class SimulationHarness {
     private static int statusDeckCards(GameCore.State s) {
         int count = 0;
         for (GameCore.Card c : s.deck) {
+            if ("wound".equals(c.id) || "daze".equals(c.id)) count++;
+        }
+        return count;
+    }
+
+    private static int statusHandCards(GameCore.State s) {
+        int count = 0;
+        for (GameCore.Card c : s.hand) {
             if ("wound".equals(c.id) || "daze".equals(c.id)) count++;
         }
         return count;

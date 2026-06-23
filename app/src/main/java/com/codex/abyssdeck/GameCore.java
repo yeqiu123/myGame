@@ -140,6 +140,7 @@ public final class GameCore {
     public static final String PROF_PATHFINDER = "巡路者";
     public static final String PROF_ARRAYIST = "牌阵师";
     public static final String PROF_GAMBITER = "弈者";
+    public static final String PROF_GRAVEKEEPER = "守墓人";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -150,7 +151,7 @@ public final class GameCore {
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
-            PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER
+            PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -879,6 +880,7 @@ public final class GameCore {
         if (PROF_PATHFINDER.equals(profession)) return "寻径";
         if (PROF_ARRAYIST.equals(profession)) return "布阵";
         if (PROF_GAMBITER.equals(profession)) return "将杀";
+        if (PROF_GRAVEKEEPER.equals(profession)) return "镇魂";
         return "职业技";
     }
 
@@ -965,6 +967,7 @@ public final class GameCore {
         if (PROF_PATHFINDER.equals(profession)) return "满充能：消耗路标寻径，按检视、格挡、汇流、标记和过载造成穿透，抽牌、加固并制造巡路牌。";
         if (PROF_ARRAYIST.equals(profession)) return "满充能：消耗阵纹布阵，按连打、临时牌、牌型、汇流和过载造成穿透，抽牌、加固并制造牌阵牌。";
         if (PROF_GAMBITER.equals(profession)) return "满充能：消耗棋势将杀，按攻防交替、低费连打、格挡、控场和过载造成穿透，抽牌、加固并制造弈局牌。";
+        if (PROF_GRAVEKEEPER.equals(profession)) return "满充能：消耗墓印镇魂，按弃牌、消耗、状态牌、治疗、格挡和过载造成穿透，净化、治疗、抽牌并制造守墓牌。";
         return "选择职业后可用。";
     }
 
@@ -2610,6 +2613,53 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, gambits / 2);
+        } else if (PROF_GRAVEKEEPER.equals(s.profession)) {
+            int graves = Math.max(1, s.professionCharge);
+            int statuses = Math.min(20, statusDeckCards(s) + statusHandCards(s) + buildFocusDeckCards(s, BUILD_STATUS));
+            int exhausts = Math.min(22, s.exhaust.size() + exhaustDeckCards(s));
+            int discard = Math.min(20, s.discard.size());
+            int healing = Math.min(16, healingDeckCards(s) + buildFocusDeckCards(s, BUILD_BLOOD));
+            int guard = Math.min(20, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int chain = Math.min(14, s.confluenceChain + focusMaskCount(s.confluenceMask));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 3 + target.burn;
+            int damage = 9 + s.act * 3 + Math.min(92, graves * 3 + statuses * 4
+                    + exhausts * 4 + discard * 2 + healing * 3 + guard * 4 + chain * 4 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 1 + Math.min(4, graves / 4 + statuses / 4 + chain / 3);
+                target.bind += 2 + s.bindPower / 2 + Math.min(4, exhausts / 5 + guard / 5) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, overload / 4 + pressure / 18);
+            }
+            gainBlock(s, 7 + s.act * 2 + Math.min(48, graves * 2 + statuses * 3
+                    + exhausts * 2 + healing * 3 + guard * 4) + overload * 3);
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(14, graves / 3 + statuses + healing * 2) + overload);
+            draw(s, 1 + Math.min(3, graves / 5 + statuses / 5 + exhausts / 6 + chain / 4) + overload / 4);
+            removeStatusCard(s);
+            if (!s.discard.isEmpty() && (exhausts >= 4 || statuses > 0 || overload >= 2)) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+            }
+            if (statuses >= 3 || exhausts >= 4 || guard >= 5 || overload >= 2) {
+                s.energy++;
+            }
+            Card lantern = new Card(overload >= 4 || hasTalent(s, "t_gravekeeper_grand")
+                    ? "gravekeeper_grand_requiem" : "gravekeeper_lantern");
+            lantern.temp = true;
+            lantern.upgraded = graves >= 5 || hasTalent(s, "t_gravekeeper_lantern");
+            addToHand(s, lantern);
+            if (hasTalent(s, "t_gravekeeper_grand")) {
+                Card interment = new Card("gravekeeper_interment");
+                interment.temp = true;
+                interment.upgraded = true;
+                addToHand(s, interment);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_HEX, 1 + Math.min(3, statuses / 3 + exhausts / 5));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4 + healing / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, pressure / 14 + statuses / 4));
+            addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, graves / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -4128,6 +4178,9 @@ public final class GameCore {
         if (PROF_GAMBITER.equals(profession)) {
             return "用攻防交替、低费连打、格挡和控场积累棋势，把出牌节奏转成标记、束缚、抽牌和将杀爆发。适合循环、守势、异常、汇流和过载构筑。";
         }
+        if (PROF_GRAVEKEEPER.equals(profession)) {
+            return "用弃牌、消耗、伤口眩光、治疗和格挡积累墓印，把负面牌压力转成净化、束缚、抽牌和镇魂爆发。适合异常、回声、守势、血契和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4275,6 +4328,9 @@ public final class GameCore {
         }
         if (PROF_GAMBITER.equals(profession)) {
             return 0xffe4d07a;
+        }
+        if (PROF_GRAVEKEEPER.equals(profession)) {
+            return 0xff9fb59f;
         }
         return 0xffd6c07a;
     }
@@ -4747,6 +4803,13 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_GRAVEKEEPER.equals(profession)) {
+            s.deck.add(new Card("gravekeeper_lantern"));
+            s.deck.add(new Card("gravekeeper_shroud"));
+            s.deck.add(new Card("wound"));
+            s.maxHp += 4;
+            s.hp += 4;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4816,6 +4879,7 @@ public final class GameCore {
         else if (PROF_PATHFINDER.equals(profession)) upgradeDeckCard(s, "pathfinder_mark");
         else if (PROF_ARRAYIST.equals(profession)) upgradeDeckCard(s, "arrayist_glyph");
         else if (PROF_GAMBITER.equals(profession)) upgradeDeckCard(s, "gambiter_pawn");
+        else if (PROF_GRAVEKEEPER.equals(profession)) upgradeDeckCard(s, "gravekeeper_lantern");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -5027,6 +5091,12 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_GRAVEKEEPER.equals(profession)) {
+            addUpgradedDeckCard(s, "gravekeeper_interment");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -5079,6 +5149,7 @@ public final class GameCore {
         if (PROF_PATHFINDER.equals(profession)) return "pathfinder_overroute";
         if (PROF_ARRAYIST.equals(profession)) return "arrayist_overarray";
         if (PROF_GAMBITER.equals(profession)) return "gambiter_overmate";
+        if (PROF_GRAVEKEEPER.equals(profession)) return "gravekeeper_overwake";
         return "forge_signal";
     }
 
@@ -5787,6 +5858,22 @@ public final class GameCore {
         } else if ("t_gambiter_grand".equals(id)) {
             addUpgradedDeckCard(s, "gambiter_grand_endgame");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_gravekeeper_lantern".equals(id)) {
+            addUpgradedDeckCard(s, "gravekeeper_lantern");
+            addUpgradedDeckCard(s, "gravekeeper_dirge");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_gravekeeper_shroud".equals(id)) {
+            addUpgradedDeckCard(s, "gravekeeper_shroud");
+            removeStatusCard(s);
+            s.maxHp += 4;
+            s.hp += 4;
+        } else if ("t_gravekeeper_interment".equals(id)) {
+            addUpgradedDeckCard(s, "gravekeeper_interment");
+            removeStatusCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_gravekeeper_grand".equals(id)) {
+            addUpgradedDeckCard(s, "gravekeeper_grand_requiem");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -6236,7 +6323,8 @@ public final class GameCore {
                 || "t_relicsmith_grand".equals(id) || "t_beastmaster_grand".equals(id)
                 || "t_dragonbinder_grand".equals(id) || "t_soulbinder_grand".equals(id)
                 || "t_starforger_grand".equals(id) || "t_pathfinder_grand".equals(id)
-                || "t_arrayist_grand".equals(id) || "t_gambiter_grand".equals(id);
+                || "t_arrayist_grand".equals(id) || "t_gambiter_grand".equals(id)
+                || "t_gravekeeper_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6263,7 +6351,8 @@ public final class GameCore {
                 || "relicsmith_grand_vault".equals(id) || "beastmaster_grand_hunt".equals(id)
                 || "dragonbinder_grand_oath".equals(id) || "soulbinder_grand_pact".equals(id)
                 || "starforger_grand_star".equals(id) || "pathfinder_grand_route".equals(id)
-                || "arrayist_grand_array".equals(id) || "gambiter_grand_endgame".equals(id);
+                || "arrayist_grand_array".equals(id) || "gambiter_grand_endgame".equals(id)
+                || "gravekeeper_grand_requiem".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6288,7 +6377,8 @@ public final class GameCore {
                 || "plague_crown".equals(id) || "archive_crown".equals(id) || "void_crown".equals(id)
                 || "vault_crown".equals(id) || "alpha_crown".equals(id) || "elder_dragon_crown".equals(id)
                 || "soul_crown".equals(id) || "star_crown".equals(id) || "route_crown".equals(id)
-                || "array_crown".equals(id) || "checkmate_crown".equals(id);
+                || "array_crown".equals(id) || "checkmate_crown".equals(id)
+                || "requiem_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -6908,6 +6998,12 @@ public final class GameCore {
                 || d.upgradeRandom || hybridFocusCount(d) >= 2 || d.type == 0 || d.type == 1
                 || d.profession.equals(PROF_GAMBITER) || d.profession.equals(PROF_DUELIST)
                 || d.profession.equals(PROF_TACTICIAN) || d.profession.equals(PROF_ADJUDICATOR))) amount++;
+        else if (PROF_GRAVEKEEPER.equals(s.profession) && d != null && (d.exhaust || d.exhaustTopDiscard
+                || d.createWound || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GRAVEKEEPER)
+                || d.profession.equals(PROF_SOULBINDER) || d.profession.equals(PROF_MEDIUM)
+                || d.profession.equals(PROF_FROSTBINDER) || d.profession.equals(PROF_PLAGUEDOCTOR))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -9310,6 +9406,41 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "grave_lantern") && PROF_GRAVEKEEPER.equals(s.profession)) {
+            int graves = statusDeckCards(s) + statusHandCards(s) + s.exhaust.size() + buildFocusDeckCards(s, BUILD_STATUS);
+            draw(s, 1);
+            removeStatusCard(s);
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + graves / 5));
+            gainBlock(s, 6 + s.act + Math.min(20, s.professionCharge * 2 + graves * 2));
+            s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(8, graves / 3));
+            Card lantern = new Card("gravekeeper_lantern");
+            lantern.temp = true;
+            lantern.upgraded = true;
+            addToHand(s, lantern);
+            if (target != null) {
+                target.mark += 2;
+                target.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(30, target.bind * 2
+                        + s.professionCharge * 2 + graves * 2), true);
+            }
+        }
+        if (hasRelic(s, "requiem_crown") && PROF_GRAVEKEEPER.equals(s.profession)) {
+            Card over = new Card("gravekeeper_overwake");
+            over.temp = true;
+            over.upgraded = true;
+            addToHand(s, over);
+            draw(s, 1);
+            removeStatusCard(s);
+            if (s.professionCharge >= 5 || statusDeckCards(s) + statusHandCards(s) > 0
+                    || s.exhaust.size() >= 4 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                target.bind += 2 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -9421,6 +9552,9 @@ public final class GameCore {
         if (hasRelic(s, "gambit_clock") && PROF_GAMBITER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.cardsPlayedThisTurn >= 3 || s.block >= 12
                 || bindDeckCards(s) >= 2 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "grave_lantern") && PROF_GRAVEKEEPER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.exhaust.size() >= 3 || statusDeckCards(s) + statusHandCards(s) > 0
+                || s.hp < s.maxHp || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -11376,6 +11510,39 @@ public final class GameCore {
                 fork.temp = true;
                 fork.upgraded = true;
                 addToHand(s, fork);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_GRAVEKEEPER.equals(s.profession) && s.turn == 1) {
+            int graves = Math.min(10, statusDeckCards(s) + statusHandCards(s) + exhaustDeckCards(s));
+            int guard = Math.min(10, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 6);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, graves / 2 + guard / 3 + healingDeckCards(s) / 3);
+            gainBlock(s, 5 + s.act + Math.min(10, graves * 2 + guard * 2 + s.professionCharge));
+            if (statusHandCards(s) > 0 || hasTalent(s, "t_gravekeeper_shroud")) {
+                removeStatusCard(s);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += hasTalent(s, "t_gravekeeper_lantern") ? 2 : 1;
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+            if (hasTalent(s, "t_gravekeeper_lantern")) {
+                Card lantern = new Card("gravekeeper_lantern");
+                lantern.temp = true;
+                lantern.upgraded = true;
+                addToHand(s, lantern);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_gravekeeper_shroud")) {
+                gainBlock(s, 5 + s.act);
+                draw(s, 1);
+                s.hp = Math.min(s.maxHp, s.hp + 2);
+            }
+            if (hasTalent(s, "t_gravekeeper_grand")) {
+                Card interment = new Card("gravekeeper_interment");
+                interment.temp = true;
+                interment.upgraded = true;
+                addToHand(s, interment);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -15548,6 +15715,122 @@ public final class GameCore {
             }
             s.professionCharge += c.upgraded ? 3 : 2;
             addQuestProgress(s, QUEST_COMBO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("gravekeeper_lantern".equals(d.id) && target != null) {
+            int graves = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int exhausts = s.exhaust.size() + exhaustDeckCards(s);
+            damage += Math.min(c.upgraded ? 38 : 26, graves * 2 + statuses * 4
+                    + exhausts * 2 + target.bind * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            target.bind += 1 + s.bindPower / 2;
+            if (statuses > 0 || exhausts >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("gravekeeper_shroud".equals(d.id)) {
+            int graves = Math.max(0, s.professionCharge);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            block += Math.min(c.upgraded ? 44 : 31, graves * 2 + statuses * 5 + guard * 3 + s.block / 4);
+            heal += 1 + Math.min(c.upgraded ? 5 : 3, statuses + healingDeckCards(s) / 2);
+            removeStatusCard(s);
+            if (statuses > 0 || guard >= 3 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+        }
+        if ("gravekeeper_dirge".equals(d.id) && target != null) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int exhausts = s.exhaust.size() + exhaustDeckCards(s);
+            int pressure = target.mark * 3 + target.bind * 4 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 58 : 42, pressure + statuses * 5
+                    + exhausts * 3 + s.professionCharge * 2);
+            target.mark += c.upgraded ? 3 : 2;
+            target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            target.vulnerable += 1;
+            if (statuses > 0 || target.bind >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("gravekeeper_interment".equals(d.id)) {
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int exhausts = s.exhaust.size() + exhaustDeckCards(s);
+            block += Math.min(c.upgraded ? 46 : 32, s.professionCharge * 2 + statuses * 5 + exhausts * 3);
+            removeStatusCard(s);
+            if (!s.discard.isEmpty()) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+            }
+            if (statuses > 0 || exhausts >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_ECHO, 1);
+        }
+        if ("gravekeeper_overwake".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int exhausts = s.exhaust.size() + exhaustDeckCards(s);
+            block += Math.min(c.upgraded ? 52 : 38, s.professionCharge * 2 + statuses * 5
+                    + exhausts * 3 + overloadNow * 7);
+            heal += 2 + Math.min(c.upgraded ? 8 : 5, statuses + overloadNow * 2);
+            removeStatusCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 74 : 54, overloadNow * 8 + statuses * 5
+                        + exhausts * 4 + target.bind * 3 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || statuses > 0 || exhausts >= 5 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_HEX, 1);
+        }
+        if ("gravekeeper_grand_requiem".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int statuses = statusDeckCards(s) + statusHandCards(s);
+            int exhausts = s.exhaust.size() + exhaustDeckCards(s);
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            damage += Math.min(c.upgraded ? 104 : 80, s.professionCharge * 4 + statuses * 7
+                    + exhausts * 5 + guard * 4 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 74 : 56, s.professionCharge * 3 + statuses * 5
+                    + exhausts * 4 + guard * 4 + overloadNow * 6);
+            heal += 3 + Math.min(c.upgraded ? 10 : 7, statuses + healingDeckCards(s));
+            removeStatusCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            Card lantern = new Card("gravekeeper_lantern");
+            lantern.temp = true;
+            lantern.upgraded = true;
+            addToHand(s, lantern);
+            if (statuses > 0 || exhausts >= 5 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
@@ -19910,6 +20193,101 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_GRAVEKEEPER.equals(s.profession) && (d.exhaust || d.exhaustTopDiscard
+                || d.createWound || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || "wound".equals(c.id) || "daze".equals(c.id)
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GRAVEKEEPER))) {
+            int graves = Math.min(20, statusDeckCards(s) + statusHandCards(s) + s.exhaust.size());
+            int guard = Math.min(18, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 6);
+            s.professionCharge += 1 + Math.min(2, (graves / 3 + guard / 4
+                    + (d.exhaust || d.exhaustTopDiscard || "wound".equals(c.id) || "daze".equals(c.id) ? 2 : 0)
+                    + (d.heal > 0 || d.block > 0 ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1;
+                    e.bind += 1 + s.bindPower / 2;
+                    if (graves >= 4 || d.vulnerable > 0 || hasTalent(s, "t_gravekeeper_interment")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(40, e.mark * 2 + e.bind * 2
+                            + graves * 2 + guard * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.heal > 0 || hasTalent(s, "t_gravekeeper_shroud")) {
+                    gainBlock(s, 3 + s.act + Math.min(20, s.professionCharge + guard * 2 + graves));
+                    s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(3, graves / 4));
+                }
+                if (statusHandCards(s) > 0 || hasTalent(s, "t_gravekeeper_grand")) {
+                    removeStatusCard(s);
+                }
+                if (graves >= 5 || s.cardsPlayedThisTurn >= 3 || hasTalent(s, "t_gravekeeper_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_gravekeeper_lantern") && (d.draw > 0 || d.exhaust || d.exhaustTopDiscard
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(34, e.mark * 2 + e.bind
+                        + s.professionCharge * 2 + statusDeckCards(s) * 3 + s.exhaust.size()), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || statusHandCards(s) > 0 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_gravekeeper_shroud") && (d.block > 0 || d.heal > 0 || d.type == 1
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
+            gainBlock(s, 4 + s.act + Math.min(22, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_GUARD) * 2 + statusDeckCards(s) * 3 + s.exhaust.size()));
+            s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(3, statusDeckCards(s) + statusHandCards(s)));
+            if (statusHandCards(s) > 0 || s.block >= 14) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_gravekeeper_interment") && (d.exhaust || d.exhaustTopDiscard || d.createWound
+                || d.bind > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (statusDeckCards(s) > 0 || s.exhaust.size() >= 4 || bestEnemyPressure(s) >= 8) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(38, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + s.exhaust.size() * 2
+                            + statusDeckCards(s) * 4), true);
+                }
+            }
+            if (!s.discard.isEmpty() && (s.cardsPlayedThisTurn == 2 || statusDeckCards(s) > 0)) {
+                s.exhaust.add(s.discard.remove(s.discard.size() - 1));
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.exhaust.size() >= 5 || statusDeckCards(s) > 0) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_gravekeeper_grand") && (d.exhaust || d.exhaustTopDiscard || d.createWound
+                || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.professionCharge >= 4 || s.exhaust.size() >= 5
+                    || statusDeckCards(s) > 0 || s.block >= 16)) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(44, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + s.exhaust.size() * 2 + statusDeckCards(s) * 4), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                removeStatusCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -21048,6 +21426,45 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "grave_lantern") && (d.exhaust || d.exhaustTopDiscard || d.createWound
+                || d.draw > 0 || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
+            addProfessionSkillCharge(s, 1);
+            int graves = statusDeckCards(s) + statusHandCards(s) + s.exhaust.size();
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(14, s.professionCharge + graves * 2
+                        + buildFocusDeckCards(s, BUILD_GUARD)));
+                s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(3, graves / 4));
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (graves >= 4 || d.exhaust || "wound".equals(c.id) || "daze".equals(c.id)) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(34, e.bind * 2
+                            + graves * 2 + s.professionCharge), true);
+                }
+            }
+        }
+        if (hasRelic(s, "requiem_crown") && (d.exhaust || d.exhaustTopDiscard || d.createWound
+                || d.block > 0 || d.heal > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                || "wound".equals(c.id) || "daze".equals(c.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 2;
+                e.bind += 2 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (e.mark >= 5 || s.exhaust.size() >= 5 || statusDeckCards(s) > 0 || s.block >= 16) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(40, e.mark * 2 + e.bind * 2
+                            + s.professionCharge + s.exhaust.size() * 2 + statusDeckCards(s) * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                removeStatusCard(s);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -22429,6 +22846,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_GUARD ? 16 : focus == BUILD_STATUS ? 14
                     : focus == BUILD_OVERLOAD ? 14 : focus == BUILD_FORGE ? 10 : focus == BUILD_ECHO ? 6 : 0;
         }
+        if (PROF_GRAVEKEEPER.equals(s.profession)) {
+            return focus == BUILD_STATUS ? 18 : focus == BUILD_GUARD ? 16 : focus == BUILD_ECHO ? 14
+                    : focus == BUILD_BLOOD ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_CYCLE ? 10 : 0;
+        }
         return 0;
     }
 
@@ -22561,6 +22982,9 @@ public final class GameCore {
         }
         if (PROF_GAMBITER.equals(d.profession)) {
             return gambiterFocusCardValue(d, focus);
+        }
+        if (PROF_GRAVEKEEPER.equals(d.profession)) {
+            return gravekeeperFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -23855,6 +24279,55 @@ public final class GameCore {
         return 0;
     }
 
+    private static int gravekeeperFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.block + d.bind * 2 + d.heal * 2
+                    + (d.exhaust || d.exhaustTopDiscard ? 5 : 0)
+                    + ("gravekeeper_lantern".equals(d.id) ? 8 : 0)
+                    + ("gravekeeper_interment".equals(d.id) ? 10 : 0)
+                    + ("gravekeeper_overwake".equals(d.id) ? 16 : 0)
+                    + ("gravekeeper_grand_requiem".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2
+                    + (d.createWound ? 8 : 0) + ("wound".equals(d.id) || "daze".equals(d.id) ? 5 : 0)
+                    + (d.exhaust || d.exhaustTopDiscard ? 5 : 0)
+                    + ("gravekeeper_lantern".equals(d.id) ? 12 : 0)
+                    + ("gravekeeper_dirge".equals(d.id) ? 18 : 0)
+                    + ("gravekeeper_overwake".equals(d.id) ? 16 : 0)
+                    + ("gravekeeper_grand_requiem".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.type == 1 ? 5 : 0) + d.draw * 2 + d.heal * 4 + d.bind * 2
+                    + ("gravekeeper_shroud".equals(d.id) ? 18 : 0)
+                    + ("gravekeeper_interment".equals(d.id) ? 16 : 0)
+                    + ("gravekeeper_overwake".equals(d.id) ? 18 : 0)
+                    + ("gravekeeper_grand_requiem".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 10 : 0) + (d.exhaust || d.exhaustTopDiscard ? 8 : 0)
+                    + d.draw * 3 + d.skillChargeGain * 2
+                    + ("gravekeeper_lantern".equals(d.id) ? 8 : 0)
+                    + ("gravekeeper_interment".equals(d.id) ? 16 : 0)
+                    + ("gravekeeper_grand_requiem".equals(d.id) ? 14 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return d.heal * 6 + (d.createWound ? 8 : 0) + ("wound".equals(d.id) ? 5 : 0)
+                    + d.block + d.skillChargeGain * 2
+                    + ("gravekeeper_shroud".equals(d.id) ? 16 : 0)
+                    + ("gravekeeper_overwake".equals(d.id) ? 14 : 0)
+                    + ("gravekeeper_grand_requiem".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 6 : 0)
+                    + d.skillChargeGain * 2 + (d.exhaust || d.exhaustTopDiscard ? 3 : 0)
+                    + ("gravekeeper_lantern".equals(d.id) ? 12 : 0)
+                    + ("gravekeeper_interment".equals(d.id) ? 10 : 0)
+                    + ("gravekeeper_grand_requiem".equals(d.id) ? 10 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -24366,6 +24839,16 @@ public final class GameCore {
         else if ("t_gambiter_grand".equals(id)) bonus += professionCards + bindDeckCards(s)
                 + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_gravekeeper_lantern".equals(id)) bonus += status * 3 + exhaustDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_gravekeeper_shroud".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + healingDeckCards(s) * 2 + status + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_gravekeeper_interment".equals(id)) bonus += exhaustDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD)
+                + status + professionCards;
+        else if ("t_gravekeeper_grand".equals(id)) bonus += professionCards + status * 2
+                + exhaustDeckCards(s) + healingDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -24452,6 +24935,14 @@ public final class GameCore {
             if (focus == BUILD_STATUS && isAny(id, "t_gambiter_pawn", "t_gambiter_fork", "t_gambiter_grand")) return 3;
             if (focus == BUILD_OVERLOAD && isAny(id, "t_gambiter_fork", "t_gambiter_grand")) return 3;
             if (focus == BUILD_FORGE && isAny(id, "t_gambiter_castle", "t_gambiter_grand")) return 3;
+        }
+        if (isAny(id, "t_gravekeeper_lantern", "t_gravekeeper_shroud", "t_gravekeeper_interment", "t_gravekeeper_grand")) {
+            if (focus == BUILD_STATUS) return 3;
+            if (focus == BUILD_ECHO && isAny(id, "t_gravekeeper_lantern", "t_gravekeeper_interment", "t_gravekeeper_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_gravekeeper_shroud", "t_gravekeeper_grand")) return 3;
+            if (focus == BUILD_BLOOD && isAny(id, "t_gravekeeper_shroud", "t_gravekeeper_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_gravekeeper_interment", "t_gravekeeper_grand")) return 3;
+            if (focus == BUILD_CYCLE && isAny(id, "t_gravekeeper_lantern", "t_gravekeeper_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -25216,6 +25707,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE || focus == BUILD_GUARD || focus == BUILD_STATUS
                     || focus == BUILD_OVERLOAD || focus == BUILD_FORGE ? 3 : 0;
         }
+        if ("grave_lantern".equals(id) || "requiem_crown".equals(id)) {
+            return focus == BUILD_STATUS || focus == BUILD_GUARD || focus == BUILD_ECHO
+                    || focus == BUILD_BLOOD || focus == BUILD_OVERLOAD || focus == BUILD_CYCLE ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -25366,7 +25861,8 @@ public final class GameCore {
                 || (PROF_STARFORGER.equals(s.profession) && "star_hammer".equals(id))
                 || (PROF_PATHFINDER.equals(s.profession) && "pathfinder_compass".equals(id))
                 || (PROF_ARRAYIST.equals(s.profession) && "array_disc".equals(id))
-                || (PROF_GAMBITER.equals(s.profession) && "gambit_clock".equals(id));
+                || (PROF_GAMBITER.equals(s.profession) && "gambit_clock".equals(id))
+                || (PROF_GRAVEKEEPER.equals(s.profession) && "grave_lantern".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -25426,6 +25922,7 @@ public final class GameCore {
                 || hasRelic(s, "pathfinder_compass") || hasRelic(s, "route_crown")
                 || hasRelic(s, "array_disc") || hasRelic(s, "array_crown")
                 || hasRelic(s, "gambit_clock") || hasRelic(s, "checkmate_crown")
+                || hasRelic(s, "grave_lantern") || hasRelic(s, "requiem_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
@@ -25672,6 +26169,12 @@ public final class GameCore {
         if (PROF_GAMBITER.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.block > 0
                 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || d.upgradeRandom
                 || hybridFocusCount(d) >= 2 || d.type == 0 || d.type == 1 || d.profession.equals(PROF_GAMBITER))) {
+            return 4;
+        }
+        if (PROF_GRAVEKEEPER.equals(s.profession) && (d.exhaust || d.exhaustTopDiscard || d.createWound
+                || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.bind > 0 || d.vulnerable > 0 || "wound".equals(d.id) || "daze".equals(d.id)
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GRAVEKEEPER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -26177,6 +26680,16 @@ public final class GameCore {
                 || d.createWound || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || d.rarity == 2)) {
             bonus += 5;
         }
+        if (hasRelic(s, "grave_lantern") && (d.exhaust || d.exhaustTopDiscard || d.createWound || d.heal > 0
+                || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "requiem_crown") && (d.exhaust || d.exhaustTopDiscard || d.createWound || d.heal > 0
+                || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0 || d.rarity == 2 || d.bind > 0
+                || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "storm_rod") && (d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
                 || d.draw > 0 || d.profession.equals(PROF_STORMCALLER))) {
             bonus += 4;
@@ -26407,7 +26920,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -26456,6 +26969,7 @@ public final class GameCore {
         if (PROF_PATHFINDER.equals(s.profession)) return "pathfinder_compass";
         if (PROF_ARRAYIST.equals(s.profession)) return "array_disc";
         if (PROF_GAMBITER.equals(s.profession)) return "gambit_clock";
+        if (PROF_GRAVEKEEPER.equals(s.profession)) return "grave_lantern";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -26966,6 +27480,18 @@ public final class GameCore {
             return 2;
         }
         if (PROF_GAMBITER.equals(s.profession) && "checkmate_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_GRAVEKEEPER.equals(s.profession) && ("grave_lantern".equals(id) || "void_abacus".equals(id)
+                || "echo_ledger".equals(id) || "echoflow_charm".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "starforge_lens".equals(id) || "stormglass_seal".equals(id)
+                || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "overload_etch".equals(id)
+                || "discipline_chart".equals(id) || "salvage_hook".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "resonance_prism".equals(id) || "spirit_planchette".equals(id)
+                || "frost_chain".equals(id) || "plague_case".equals(id) || "soul_lantern".equals(id))) {
+            return 2;
+        }
+        if (PROF_GRAVEKEEPER.equals(s.profession) && "requiem_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -27584,6 +28110,19 @@ public final class GameCore {
             addUpgradedDeckCard(s, "gambiter_grand_endgame");
             addUpgradedDeckCard(s, "gambiter_pawn");
             upgradeRandomDeckCard(s);
+            s.maxHp += 5;
+            s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("grave_lantern".equals(id)) {
+            addUpgradedDeckCard(s, "gravekeeper_interment");
+            removeStatusCard(s);
+            s.maxHp += 3;
+            s.hp += 3;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("requiem_crown".equals(id)) {
+            addUpgradedDeckCard(s, "gravekeeper_grand_requiem");
+            addUpgradedDeckCard(s, "gravekeeper_lantern");
+            removeStatusCard(s);
             s.maxHp += 5;
             s.hp += 5;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
@@ -28533,6 +29072,18 @@ public final class GameCore {
         c.profession = PROF_GAMBITER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("gambiter_grand_endgame", "终局残局", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按棋势、攻防交替、格挡、控场和过载追加终局收益。", "更高伤害、格挡和兵卒返还。");
         c.profession = PROF_GAMBITER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "gambiter_pawn"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("gravekeeper_lantern", "墓灯巡照", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加束缚；状态、弃牌和消耗会提高收益。", "更高伤害、束缚和墓印。");
+        c.profession = PROF_GRAVEKEEPER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("gravekeeper_shroud", "守墓裹布", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡、治疗并净化状态；墓印和负面牌会加厚防线。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_GRAVEKEEPER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.skillChargeGain = 1;
+        c = addCard("gravekeeper_interment", "安葬仪式", "通用", 1, 1, 1, 0, 0, 7, 11, "获得格挡、抽牌并消耗弃牌；状态牌足够时返能。", "更多格挡、抽牌和返能窗口。");
+        c.profession = PROF_GRAVEKEEPER; c.draw = c.drawUp = 1; c.exhaustTopDiscard = true; c.skillChargeGain = 1;
+        c = addCard("gravekeeper_dirge", "挽歌镇魂", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，施加束缚、印记和易伤；状态与消耗会转成镇魂爆发。", "更高伤害、束缚和压制。");
+        c.profession = PROF_GRAVEKEEPER; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("gravekeeper_overwake", "过载唤灵", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、治疗和充能；过载、状态与消耗会追加镇魂追击。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_GRAVEKEEPER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("gravekeeper_grand_requiem", "终局安魂曲", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按墓印、状态、消耗、治疗和过载追加终局收益。", "更高伤害、格挡和墓灯返还。");
+        c.profession = PROF_GRAVEKEEPER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "gravekeeper_lantern"; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -28844,6 +29395,8 @@ public final class GameCore {
         addRelicDef("array_crown", "万象阵冠", "获得升级终局万象阵；牌阵师低费、临时、汇流、充能和稀有牌会滚动印记、升级与布阵追击。");
         addRelicDef("gambit_clock", "弈局棋钟", "弈者低费、攻防交替、格挡、控场和职业牌更快推动职业技；释放后制造兵卒并升级手牌。");
         addRelicDef("checkmate_crown", "将杀冠", "获得升级终局残局；弈者低费、格挡、控场、充能和稀有牌会滚动印记、升级与将杀追击。");
+        addRelicDef("grave_lantern", "守墓提灯", "守墓人状态、消耗、治疗、格挡和职业牌更快推动职业技；释放后制造墓灯并净化状态。");
+        addRelicDef("requiem_crown", "安魂冠", "获得升级终局安魂曲；守墓人状态、消耗、治疗、守势和稀有牌会滚动束缚、净化与镇魂追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -29130,6 +29683,9 @@ public final class GameCore {
         addTalent("t_gambiter_pawn", PROF_GAMBITER, "兵卒开线", "获得升级兵卒推进和弃兵开局；低费、抽牌、攻击和弈局牌追加印记，并把棋势转成穿透追击。");
         addTalent("t_gambiter_castle", PROF_GAMBITER, "王车防线", "获得生命和升级王车易位；格挡、技能、升级和弈局牌提供额外防线，并在关键节奏补职业技。");
         addTalent("t_gambiter_fork", PROF_GAMBITER, "双将压制", "获得升级双将夹击并升级牌组；束缚、易伤、汇流和充能牌会扩张棋势压力并转成将杀追击。");
+        addTalent("t_gravekeeper_lantern", PROF_GRAVEKEEPER, "墓灯回路", "获得升级墓灯巡照和挽歌镇魂；抽牌、消耗和状态牌追加束缚，并把墓印转成穿透追击。");
+        addTalent("t_gravekeeper_shroud", PROF_GRAVEKEEPER, "裹布防线", "获得生命、净化状态和升级守墓裹布；格挡、治疗、状态和守墓牌提供额外防线。");
+        addTalent("t_gravekeeper_interment", PROF_GRAVEKEEPER, "安葬仪式", "获得升级安葬仪式；消耗、状态、束缚和充能牌会扩张墓印压力并转成镇魂追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -29178,6 +29734,7 @@ public final class GameCore {
         addTalent("t_pathfinder_grand", PROF_PATHFINDER, "终局星路", "获得升级终局星路；检视、格挡、汇流、路线与过载牌持续抽牌、升级并把路标印记转为寻径裁切。");
         addTalent("t_arrayist_grand", PROF_ARRAYIST, "终局万象", "获得升级终局万象阵；低费、临时、格挡、汇流与过载牌持续抽牌、升级并把阵纹印记转为布阵裁切。");
         addTalent("t_gambiter_grand", PROF_GAMBITER, "终局残局", "获得升级终局残局；低费、格挡、控场、汇流与过载牌持续抽牌、升级并把棋势印记转为将杀裁切。");
+        addTalent("t_gravekeeper_grand", PROF_GRAVEKEEPER, "终局安魂", "获得升级终局安魂曲；状态、消耗、治疗、守势与过载牌持续净化、抽牌并把墓印转为镇魂裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
