@@ -141,6 +141,7 @@ public final class GameCore {
     public static final String PROF_ARRAYIST = "牌阵师";
     public static final String PROF_GAMBITER = "弈者";
     public static final String PROF_GRAVEKEEPER = "守墓人";
+    public static final String PROF_TREASURER = "司库";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -151,7 +152,7 @@ public final class GameCore {
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
-            PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER
+            PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER, PROF_TREASURER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -881,6 +882,7 @@ public final class GameCore {
         if (PROF_ARRAYIST.equals(profession)) return "布阵";
         if (PROF_GAMBITER.equals(profession)) return "将杀";
         if (PROF_GRAVEKEEPER.equals(profession)) return "镇魂";
+        if (PROF_TREASURER.equals(profession)) return "结算";
         return "职业技";
     }
 
@@ -968,6 +970,7 @@ public final class GameCore {
         if (PROF_ARRAYIST.equals(profession)) return "满充能：消耗阵纹布阵，按连打、临时牌、牌型、汇流和过载造成穿透，抽牌、加固并制造牌阵牌。";
         if (PROF_GAMBITER.equals(profession)) return "满充能：消耗棋势将杀，按攻防交替、低费连打、格挡、控场和过载造成穿透，抽牌、加固并制造弈局牌。";
         if (PROF_GRAVEKEEPER.equals(profession)) return "满充能：消耗墓印镇魂，按弃牌、消耗、状态牌、治疗、格挡和过载造成穿透，净化、治疗、抽牌并制造守墓牌。";
+        if (PROF_TREASURER.equals(profession)) return "满充能：消耗账印结算，按金币、金币牌、格挡、控场、升级和过载造成穿透，获得金币、格挡、抽牌并制造司库牌。";
         return "选择职业后可用。";
     }
 
@@ -2660,6 +2663,51 @@ public final class GameCore {
             addQuestProgress(s, QUEST_CONFLUENCE, Math.max(1, Math.min(3, chain / 2)));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, graves / 2);
+        } else if (PROF_TREASURER.equals(s.profession)) {
+            int ledgers = Math.max(1, s.professionCharge);
+            int wealth = Math.min(24, s.gold / 20 + buildFocusDeckCards(s, BUILD_GOLD) * 2);
+            int guard = Math.min(20, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int control = Math.min(20, bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS));
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int tempo = Math.min(16, s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 3 + target.burn;
+            int damage = 9 + s.act * 3 + Math.min(94, ledgers * 3 + wealth * 4
+                    + guard * 4 + control * 4 + forge * 3 + tempo * 3 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 1 + Math.min(4, ledgers / 4 + wealth / 5 + forge / 4);
+                target.bind += 1 + s.bindPower / 2 + Math.min(4, control / 4 + guard / 5) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, overload / 4 + pressure / 18);
+            }
+            gainBlock(s, 7 + s.act * 2 + Math.min(48, ledgers * 2 + wealth * 2
+                    + guard * 4 + control * 2 + forge * 2) + overload * 3);
+            s.gold += 8 + s.act * 2 + Math.min(28, ledgers + wealth * 2 + forge) + overload * 3;
+            draw(s, 1 + Math.min(3, ledgers / 5 + wealth / 6 + tempo / 5 + guard / 5) + overload / 4);
+            if (forge >= 4 || wealth >= 8 || overload >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            if (wealth >= 8 || tempo >= 5 || guard >= 5 || overload >= 2) {
+                s.energy++;
+            }
+            Card entry = new Card(overload >= 4 || hasTalent(s, "t_treasurer_grand")
+                    ? "treasurer_grand_balance" : "treasurer_entry");
+            entry.temp = true;
+            entry.upgraded = ledgers >= 5 || hasTalent(s, "t_treasurer_entry");
+            addToHand(s, entry);
+            if (hasTalent(s, "t_treasurer_grand")) {
+                Card audit = new Card("treasurer_audit");
+                audit.temp = true;
+                audit.upgraded = true;
+                addToHand(s, audit);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_TREASURE, 1 + Math.min(3, wealth / 5));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, control / 4 + pressure / 14));
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, forge / 4));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, ledgers / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -4181,6 +4229,9 @@ public final class GameCore {
         if (PROF_GRAVEKEEPER.equals(profession)) {
             return "用弃牌、消耗、伤口眩光、治疗和格挡积累墓印，把负面牌压力转成净化、束缚、抽牌和镇魂爆发。适合异常、回声、守势、血契和过载构筑。";
         }
+        if (PROF_TREASURER.equals(profession)) {
+            return "用金币、账本、格挡、升级和控场积累账印，把资源运营转成抽牌、护盾、标记和结算爆发。适合金币、守势、工坊、循环和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4331,6 +4382,9 @@ public final class GameCore {
         }
         if (PROF_GRAVEKEEPER.equals(profession)) {
             return 0xff9fb59f;
+        }
+        if (PROF_TREASURER.equals(profession)) {
+            return 0xffd9bf72;
         }
         return 0xffd6c07a;
     }
@@ -4810,6 +4864,13 @@ public final class GameCore {
             s.maxHp += 4;
             s.hp += 4;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_TREASURER.equals(profession)) {
+            s.deck.add(new Card("treasurer_entry"));
+            s.deck.add(new Card("treasurer_vault"));
+            s.gold += 25;
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4880,6 +4941,7 @@ public final class GameCore {
         else if (PROF_ARRAYIST.equals(profession)) upgradeDeckCard(s, "arrayist_glyph");
         else if (PROF_GAMBITER.equals(profession)) upgradeDeckCard(s, "gambiter_pawn");
         else if (PROF_GRAVEKEEPER.equals(profession)) upgradeDeckCard(s, "gravekeeper_lantern");
+        else if (PROF_TREASURER.equals(profession)) upgradeDeckCard(s, "treasurer_entry");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -5097,6 +5159,11 @@ public final class GameCore {
             s.maxHp += 3;
             s.hp += 3;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_TREASURER.equals(profession)) {
+            addUpgradedDeckCard(s, "treasurer_audit");
+            s.gold += 45;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -5150,6 +5217,7 @@ public final class GameCore {
         if (PROF_ARRAYIST.equals(profession)) return "arrayist_overarray";
         if (PROF_GAMBITER.equals(profession)) return "gambiter_overmate";
         if (PROF_GRAVEKEEPER.equals(profession)) return "gravekeeper_overwake";
+        if (PROF_TREASURER.equals(profession)) return "treasurer_overledger";
         return "forge_signal";
     }
 
@@ -5874,6 +5942,22 @@ public final class GameCore {
         } else if ("t_gravekeeper_grand".equals(id)) {
             addUpgradedDeckCard(s, "gravekeeper_grand_requiem");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_treasurer_entry".equals(id)) {
+            addUpgradedDeckCard(s, "treasurer_entry");
+            addUpgradedDeckCard(s, "treasurer_collection");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_treasurer_vault".equals(id)) {
+            addUpgradedDeckCard(s, "treasurer_vault");
+            s.gold += 35;
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_treasurer_audit".equals(id)) {
+            addUpgradedDeckCard(s, "treasurer_audit");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_treasurer_grand".equals(id)) {
+            addUpgradedDeckCard(s, "treasurer_grand_balance");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -6324,7 +6408,7 @@ public final class GameCore {
                 || "t_dragonbinder_grand".equals(id) || "t_soulbinder_grand".equals(id)
                 || "t_starforger_grand".equals(id) || "t_pathfinder_grand".equals(id)
                 || "t_arrayist_grand".equals(id) || "t_gambiter_grand".equals(id)
-                || "t_gravekeeper_grand".equals(id);
+                || "t_gravekeeper_grand".equals(id) || "t_treasurer_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6352,7 +6436,7 @@ public final class GameCore {
                 || "dragonbinder_grand_oath".equals(id) || "soulbinder_grand_pact".equals(id)
                 || "starforger_grand_star".equals(id) || "pathfinder_grand_route".equals(id)
                 || "arrayist_grand_array".equals(id) || "gambiter_grand_endgame".equals(id)
-                || "gravekeeper_grand_requiem".equals(id);
+                || "gravekeeper_grand_requiem".equals(id) || "treasurer_grand_balance".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6378,7 +6462,7 @@ public final class GameCore {
                 || "vault_crown".equals(id) || "alpha_crown".equals(id) || "elder_dragon_crown".equals(id)
                 || "soul_crown".equals(id) || "star_crown".equals(id) || "route_crown".equals(id)
                 || "array_crown".equals(id) || "checkmate_crown".equals(id)
-                || "requiem_crown".equals(id);
+                || "requiem_crown".equals(id) || "audit_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -7004,6 +7088,11 @@ public final class GameCore {
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GRAVEKEEPER)
                 || d.profession.equals(PROF_SOULBINDER) || d.profession.equals(PROF_MEDIUM)
                 || d.profession.equals(PROF_FROSTBINDER) || d.profession.equals(PROF_PLAGUEDOCTOR))) amount++;
+        else if (PROF_TREASURER.equals(s.profession) && d != null && (d.goldGain > 0 || d.goldDamage
+                || d.goldBlock || d.block > 0 || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_TREASURER) || d.profession.equals(PROF_MERCHANT)
+                || d.profession.equals(PROF_PACTMAKER) || d.profession.equals(PROF_RELICSMITH))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -9441,6 +9530,40 @@ public final class GameCore {
                 target.bind += 2 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "treasury_key") && PROF_TREASURER.equals(s.profession)) {
+            int wealth = s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD);
+            draw(s, 1);
+            s.gold += 12 + s.act * 3 + Math.min(24, wealth * 2);
+            gainBlock(s, 6 + s.act + Math.min(22, s.professionCharge * 2 + wealth * 2));
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + wealth / 5));
+            Card entry = new Card("treasurer_entry");
+            entry.temp = true;
+            entry.upgraded = true;
+            addToHand(s, entry);
+            if (target != null) {
+                target.mark += 2;
+                target.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(32, target.mark * 2
+                        + s.professionCharge * 2 + wealth * 2), true);
+            }
+        }
+        if (hasRelic(s, "audit_crown") && PROF_TREASURER.equals(s.profession)) {
+            Card over = new Card("treasurer_overledger");
+            over.temp = true;
+            over.upgraded = true;
+            addToHand(s, over);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.gold >= 140 || upgradedCardCount(s) >= 6
+                    || s.block >= 16 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -9555,6 +9678,9 @@ public final class GameCore {
         if (hasRelic(s, "grave_lantern") && PROF_GRAVEKEEPER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.exhaust.size() >= 3 || statusDeckCards(s) + statusHandCards(s) > 0
                 || s.hp < s.maxHp || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
+        if (hasRelic(s, "treasury_key") && PROF_TREASURER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.gold >= 120 || s.block >= 14 || upgradedCardCount(s) >= 5
+                || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -11543,6 +11669,41 @@ public final class GameCore {
                 interment.temp = true;
                 interment.upgraded = true;
                 addToHand(s, interment);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_TREASURER.equals(s.profession) && s.turn == 1) {
+            int wealth = Math.min(10, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int guard = Math.min(10, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 6);
+            int forge = Math.min(8, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, wealth / 3 + guard / 3 + forge / 3);
+            gainBlock(s, 4 + s.act + Math.min(12, wealth * 2 + guard * 2 + s.professionCharge));
+            s.gold += 4 + s.act * 2 + Math.min(12, wealth);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += hasTalent(s, "t_treasurer_entry") ? 2 : 1;
+                firstLiving(s).bind += 1 + s.bindPower / 2;
+            }
+            if (hasTalent(s, "t_treasurer_entry")) {
+                Card entry = new Card("treasurer_entry");
+                entry.temp = true;
+                entry.upgraded = true;
+                addToHand(s, entry);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_treasurer_vault")) {
+                gainBlock(s, 5 + s.act + Math.min(10, s.gold / 35));
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_treasurer_audit")) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_treasurer_grand")) {
+                Card audit = new Card("treasurer_audit");
+                audit.temp = true;
+                audit.upgraded = true;
+                addToHand(s, audit);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -15833,6 +15994,122 @@ public final class GameCore {
             addQuestProgress(s, QUEST_HEX, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("treasurer_entry".equals(d.id) && target != null) {
+            int ledgers = Math.max(0, s.professionCharge);
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            damage += Math.min(c.upgraded ? 40 : 28, ledgers * 2 + wealth * 4 + target.mark * 2);
+            s.gold += 6 + Math.min(c.upgraded ? 18 : 12, wealth + ledgers);
+            target.mark += c.upgraded ? 2 : 1;
+            if (wealth >= 4 || ledgers >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("treasurer_vault".equals(d.id)) {
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            block += Math.min(c.upgraded ? 46 : 32, s.professionCharge * 2 + wealth * 3 + guard * 4 + s.block / 4);
+            s.gold += 4 + Math.min(c.upgraded ? 16 : 10, wealth + guard);
+            if (wealth >= 4 || guard >= 3 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if ("treasurer_audit".equals(d.id)) {
+            int wealth = Math.min(16, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int forge = Math.min(12, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            block += Math.min(c.upgraded ? 44 : 30, s.professionCharge * 2 + wealth * 2 + forge * 4);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 42 : 30, target.mark * 2 + wealth * 3 + forge * 3);
+            }
+            if (wealth >= 5 || forge >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.gold += 6 + Math.min(14, wealth + forge);
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("treasurer_collection".equals(d.id) && target != null) {
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int pressure = target.mark * 3 + target.bind * 4 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 60 : 44, pressure + wealth * 5 + s.professionCharge * 2);
+            s.gold += 8 + Math.min(c.upgraded ? 22 : 15, wealth + pressure / 6);
+            target.mark += c.upgraded ? 3 : 2;
+            target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            target.vulnerable += 1;
+            if (wealth >= 6 || target.bind >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+        }
+        if ("treasurer_overledger".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int wealth = Math.min(20, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int forge = Math.min(14, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            block += Math.min(c.upgraded ? 56 : 40, s.professionCharge * 2 + wealth * 3
+                    + forge * 3 + overloadNow * 7);
+            s.gold += 10 + Math.min(c.upgraded ? 30 : 22, wealth * 2 + overloadNow * 5);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 78 : 56, overloadNow * 8 + wealth * 5
+                        + forge * 4 + target.mark * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || wealth >= 7 || forge >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("treasurer_grand_balance".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int wealth = Math.min(24, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            damage += Math.min(c.upgraded ? 108 : 82, s.professionCharge * 4 + wealth * 7
+                    + guard * 4 + forge * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 76 : 58, s.professionCharge * 3 + wealth * 4
+                    + guard * 4 + forge * 3 + overloadNow * 6);
+            s.gold += 14 + Math.min(c.upgraded ? 42 : 30, wealth * 2 + forge + overloadNow * 5);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            Card entry = new Card("treasurer_entry");
+            entry.temp = true;
+            entry.upgraded = true;
+            addToHand(s, entry);
+            if (wealth >= 8 || guard >= 4 || forge >= 5 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
         if ("hybrid_coinwall".equals(d.id)) {
@@ -20288,6 +20565,95 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_TREASURER.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.block > 0 || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_TREASURER))) {
+            int wealth = Math.min(22, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int guard = Math.min(18, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 6);
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            s.professionCharge += 1 + Math.min(2, (wealth / 4 + guard / 4 + forge / 4
+                    + (d.goldGain > 0 || d.goldDamage || d.goldBlock ? 2 : 0)
+                    + (d.upgradeRandom || c.upgraded ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1 + (wealth >= 7 ? 1 : 0);
+                    e.bind += 1 + s.bindPower / 2;
+                    if (forge >= 4 || d.vulnerable > 0 || hasTalent(s, "t_treasurer_audit")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(42, e.mark * 2 + e.bind * 2
+                            + wealth * 2 + guard * 2 + forge * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.goldBlock || hasTalent(s, "t_treasurer_vault")) {
+                    gainBlock(s, 3 + s.act + Math.min(22, s.professionCharge + guard * 2 + wealth));
+                }
+                if (d.goldGain > 0 || d.goldDamage || d.goldBlock || hasTalent(s, "t_treasurer_grand")) {
+                    s.gold += 4 + Math.min(14, wealth + forge);
+                }
+                if (wealth >= 6 || s.cardsPlayedThisTurn >= 3 || hasTalent(s, "t_treasurer_grand")) {
+                    draw(s, 1);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_treasurer_entry") && (d.goldGain > 0 || d.draw > 0
+                || d.goldDamage || d.goldBlock || d.profession.equals(PROF_TREASURER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.mark * 2
+                        + s.professionCharge * 2 + s.gold / 20), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.gold >= 120 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_treasurer_vault") && (d.block > 0 || d.goldBlock || d.type == 1
+                || d.skillChargeGain > 0 || d.profession.equals(PROF_TREASURER))) {
+            gainBlock(s, 4 + s.act + Math.min(24, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_GUARD) * 2 + s.gold / 35));
+            s.gold += 3 + Math.min(10, s.block / 10);
+            if (s.gold >= 120 || s.block >= 14) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_treasurer_audit") && (d.upgradeRandom || d.bind > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || c.upgraded || d.profession.equals(PROF_TREASURER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (upgradedCardCount(s) >= 5 || bestEnemyPressure(s) >= 8) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(40, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + upgradedCardCount(s) * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || upgradedCardCount(s) >= 6) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_treasurer_grand") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.block > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_TREASURER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.professionCharge >= 4 || s.gold >= 140
+                    || upgradedCardCount(s) >= 6 || s.block >= 16)) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(46, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + s.gold / 18 + upgradedCardCount(s) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                s.gold += 8 + s.act * 2;
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -21465,6 +21831,43 @@ public final class GameCore {
             if (s.cardsPlayedThisTurn == 3) {
                 draw(s, 1);
                 removeStatusCard(s);
+            }
+        }
+        if (hasRelic(s, "treasury_key") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.block > 0 || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                || d.profession.equals(PROF_TREASURER))) {
+            addProfessionSkillCharge(s, 1);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(16, s.professionCharge + s.gold / 35
+                        + buildFocusDeckCards(s, BUILD_GUARD)));
+                s.gold += 5 + s.act;
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (s.gold >= 120 || d.goldGain > 0 || d.goldDamage || d.goldBlock) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.mark * 2
+                            + s.gold / 18 + s.professionCharge), true);
+                }
+            }
+        }
+        if (hasRelic(s, "audit_crown") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.block > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_TREASURER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (e.mark >= 5 || s.gold >= 140 || upgradedCardCount(s) >= 6 || s.block >= 16) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
+                            + s.professionCharge + s.gold / 20 + upgradedCardCount(s) * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
             }
         }
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
@@ -22850,6 +23253,10 @@ public final class GameCore {
             return focus == BUILD_STATUS ? 18 : focus == BUILD_GUARD ? 16 : focus == BUILD_ECHO ? 14
                     : focus == BUILD_BLOOD ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_CYCLE ? 10 : 0;
         }
+        if (PROF_TREASURER.equals(s.profession)) {
+            return focus == BUILD_GOLD ? 18 : focus == BUILD_GUARD ? 16 : focus == BUILD_FORGE ? 14
+                    : focus == BUILD_CYCLE ? 12 : focus == BUILD_STATUS ? 12 : focus == BUILD_OVERLOAD ? 12 : 0;
+        }
         return 0;
     }
 
@@ -22985,6 +23392,9 @@ public final class GameCore {
         }
         if (PROF_GRAVEKEEPER.equals(d.profession)) {
             return gravekeeperFocusCardValue(d, focus);
+        }
+        if (PROF_TREASURER.equals(d.profession)) {
+            return treasurerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -24328,6 +24738,55 @@ public final class GameCore {
         return 0;
     }
 
+    private static int treasurerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_GOLD) {
+            return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0)
+                    + d.skillChargeGain * 2 + ("treasurer_entry".equals(d.id) ? 16 : 0)
+                    + ("treasurer_vault".equals(d.id) ? 12 : 0)
+                    + ("treasurer_collection".equals(d.id) ? 18 : 0)
+                    + ("treasurer_overledger".equals(d.id) ? 18 : 0)
+                    + ("treasurer_grand_balance".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.goldBlock ? 10 : 0) + d.draw * 2 + d.bind * 2
+                    + ("treasurer_vault".equals(d.id) ? 18 : 0)
+                    + ("treasurer_audit".equals(d.id) ? 14 : 0)
+                    + ("treasurer_overledger".equals(d.id) ? 18 : 0)
+                    + ("treasurer_grand_balance".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.skillChargeGain * 2 + d.draw * 2
+                    + (d.rarity == 2 ? 3 : 0)
+                    + ("treasurer_audit".equals(d.id) ? 18 : 0)
+                    + ("treasurer_overledger".equals(d.id) ? 16 : 0)
+                    + ("treasurer_grand_balance".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 6 : 0)
+                    + d.skillChargeGain * 2 + ("treasurer_entry".equals(d.id) ? 12 : 0)
+                    + ("treasurer_audit".equals(d.id) ? 12 : 0)
+                    + ("treasurer_overledger".equals(d.id) ? 10 : 0)
+                    + ("treasurer_grand_balance".equals(d.id) ? 10 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("treasurer_entry".equals(d.id) ? 8 : 0)
+                    + ("treasurer_audit".equals(d.id) ? 14 : 0)
+                    + ("treasurer_collection".equals(d.id) ? 18 : 0)
+                    + ("treasurer_overledger".equals(d.id) ? 16 : 0)
+                    + ("treasurer_grand_balance".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.block + d.goldGain / 3
+                    + (d.upgradeRandom ? 4 : 0)
+                    + ("treasurer_entry".equals(d.id) ? 8 : 0)
+                    + ("treasurer_audit".equals(d.id) ? 10 : 0)
+                    + ("treasurer_overledger".equals(d.id) ? 18 : 0)
+                    + ("treasurer_grand_balance".equals(d.id) ? 18 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -24849,6 +25308,15 @@ public final class GameCore {
         else if ("t_gravekeeper_grand".equals(id)) bonus += professionCards + status * 2
                 + exhaustDeckCards(s) + healingDeckCards(s) + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_treasurer_entry".equals(id)) bonus += Math.min(16, s.gold / 25)
+                + buildFocusDeckCards(s, BUILD_GOLD) * 2 + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_treasurer_vault".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + buildFocusDeckCards(s, BUILD_GOLD) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_treasurer_audit".equals(id)) bonus += upgraded + buildFocusDeckCards(s, BUILD_FORGE) * 2
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_treasurer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GOLD) * 2
+                + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_GUARD)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + Math.min(12, s.gold / 30);
         return Math.min(36, bonus);
     }
 
@@ -24943,6 +25411,14 @@ public final class GameCore {
             if (focus == BUILD_BLOOD && isAny(id, "t_gravekeeper_shroud", "t_gravekeeper_grand")) return 3;
             if (focus == BUILD_OVERLOAD && isAny(id, "t_gravekeeper_interment", "t_gravekeeper_grand")) return 3;
             if (focus == BUILD_CYCLE && isAny(id, "t_gravekeeper_lantern", "t_gravekeeper_grand")) return 3;
+        }
+        if (isAny(id, "t_treasurer_entry", "t_treasurer_vault", "t_treasurer_audit", "t_treasurer_grand")) {
+            if (focus == BUILD_GOLD) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_treasurer_vault", "t_treasurer_grand")) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_treasurer_audit", "t_treasurer_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_treasurer_entry", "t_treasurer_audit", "t_treasurer_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_treasurer_audit", "t_treasurer_grand")) return 3;
+            if (focus == BUILD_CYCLE && isAny(id, "t_treasurer_entry", "t_treasurer_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -25711,6 +26187,10 @@ public final class GameCore {
             return focus == BUILD_STATUS || focus == BUILD_GUARD || focus == BUILD_ECHO
                     || focus == BUILD_BLOOD || focus == BUILD_OVERLOAD || focus == BUILD_CYCLE ? 3 : 0;
         }
+        if ("treasury_key".equals(id) || "audit_crown".equals(id)) {
+            return focus == BUILD_GOLD || focus == BUILD_GUARD || focus == BUILD_FORGE
+                    || focus == BUILD_CYCLE || focus == BUILD_STATUS || focus == BUILD_OVERLOAD ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -25862,7 +26342,8 @@ public final class GameCore {
                 || (PROF_PATHFINDER.equals(s.profession) && "pathfinder_compass".equals(id))
                 || (PROF_ARRAYIST.equals(s.profession) && "array_disc".equals(id))
                 || (PROF_GAMBITER.equals(s.profession) && "gambit_clock".equals(id))
-                || (PROF_GRAVEKEEPER.equals(s.profession) && "grave_lantern".equals(id));
+                || (PROF_GRAVEKEEPER.equals(s.profession) && "grave_lantern".equals(id))
+                || (PROF_TREASURER.equals(s.profession) && "treasury_key".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -25923,6 +26404,7 @@ public final class GameCore {
                 || hasRelic(s, "array_disc") || hasRelic(s, "array_crown")
                 || hasRelic(s, "gambit_clock") || hasRelic(s, "checkmate_crown")
                 || hasRelic(s, "grave_lantern") || hasRelic(s, "requiem_crown")
+                || hasRelic(s, "treasury_key") || hasRelic(s, "audit_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
@@ -26175,6 +26657,12 @@ public final class GameCore {
                 || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0
                 || d.bind > 0 || d.vulnerable > 0 || "wound".equals(d.id) || "daze".equals(d.id)
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_GRAVEKEEPER))) {
+            return 4;
+        }
+        if (PROF_TREASURER.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.block > 0 || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                || d.bind > 0 || d.vulnerable > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_TREASURER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -26690,6 +27178,16 @@ public final class GameCore {
                 || "wound".equals(d.id) || "daze".equals(d.id) || d.profession.equals(PROF_GRAVEKEEPER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "treasury_key") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.block > 0
+                || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.profession.equals(PROF_TREASURER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "audit_crown") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.block > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2 || d.vulnerable > 0 || d.bind > 0
+                || d.profession.equals(PROF_TREASURER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "storm_rod") && (d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
                 || d.draw > 0 || d.profession.equals(PROF_STORMCALLER))) {
             bonus += 4;
@@ -26920,7 +27418,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -26970,6 +27468,7 @@ public final class GameCore {
         if (PROF_ARRAYIST.equals(s.profession)) return "array_disc";
         if (PROF_GAMBITER.equals(s.profession)) return "gambit_clock";
         if (PROF_GRAVEKEEPER.equals(s.profession)) return "grave_lantern";
+        if (PROF_TREASURER.equals(s.profession)) return "treasury_key";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -27492,6 +27991,19 @@ public final class GameCore {
             return 2;
         }
         if (PROF_GRAVEKEEPER.equals(s.profession) && "requiem_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_TREASURER.equals(s.profession) && ("treasury_key".equals(id) || "ledger_stamp".equals(id)
+                || "kingmaker_seal".equals(id) || "contract_stamp".equals(id) || "grand_ledger".equals(id)
+                || "relic_chisel".equals(id) || "vault_crown".equals(id) || "golden_throne".equals(id)
+                || "bloodcoin_broach".equals(id) || "tithe_box".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "split_anvil".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "bulwark_core".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                || "resonance_prism".equals(id) || "overload_etch".equals(id) || "discipline_chart".equals(id))) {
+            return 2;
+        }
+        if (PROF_TREASURER.equals(s.profession) && "audit_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -28125,6 +28637,16 @@ public final class GameCore {
             removeStatusCard(s);
             s.maxHp += 5;
             s.hp += 5;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("treasury_key".equals(id)) {
+            addUpgradedDeckCard(s, "treasurer_audit");
+            s.gold += 45;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("audit_crown".equals(id)) {
+            addUpgradedDeckCard(s, "treasurer_grand_balance");
+            addUpgradedDeckCard(s, "treasurer_entry");
+            s.gold += 80;
+            upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -29084,6 +29606,18 @@ public final class GameCore {
         c.profession = PROF_GRAVEKEEPER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("gravekeeper_grand_requiem", "终局安魂曲", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按墓印、状态、消耗、治疗和过载追加终局收益。", "更高伤害、格挡和墓灯返还。");
         c.profession = PROF_GRAVEKEEPER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "gravekeeper_lantern"; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("treasurer_entry", "入账凭证", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、获得金币并抽牌；金币和账印提高收益。", "更高伤害、金币和账印。");
+        c.profession = PROF_TREASURER; c.draw = c.drawUp = 1; c.goldGain = 6; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("treasurer_vault", "金库护栏", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡和金币格挡；金币与守势会加厚防线。", "更多格挡、金币格挡和职业技充能。");
+        c.profession = PROF_TREASURER; c.draw = c.drawUp = 1; c.goldBlock = true; c.skillChargeGain = 1;
+        c = addCard("treasurer_audit", "审账令", "通用", 1, 1, 1, 0, 0, 7, 11, "获得格挡、抽牌、升级手牌并施加标记；金币牌足够时返能。", "更多格挡、升级和返能窗口。");
+        c.profession = PROF_TREASURER; c.draw = c.drawUp = 1; c.goldGain = 6; c.upgradeRandom = true; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("treasurer_collection", "催收清单", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，获得金币并施加束缚、印记和易伤；金币会转成催收爆发。", "更高伤害、金币和压制。");
+        c.profession = PROF_TREASURER; c.goldGain = 8; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("treasurer_overledger", "过载总账", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、金币、升级和充能；过载、金币与控场会追加结算追击。", "更多格挡、金币和职业技充能。");
+        c.profession = PROF_TREASURER; c.draw = c.drawUp = 1; c.goldGain = 10; c.goldBlock = true; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("treasurer_grand_balance", "终局总平账", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按账印、金币、守势、升级和过载追加终局收益。", "更高伤害、格挡和凭证返还。");
+        c.profession = PROF_TREASURER; c.draw = c.drawUp = 1; c.goldGain = 14; c.goldBlock = true; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "treasurer_entry"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -29397,6 +29931,8 @@ public final class GameCore {
         addRelicDef("checkmate_crown", "将杀冠", "获得升级终局残局；弈者低费、格挡、控场、充能和稀有牌会滚动印记、升级与将杀追击。");
         addRelicDef("grave_lantern", "守墓提灯", "守墓人状态、消耗、治疗、格挡和职业牌更快推动职业技；释放后制造墓灯并净化状态。");
         addRelicDef("requiem_crown", "安魂冠", "获得升级终局安魂曲；守墓人状态、消耗、治疗、守势和稀有牌会滚动束缚、净化与镇魂追击。");
+        addRelicDef("treasury_key", "司库钥", "司库金币、格挡、升级和控场牌更快推动职业技；释放后制造入账凭证并返还金币。");
+        addRelicDef("audit_crown", "审计冠", "获得升级终局总平账；司库金币、守势、升级和稀有牌会滚动标记、束缚与结算追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -29686,6 +30222,9 @@ public final class GameCore {
         addTalent("t_gravekeeper_lantern", PROF_GRAVEKEEPER, "墓灯回路", "获得升级墓灯巡照和挽歌镇魂；抽牌、消耗和状态牌追加束缚，并把墓印转成穿透追击。");
         addTalent("t_gravekeeper_shroud", PROF_GRAVEKEEPER, "裹布防线", "获得生命、净化状态和升级守墓裹布；格挡、治疗、状态和守墓牌提供额外防线。");
         addTalent("t_gravekeeper_interment", PROF_GRAVEKEEPER, "安葬仪式", "获得升级安葬仪式；消耗、状态、束缚和充能牌会扩张墓印压力并转成镇魂追击。");
+        addTalent("t_treasurer_entry", PROF_TREASURER, "入账回路", "获得升级入账凭证和催收清单；金币、抽牌和司库牌追加标记，并把账印转成穿透追击。");
+        addTalent("t_treasurer_vault", PROF_TREASURER, "金库防线", "获得生命、金币和升级金库护栏；格挡、金币格挡、技能和司库牌提供额外防线。");
+        addTalent("t_treasurer_audit", PROF_TREASURER, "审账流程", "获得升级审账令并升级牌组；升级、控场和充能牌会扩张账印压力并转成结算追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -29735,6 +30274,7 @@ public final class GameCore {
         addTalent("t_arrayist_grand", PROF_ARRAYIST, "终局万象", "获得升级终局万象阵；低费、临时、格挡、汇流与过载牌持续抽牌、升级并把阵纹印记转为布阵裁切。");
         addTalent("t_gambiter_grand", PROF_GAMBITER, "终局残局", "获得升级终局残局；低费、格挡、控场、汇流与过载牌持续抽牌、升级并把棋势印记转为将杀裁切。");
         addTalent("t_gravekeeper_grand", PROF_GRAVEKEEPER, "终局安魂", "获得升级终局安魂曲；状态、消耗、治疗、守势与过载牌持续净化、抽牌并把墓印转为镇魂裁切。");
+        addTalent("t_treasurer_grand", PROF_TREASURER, "终局总账", "获得升级终局总平账；金币、格挡、升级、控场与过载牌持续抽牌、返金并把账印转为结算裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

@@ -256,6 +256,8 @@ public final class SimulationHarness {
             if (isGambiterCard(d)) score += 14;
             if (GameCore.PROF_GRAVEKEEPER.equals(s.profession) && isGravekeeperSignal(d)) score += 14;
             if (isGravekeeperCard(d)) score += 14;
+            if (GameCore.PROF_TREASURER.equals(s.profession) && isTreasurerSignal(d)) score += 14;
+            if (isTreasurerCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -429,6 +431,11 @@ public final class SimulationHarness {
                     || d.createWound || d.heal > 0 || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("requiem_crown") && (isGravekeeperSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.exhaust || d.exhaustTopDiscard || d.bind > 0
+                    || d.vulnerable > 0)) score += 20;
+            if (s.relics.contains("treasury_key") && (isTreasurerSignal(d) || d.goldGain > 0
+                    || d.goldDamage || d.goldBlock || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("audit_crown") && (isTreasurerSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.goldGain > 0 || d.bind > 0
                     || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
@@ -687,6 +694,15 @@ public final class SimulationHarness {
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "resonance_prism".equals(id)
                     || "spirit_planchette".equals(id) || "frost_chain".equals(id) || "plague_case".equals(id)
                     || "soul_lantern".equals(id))) score += 36;
+            if (GameCore.PROF_TREASURER.equals(s.profession) && ("audit_crown".equals(id) || "treasury_key".equals(id)
+                    || "ledger_stamp".equals(id) || "kingmaker_seal".equals(id) || "contract_stamp".equals(id)
+                    || "grand_ledger".equals(id) || "relic_chisel".equals(id) || "vault_crown".equals(id)
+                    || "golden_throne".equals(id) || "bloodcoin_broach".equals(id) || "tithe_box".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "split_anvil".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bulwark_core".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "overload_etch".equals(id)
+                    || "discipline_chart".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
@@ -735,6 +751,7 @@ public final class SimulationHarness {
             if ("array_disc".equals(id) || "array_crown".equals(id)) score += 20;
             if ("gambit_clock".equals(id) || "checkmate_crown".equals(id)) score += 20;
             if ("grave_lantern".equals(id) || "requiem_crown".equals(id)) score += 20;
+            if ("treasury_key".equals(id) || "audit_crown".equals(id)) score += 20;
             if ("salvage_hook".equals(id)) score += 20;
             score += GameCore.skillSpecRelicBonus(s, id) * 14;
             if (s.relics.contains(id)) score -= 100;
@@ -1597,6 +1614,19 @@ public final class SimulationHarness {
                     if ((statusDeckCards(s) + statusHandCards(s)) >= 1 && ("gravekeeper_shroud".equals(c.id)
                             || "gravekeeper_interment".equals(c.id) || "gravekeeper_grand_requiem".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_TREASURER.equals(s.profession) && (isTreasurerSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.block > 0 || d.draw > 0
+                            || d.upgradeRandom || d.bind > 0 || d.vulnerable > 0 || isTreasurerCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isTreasurerCard(d)
+                            || d.goldGain > 0 || d.upgradeRandom || d.block > 0)) score += 6;
+                    if (treasurerEnemyPressure(s) >= 8 && ("treasurer_collection".equals(c.id)
+                            || "treasurer_overledger".equals(c.id) || "treasurer_grand_balance".equals(c.id))) score += 8;
+                    if ((s.gold >= 120 || upgradedDeckCards(s) >= 6 || s.block >= 14)
+                            && (d.draw > 0 || d.block > 0 || d.upgradeRandom || d.skillChargeGain > 0 || isTreasurerCard(d))) score += 5;
+                    if (s.gold >= 100 && ("treasurer_vault".equals(c.id)
+                            || "treasurer_audit".equals(c.id) || "treasurer_grand_balance".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1864,6 +1894,15 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_gravekeeper_grand") && (d.exhaust || d.exhaustTopDiscard || d.heal > 0
                         || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
                         || "wound".equals(c.id) || "daze".equals(c.id) || isGravekeeperCard(d))) score += 14;
+                if (s.talents.contains("t_treasurer_entry") && (d.goldGain > 0 || d.draw > 0
+                        || d.goldDamage || d.goldBlock || isTreasurerCard(d))) score += 12;
+                if (s.talents.contains("t_treasurer_vault") && (d.block > 0 || d.goldBlock || d.type == 1
+                        || d.skillChargeGain > 0 || isTreasurerCard(d))) score += 12;
+                if (s.talents.contains("t_treasurer_audit") && (d.upgradeRandom || c.upgraded
+                        || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || isTreasurerCard(d))) score += 12;
+                if (s.talents.contains("t_treasurer_grand") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                        || d.upgradeRandom || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
+                        || isTreasurerCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -1957,6 +1996,9 @@ public final class SimulationHarness {
                 if ("gravekeeper_grand_requiem".equals(c.id) || "gravekeeper_overwake".equals(c.id)) score += 18;
                 if ("gravekeeper_lantern".equals(c.id) || "gravekeeper_shroud".equals(c.id)
                         || "gravekeeper_interment".equals(c.id) || "gravekeeper_dirge".equals(c.id)) score += 14;
+                if ("treasurer_grand_balance".equals(c.id) || "treasurer_overledger".equals(c.id)) score += 18;
+                if ("treasurer_entry".equals(c.id) || "treasurer_vault".equals(c.id)
+                        || "treasurer_audit".equals(c.id) || "treasurer_collection".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
@@ -2118,6 +2160,12 @@ public final class SimulationHarness {
                 if (s.relics.contains("requiem_crown") && (isGravekeeperSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.exhaust || d.exhaustTopDiscard
                         || d.bind > 0 || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("treasury_key") && (isTreasurerSignal(d) || c.temp
+                        || d.goldGain > 0 || d.goldDamage || d.goldBlock || d.block > 0
+                        || d.draw > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("audit_crown") && (isTreasurerSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                        || d.goldGain > 0 || d.bind > 0 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2471,6 +2519,16 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_TREASURER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean balanceWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || balanceWindow
+                    || s.gold >= 120 || s.block >= 18 || upgradedDeckCards(s) >= 6
+                    || treasurerEnemyPressure(s) >= 7 || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2500,7 +2558,8 @@ public final class SimulationHarness {
                 || "t_pathfinder_grand".equals(id) || "t_arrayist_glyph".equals(id)
                 || "t_arrayist_grand".equals(id) || "t_gambiter_pawn".equals(id)
                 || "t_gambiter_grand".equals(id) || "t_gravekeeper_lantern".equals(id)
-                || "t_gravekeeper_grand".equals(id));
+                || "t_gravekeeper_grand".equals(id) || "t_treasurer_entry".equals(id)
+                || "t_treasurer_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2848,6 +2907,7 @@ public final class SimulationHarness {
                 || s.relics.contains("array_disc") || s.relics.contains("array_crown")
                 || s.relics.contains("gambit_clock") || s.relics.contains("checkmate_crown")
                 || s.relics.contains("grave_lantern") || s.relics.contains("requiem_crown")
+                || s.relics.contains("treasury_key") || s.relics.contains("audit_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3391,6 +3451,33 @@ public final class SimulationHarness {
         }
         pressure += Math.min(4, s.exhaust.size());
         pressure += Math.min(4, statusDeckCards(s) + statusHandCards(s));
+        pressure += Math.min(4, s.block / 6);
+        return pressure;
+    }
+
+    private static boolean isTreasurerSignal(GameCore.CardDef d) {
+        return d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.block > 0
+                || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0
+                || d.bind > 0 || isHybridCore(d) || GameCore.PROF_TREASURER.equals(d.profession)
+                || GameCore.PROF_MERCHANT.equals(d.profession) || GameCore.PROF_PACTMAKER.equals(d.profession)
+                || GameCore.PROF_RELICSMITH.equals(d.profession));
+    }
+
+    private static boolean isTreasurerCard(GameCore.CardDef d) {
+        return d != null && ("treasurer_entry".equals(d.id) || "treasurer_vault".equals(d.id)
+                || "treasurer_audit".equals(d.id) || "treasurer_collection".equals(d.id)
+                || "treasurer_overledger".equals(d.id) || "treasurer_grand_balance".equals(d.id));
+    }
+
+    private static int treasurerEnemyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(6, s.gold / 35);
+        pressure += Math.min(5, upgradedDeckCards(s) / 2);
         pressure += Math.min(4, s.block / 6);
         return pressure;
     }
