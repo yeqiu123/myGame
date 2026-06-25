@@ -142,6 +142,7 @@ public final class GameCore {
     public static final String PROF_GAMBITER = "弈者";
     public static final String PROF_GRAVEKEEPER = "守墓人";
     public static final String PROF_TREASURER = "司库";
+    public static final String PROF_DRIFTER = "异旅者";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -152,7 +153,8 @@ public final class GameCore {
             PROF_BARD, PROF_MIRRORIST, PROF_PUPPETEER, PROF_SCAVENGER, PROF_LIGHTKEEPER, PROF_GEOMANCER,
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
-            PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER, PROF_TREASURER
+            PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER, PROF_TREASURER,
+            PROF_DRIFTER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -883,6 +885,7 @@ public final class GameCore {
         if (PROF_GAMBITER.equals(profession)) return "将杀";
         if (PROF_GRAVEKEEPER.equals(profession)) return "镇魂";
         if (PROF_TREASURER.equals(profession)) return "结算";
+        if (PROF_DRIFTER.equals(profession)) return "借势";
         return "职业技";
     }
 
@@ -971,6 +974,7 @@ public final class GameCore {
         if (PROF_GAMBITER.equals(profession)) return "满充能：消耗棋势将杀，按攻防交替、低费连打、格挡、控场和过载造成穿透，抽牌、加固并制造弈局牌。";
         if (PROF_GRAVEKEEPER.equals(profession)) return "满充能：消耗墓印镇魂，按弃牌、消耗、状态牌、治疗、格挡和过载造成穿透，净化、治疗、抽牌并制造守墓牌。";
         if (PROF_TREASURER.equals(profession)) return "满充能：消耗账印结算，按金币、金币牌、格挡、控场、升级和过载造成穿透，获得金币、格挡、抽牌并制造司库牌。";
+        if (PROF_DRIFTER.equals(profession)) return "满充能：消耗旅印借势，按异池牌、临时牌、汇流、升级和过载造成穿透，抽牌、格挡并制造异池牌。";
         return "选择职业后可用。";
     }
 
@@ -2708,6 +2712,50 @@ public final class GameCore {
             addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, forge / 4));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, ledgers / 2);
+        } else if (PROF_DRIFTER.equals(s.profession)) {
+            int cross = Math.max(1, offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s));
+            int chain = Math.min(20, s.confluenceChain + focusMaskCount(s.confluenceMask)
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int guard = Math.min(18, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int control = Math.min(18, bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS)
+                    + bestEnemyPressure(s) / 6);
+            int tempo = Math.min(18, s.cardsPlayedThisTurn + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int damage = 9 + s.act * 3 + Math.min(96, cross * 4 + chain * 4 + guard * 3
+                    + forge * 3 + control * 4 + tempo * 3) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 1 + Math.min(4, cross / 4 + chain / 5 + forge / 5);
+                target.bind += 1 + s.bindPower / 2 + Math.min(4, control / 4 + chain / 6) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, overload / 4 + cross / 7);
+            }
+            gainBlock(s, 7 + s.act * 2 + Math.min(46, cross * 2 + chain * 3
+                    + guard * 4 + forge * 2) + overload * 3);
+            draw(s, 1 + Math.min(3, cross / 4 + chain / 4 + tempo / 5) + overload / 4);
+            if (forge >= 4 || chain >= 5 || overload >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            if (cross >= 6 || tempo >= 5 || overload >= 2) {
+                s.energy++;
+            }
+            Card borrow = new Card(randomOffPoolCard(s, overload >= 2 || hasTalent(s, "t_drifter_grand")).id);
+            borrow.temp = true;
+            borrow.upgraded = cross >= 6 || hasTalent(s, "t_drifter_scout");
+            addToHand(s, borrow);
+            if (hasTalent(s, "t_drifter_grand")) {
+                Card patch = new Card("drifter_patch");
+                patch.temp = true;
+                patch.upgraded = true;
+                addToHand(s, patch);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_COMBO, 1 + Math.min(3, tempo / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, control / 4 + chain / 5));
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(3, cross / 4 + chain / 5));
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, forge / 4));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, cross / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -4232,6 +4280,9 @@ public final class GameCore {
         if (PROF_TREASURER.equals(profession)) {
             return "用金币、账本、格挡、升级和控场积累账印，把资源运营转成抽牌、护盾、标记和结算爆发。适合金币、守势、工坊、循环和过载构筑。";
         }
+        if (PROF_DRIFTER.equals(profession)) {
+            return "用非本派系与其他职业牌打乱常规节奏，把临时借牌、混搭标签和汇流链转成抽牌、控场与终局爆发。适合循环、回声、汇流、控场和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4385,6 +4436,9 @@ public final class GameCore {
         }
         if (PROF_TREASURER.equals(profession)) {
             return 0xffd9bf72;
+        }
+        if (PROF_DRIFTER.equals(profession)) {
+            return 0xff77c6d8;
         }
         return 0xffd6c07a;
     }
@@ -4871,6 +4925,12 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_DRIFTER.equals(profession)) {
+            s.deck.add(new Card("drifter_scout"));
+            s.deck.add(new Card("drifter_hideout"));
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -4942,6 +5002,7 @@ public final class GameCore {
         else if (PROF_GAMBITER.equals(profession)) upgradeDeckCard(s, "gambiter_pawn");
         else if (PROF_GRAVEKEEPER.equals(profession)) upgradeDeckCard(s, "gravekeeper_lantern");
         else if (PROF_TREASURER.equals(profession)) upgradeDeckCard(s, "treasurer_entry");
+        else if (PROF_DRIFTER.equals(profession)) upgradeDeckCard(s, "drifter_scout");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -5164,6 +5225,12 @@ public final class GameCore {
             s.gold += 45;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_DRIFTER.equals(profession)) {
+            addUpgradedDeckCard(s, "drifter_patch");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -5218,6 +5285,7 @@ public final class GameCore {
         if (PROF_GAMBITER.equals(profession)) return "gambiter_overmate";
         if (PROF_GRAVEKEEPER.equals(profession)) return "gravekeeper_overwake";
         if (PROF_TREASURER.equals(profession)) return "treasurer_overledger";
+        if (PROF_DRIFTER.equals(profession)) return "drifter_overcross";
         return "forge_signal";
     }
 
@@ -5958,6 +6026,21 @@ public final class GameCore {
         } else if ("t_treasurer_grand".equals(id)) {
             addUpgradedDeckCard(s, "treasurer_grand_balance");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_drifter_scout".equals(id)) {
+            addUpgradedDeckCard(s, "drifter_scout");
+            addUpgradedDeckCard(s, "drifter_raid");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_drifter_hideout".equals(id)) {
+            addUpgradedDeckCard(s, "drifter_hideout");
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_drifter_patch".equals(id)) {
+            addUpgradedDeckCard(s, "drifter_patch");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_drifter_grand".equals(id)) {
+            addUpgradedDeckCard(s, "drifter_grand_junction");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -6408,7 +6491,8 @@ public final class GameCore {
                 || "t_dragonbinder_grand".equals(id) || "t_soulbinder_grand".equals(id)
                 || "t_starforger_grand".equals(id) || "t_pathfinder_grand".equals(id)
                 || "t_arrayist_grand".equals(id) || "t_gambiter_grand".equals(id)
-                || "t_gravekeeper_grand".equals(id) || "t_treasurer_grand".equals(id);
+                || "t_gravekeeper_grand".equals(id) || "t_treasurer_grand".equals(id)
+                || "t_drifter_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6436,7 +6520,8 @@ public final class GameCore {
                 || "dragonbinder_grand_oath".equals(id) || "soulbinder_grand_pact".equals(id)
                 || "starforger_grand_star".equals(id) || "pathfinder_grand_route".equals(id)
                 || "arrayist_grand_array".equals(id) || "gambiter_grand_endgame".equals(id)
-                || "gravekeeper_grand_requiem".equals(id) || "treasurer_grand_balance".equals(id);
+                || "gravekeeper_grand_requiem".equals(id) || "treasurer_grand_balance".equals(id)
+                || "drifter_grand_junction".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6462,7 +6547,8 @@ public final class GameCore {
                 || "vault_crown".equals(id) || "alpha_crown".equals(id) || "elder_dragon_crown".equals(id)
                 || "soul_crown".equals(id) || "star_crown".equals(id) || "route_crown".equals(id)
                 || "array_crown".equals(id) || "checkmate_crown".equals(id)
-                || "requiem_crown".equals(id) || "audit_crown".equals(id);
+                || "requiem_crown".equals(id) || "audit_crown".equals(id)
+                || "junction_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -7093,6 +7179,12 @@ public final class GameCore {
                 || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_TREASURER) || d.profession.equals(PROF_MERCHANT)
                 || d.profession.equals(PROF_PACTMAKER) || d.profession.equals(PROF_RELICSMITH))) amount++;
+        else if (PROF_DRIFTER.equals(s.profession) && d != null && (isOffPoolCard(s, d) || d.createEcho
+                || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || d.upgradeRandom
+                || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_DRIFTER) || d.profession.equals(PROF_VOIDNAVIGATOR)
+                || d.profession.equals(PROF_PRISMIST) || d.profession.equals(PROF_SHIFTER)
+                || d.profession.equals(PROF_PATHFINDER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -9564,6 +9656,39 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "rift_pass") && PROF_DRIFTER.equals(s.profession)) {
+            int cross = offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s);
+            draw(s, 1);
+            gainBlock(s, 6 + s.act + Math.min(22, s.professionCharge * 2 + cross * 2));
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + cross / 4));
+            Card borrow = new Card(randomOffPoolCard(s, true).id);
+            borrow.temp = true;
+            borrow.upgraded = true;
+            addToHand(s, borrow);
+            if (target != null) {
+                target.mark += 2;
+                target.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(32, target.mark * 2
+                        + s.professionCharge * 2 + cross * 2), true);
+            }
+        }
+        if (hasRelic(s, "junction_crown") && PROF_DRIFTER.equals(s.profession)) {
+            Card over = new Card("drifter_overcross");
+            over.temp = true;
+            over.upgraded = true;
+            addToHand(s, over);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || offPoolDeckCards(s) + offPoolHandCards(s) >= 5
+                    || s.confluenceChain >= 3 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -9680,6 +9805,10 @@ public final class GameCore {
                 || s.hp < s.maxHp || firstLiving(s) != null && firstLiving(s).bind > 0)) amount++;
         if (hasRelic(s, "treasury_key") && PROF_TREASURER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.gold >= 120 || s.block >= 14 || upgradedCardCount(s) >= 5
+                || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "rift_pass") && PROF_DRIFTER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || offPoolDeckCards(s) + offPoolHandCards(s) >= 3
+                || tempOrEchoHandCount(s) >= 2 || s.confluenceChain >= 2
                 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
@@ -11704,6 +11833,42 @@ public final class GameCore {
                 audit.temp = true;
                 audit.upgraded = true;
                 addToHand(s, audit);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_DRIFTER.equals(s.profession) && s.turn == 1) {
+            int cross = Math.min(10, offPoolDeckCards(s) + buildFocusDeckCards(s, BUILD_CYCLE));
+            int chain = Math.min(10, buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_CYCLE));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, cross / 2 + chain / 3 + tempOrEchoDeckCards(s) / 3);
+            gainBlock(s, 4 + s.act + Math.min(12, cross * 2 + chain * 2 + s.professionCharge));
+            Card borrow = new Card(randomOffPoolCard(s, false).id);
+            borrow.temp = true;
+            borrow.upgraded = cross >= 4 || hasTalent(s, "t_drifter_scout");
+            addToHand(s, borrow);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += hasTalent(s, "t_drifter_scout") ? 2 : 1;
+                if (hasTalent(s, "t_drifter_patch")) {
+                    firstLiving(s).vulnerable += 1;
+                }
+            }
+            if (hasTalent(s, "t_drifter_scout")) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_drifter_hideout")) {
+                gainBlock(s, 5 + s.act + Math.min(10, cross * 2));
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_drifter_patch")) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_drifter_grand")) {
+                Card patch = new Card("drifter_patch");
+                patch.temp = true;
+                patch.upgraded = true;
+                addToHand(s, patch);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -16110,6 +16275,143 @@ public final class GameCore {
             addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        if ("drifter_scout".equals(d.id) && target != null) {
+            int cross = offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s);
+            int chain = s.confluenceChain + buildFocusDeckCards(s, BUILD_CYCLE);
+            damage += Math.min(c.upgraded ? 42 : 30, s.professionCharge * 2 + cross * 4
+                    + chain * 3 + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            Card borrow = new Card(randomOffPoolCard(s, false).id);
+            borrow.temp = true;
+            borrow.upgraded = cross >= 5 || c.upgraded;
+            addToHand(s, borrow);
+            if (cross >= 4 || chain >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+        }
+        if ("drifter_hideout".equals(d.id)) {
+            int cross = offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s);
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            int echoes = tempOrEchoHandCount(s) + buildFocusDeckCards(s, BUILD_ECHO);
+            block += Math.min(c.upgraded ? 46 : 32, s.professionCharge * 2 + cross * 3
+                    + guard * 4 + echoes * 3 + s.block / 4);
+            Card borrow = new Card(randomOffPoolCard(s, false).id);
+            borrow.temp = true;
+            borrow.upgraded = cross >= 4 || c.upgraded;
+            addToHand(s, borrow);
+            if (cross >= 4 || guard >= 3 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+        }
+        if ("drifter_patch".equals(d.id) && target != null) {
+            int cross = offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s);
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int chain = s.confluenceChain + focusMaskCount(s.confluenceMask);
+            damage += Math.min(c.upgraded ? 46 : 32, target.mark * 2 + cross * 3 + forge * 4 + chain * 3);
+            upgradeRandomHandCard(s);
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            if (cross >= 5 || forge >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+        }
+        if ("drifter_raid".equals(d.id) && target != null) {
+            int cross = offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s);
+            int chain = s.confluenceChain + buildFocusDeckCards(s, BUILD_CYCLE);
+            int pressure = target.mark * 3 + target.bind * 4 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 62 : 46, pressure + cross * 5 + chain * 4 + s.professionCharge * 2);
+            target.mark += c.upgraded ? 3 : 2;
+            target.bind += 2 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            target.vulnerable += 1;
+            Card borrow = new Card(randomOffPoolCard(s, cross >= 6 || c.upgraded).id);
+            borrow.temp = true;
+            borrow.upgraded = c.upgraded;
+            addToHand(s, borrow);
+            if (cross >= 6 || target.bind >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+        }
+        if ("drifter_overcross".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int cross = offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s);
+            int chain = s.confluenceChain + focusMaskCount(s.confluenceMask) + buildFocusDeckCards(s, BUILD_ECHO);
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            block += Math.min(c.upgraded ? 56 : 40, s.professionCharge * 2 + cross * 3
+                    + chain * 3 + forge * 3 + overloadNow * 7);
+            upgradeRandomHandCard(s);
+            Card borrow = new Card(randomOffPoolCard(s, true).id);
+            borrow.temp = true;
+            borrow.upgraded = true;
+            addToHand(s, borrow);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 78 : 56, overloadNow * 8 + cross * 5
+                        + chain * 4 + forge * 3 + target.mark * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || cross >= 7 || chain >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("drifter_grand_junction".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int cross = offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s);
+            int chain = s.confluenceChain + focusMaskCount(s.confluenceMask) + buildFocusDeckCards(s, BUILD_CYCLE);
+            int guard = buildFocusDeckCards(s, BUILD_GUARD);
+            int forge = Math.min(18, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int control = buildFocusDeckCards(s, BUILD_STATUS) + bindDeckCards(s);
+            damage += Math.min(c.upgraded ? 110 : 84, s.professionCharge * 4 + cross * 7
+                    + chain * 5 + guard * 4 + forge * 4 + control * 3 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 78 : 58, s.professionCharge * 3 + cross * 4
+                    + chain * 4 + guard * 4 + forge * 3 + overloadNow * 6);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            Card borrow = new Card(randomOffPoolCard(s, true).id);
+            borrow.temp = true;
+            borrow.upgraded = true;
+            addToHand(s, borrow);
+            Card scout = new Card("drifter_scout");
+            scout.temp = true;
+            scout.upgraded = true;
+            addToHand(s, scout);
+            if (cross >= 8 || chain >= 5 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_CONFLUENCE, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
         if ("hybrid_coinwall".equals(d.id)) {
@@ -20654,6 +20956,97 @@ public final class GameCore {
                 addProfessionSkillCharge(s, 1);
             }
         }
+        if (PROF_DRIFTER.equals(s.profession) && (isOffPoolCard(s, d) || d.createEcho || c.temp
+                || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0 || d.upgradeRandom
+                || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_DRIFTER))) {
+            int cross = Math.min(20, offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s));
+            int chain = Math.min(18, s.confluenceChain + focusMaskCount(s.confluenceMask) + hybridFocusCount(d));
+            int control = Math.min(18, bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS)
+                    + bestEnemyPressure(s) / 6);
+            int guard = Math.min(18, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 6);
+            s.professionCharge += 1 + Math.min(2, (cross / 4 + chain / 4 + control / 4
+                    + ((isOffPoolCard(s, d) || c.temp) ? 2 : 0)
+                    + (d.upgradeRandom || hybridFocusCount(d) >= 2 ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1 + (cross >= 6 ? 1 : 0);
+                    e.bind += 1 + s.bindPower / 2;
+                    if (chain >= 4 || d.vulnerable > 0 || hasTalent(s, "t_drifter_patch")) {
+                        e.vulnerable += 1;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(42, e.mark * 2 + e.bind * 2
+                            + cross * 2 + chain * 2 + control * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || c.temp || hasTalent(s, "t_drifter_hideout")) {
+                    gainBlock(s, 3 + s.act + Math.min(22, s.professionCharge + guard * 2 + cross));
+                }
+                if (isOffPoolCard(s, d) || c.temp || d.draw > 0 || hasTalent(s, "t_drifter_grand")) {
+                    draw(s, 1);
+                }
+                if (chain >= 5 || cross >= 7 || hasTalent(s, "t_drifter_grand")) {
+                    upgradeRandomHandCard(s);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_drifter_scout") && (isOffPoolCard(s, d) || c.temp || d.draw > 0
+                || d.createEcho || d.profession.equals(PROF_DRIFTER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(34, e.mark * 2
+                        + s.professionCharge * 2 + offPoolDeckCards(s) * 3 + tempOrEchoHandCount(s) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || offPoolHandCards(s) >= 2 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_drifter_hideout") && (d.block > 0 || d.type == 1 || c.temp
+                || d.createEcho || d.profession.equals(PROF_DRIFTER))) {
+            gainBlock(s, 4 + s.act + Math.min(22, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_GUARD) * 2 + offPoolDeckCards(s) * 2 + s.block / 8));
+            if (s.cardsPlayedThisTurn == 3 || tempOrEchoHandCount(s) >= 2) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_drifter_patch") && (d.upgradeRandom || isOffPoolCard(s, d) || c.temp
+                || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_DRIFTER))) {
+            Enemy e = firstLiving(s);
+            int chain = Math.max(s.confluenceChain, hybridFocusCount(d));
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (bestEnemyPressure(s) >= 8 || upgradedCardCount(s) >= 5 || chain >= 3) {
+                    e.bind += 1 + s.bindPower / 2;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(38, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + upgradedCardCount(s) * 2 + chain * 3), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || upgradedCardCount(s) >= 6 || chain >= 3) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_drifter_grand") && (isOffPoolCard(s, d) || c.temp || d.draw > 0
+                || d.skillChargeGain > 0 || d.rarity == 2 || hybridFocusCount(d) >= 2
+                || d.upgradeRandom || d.profession.equals(PROF_DRIFTER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.professionCharge >= 4 || offPoolDeckCards(s) + offPoolHandCards(s) >= 5
+                    || tempOrEchoHandCount(s) >= 3 || s.confluenceChain >= 3)) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(44, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + offPoolDeckCards(s) * 2 + s.confluenceChain * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -21863,6 +22256,44 @@ public final class GameCore {
                 if (e.mark >= 5 || s.gold >= 140 || upgradedCardCount(s) >= 6 || s.block >= 16) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
                             + s.professionCharge + s.gold / 20 + upgradedCardCount(s) * 2), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+        if (hasRelic(s, "rift_pass") && (isOffPoolCard(s, d) || c.temp || d.createEcho || d.draw > 0
+                || d.block > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_DRIFTER))) {
+            addProfessionSkillCharge(s, 1);
+            int cross = offPoolDeckCards(s) + offPoolHandCards(s) + tempOrEchoHandCount(s);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 3 + s.act + Math.min(16, s.professionCharge + cross * 2 + s.confluenceChain * 2));
+                draw(s, 1);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (isOffPoolCard(s, d) || c.temp || cross >= 5) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(34, e.mark * 2
+                            + cross * 3 + s.professionCharge * 2 + s.confluenceChain * 3), true);
+                }
+            }
+        }
+        if (hasRelic(s, "junction_crown") && (isOffPoolCard(s, d) || c.temp || d.skillChargeGain > 0
+                || d.upgradeRandom || d.rarity == 2 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_DRIFTER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 2;
+                e.bind += 1 + s.bindPower / 2;
+                e.vulnerable += 1;
+                if (offPoolDeckCards(s) + offPoolHandCards(s) >= 5 || s.cardsPlayedThisTurn >= 4
+                        || s.confluenceChain >= 3) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(40, e.mark * 2 + e.bind * 2
+                            + s.professionCharge + offPoolDeckCards(s) * 2 + s.confluenceChain * 3), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -23257,6 +23688,10 @@ public final class GameCore {
             return focus == BUILD_GOLD ? 18 : focus == BUILD_GUARD ? 16 : focus == BUILD_FORGE ? 14
                     : focus == BUILD_CYCLE ? 12 : focus == BUILD_STATUS ? 12 : focus == BUILD_OVERLOAD ? 12 : 0;
         }
+        if (PROF_DRIFTER.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_ECHO ? 16 : focus == BUILD_STATUS ? 14
+                    : focus == BUILD_FORGE ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 10 : 0;
+        }
         return 0;
     }
 
@@ -23395,6 +23830,9 @@ public final class GameCore {
         }
         if (PROF_TREASURER.equals(d.profession)) {
             return treasurerFocusCardValue(d, focus);
+        }
+        if (PROF_DRIFTER.equals(d.profession)) {
+            return drifterFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -24787,6 +25225,50 @@ public final class GameCore {
         return 0;
     }
 
+    private static int drifterFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 6 : 0)
+                    + d.skillChargeGain * 2 + ("drifter_scout".equals(d.id) ? 16 : 0)
+                    + ("drifter_raid".equals(d.id) ? 14 : 0)
+                    + ("drifter_overcross".equals(d.id) ? 12 : 0)
+                    + ("drifter_grand_junction".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 8 : 0) + d.draw * 2 + d.skillChargeGain * 2
+                    + ("drifter_scout".equals(d.id) ? 12 : 0)
+                    + ("drifter_hideout".equals(d.id) ? 14 : 0)
+                    + ("drifter_overcross".equals(d.id) ? 16 : 0)
+                    + ("drifter_grand_junction".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("drifter_patch".equals(d.id) ? 12 : 0)
+                    + ("drifter_raid".equals(d.id) ? 18 : 0)
+                    + ("drifter_overcross".equals(d.id) ? 16 : 0)
+                    + ("drifter_grand_junction".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.skillChargeGain * 2 + d.draw * 2
+                    + (d.rarity == 2 ? 3 : 0)
+                    + ("drifter_patch".equals(d.id) ? 18 : 0)
+                    + ("drifter_overcross".equals(d.id) ? 16 : 0)
+                    + ("drifter_grand_junction".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.block + (d.upgradeRandom ? 4 : 0)
+                    + ("drifter_patch".equals(d.id) ? 8 : 0)
+                    + ("drifter_overcross".equals(d.id) ? 18 : 0)
+                    + ("drifter_grand_junction".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + d.draw * 2 + d.bind * 2
+                    + ("drifter_hideout".equals(d.id) ? 18 : 0)
+                    + ("drifter_overcross".equals(d.id) ? 18 : 0)
+                    + ("drifter_grand_junction".equals(d.id) ? 18 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -25317,6 +25799,17 @@ public final class GameCore {
         else if ("t_treasurer_grand".equals(id)) bonus += professionCards + buildFocusDeckCards(s, BUILD_GOLD) * 2
                 + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_GUARD)
                 + buildFocusDeckCards(s, BUILD_OVERLOAD) + Math.min(12, s.gold / 30);
+        else if ("t_drifter_scout".equals(id)) bonus += offPoolDeckCards(s) * 3 + tempOrEchoDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + professionCards;
+        else if ("t_drifter_hideout".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + tempOrEchoDeckCards(s) * 2 + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_drifter_patch".equals(id)) bonus += upgraded + offPoolDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_STATUS)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_drifter_grand".equals(id)) bonus += professionCards + offPoolDeckCards(s) * 2
+                + tempOrEchoDeckCards(s) + buildFocusDeckCards(s, BUILD_CYCLE)
+                + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_OVERLOAD)
+                + Math.min(10, upgraded / 2);
         return Math.min(36, bonus);
     }
 
@@ -25419,6 +25912,14 @@ public final class GameCore {
             if (focus == BUILD_STATUS && isAny(id, "t_treasurer_entry", "t_treasurer_audit", "t_treasurer_grand")) return 3;
             if (focus == BUILD_OVERLOAD && isAny(id, "t_treasurer_audit", "t_treasurer_grand")) return 3;
             if (focus == BUILD_CYCLE && isAny(id, "t_treasurer_entry", "t_treasurer_grand")) return 3;
+        }
+        if (isAny(id, "t_drifter_scout", "t_drifter_hideout", "t_drifter_patch", "t_drifter_grand")) {
+            if (focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_ECHO && isAny(id, "t_drifter_scout", "t_drifter_hideout", "t_drifter_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_drifter_hideout", "t_drifter_grand")) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_drifter_patch", "t_drifter_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_drifter_scout", "t_drifter_patch", "t_drifter_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_drifter_patch", "t_drifter_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -26191,6 +26692,10 @@ public final class GameCore {
             return focus == BUILD_GOLD || focus == BUILD_GUARD || focus == BUILD_FORGE
                     || focus == BUILD_CYCLE || focus == BUILD_STATUS || focus == BUILD_OVERLOAD ? 3 : 0;
         }
+        if ("rift_pass".equals(id) || "junction_crown".equals(id)) {
+            return focus == BUILD_CYCLE || focus == BUILD_ECHO || focus == BUILD_STATUS
+                    || focus == BUILD_FORGE || focus == BUILD_OVERLOAD || focus == BUILD_GUARD ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -26343,7 +26848,8 @@ public final class GameCore {
                 || (PROF_ARRAYIST.equals(s.profession) && "array_disc".equals(id))
                 || (PROF_GAMBITER.equals(s.profession) && "gambit_clock".equals(id))
                 || (PROF_GRAVEKEEPER.equals(s.profession) && "grave_lantern".equals(id))
-                || (PROF_TREASURER.equals(s.profession) && "treasury_key".equals(id));
+                || (PROF_TREASURER.equals(s.profession) && "treasury_key".equals(id))
+                || (PROF_DRIFTER.equals(s.profession) && "rift_pass".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -26405,6 +26911,7 @@ public final class GameCore {
                 || hasRelic(s, "gambit_clock") || hasRelic(s, "checkmate_crown")
                 || hasRelic(s, "grave_lantern") || hasRelic(s, "requiem_crown")
                 || hasRelic(s, "treasury_key") || hasRelic(s, "audit_crown")
+                || hasRelic(s, "rift_pass") || hasRelic(s, "junction_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
@@ -26466,6 +26973,37 @@ public final class GameCore {
             return randomCard(s, s.origin, allowRare);
         }
         return pool.get(s.run.nextInt(pool.size()));
+    }
+
+    private static boolean isOffPoolCard(State s, CardDef d) {
+        if (s == null || d == null) {
+            return false;
+        }
+        boolean offOrigin = !"通用".equals(d.origin) && !d.origin.equals(s.origin);
+        boolean offProfession = d.profession.length() > 0 && !d.profession.equals(s.profession);
+        return offOrigin || offProfession;
+    }
+
+    private static int offPoolDeckCards(State s) {
+        return offPoolCardsInPile(s, s == null ? null : s.deck);
+    }
+
+    private static int offPoolHandCards(State s) {
+        return offPoolCardsInPile(s, s == null ? null : s.hand);
+    }
+
+    private static int offPoolCardsInPile(State s, ArrayList<Card> pile) {
+        if (s == null || pile == null) {
+            return 0;
+        }
+        int count = 0;
+        for (Card c : pile) {
+            CardDef d = card(c.id);
+            if (isOffPoolCard(s, d)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static int professionCardBonus(State s, CardDef d) {
@@ -26663,6 +27201,11 @@ public final class GameCore {
                 || d.block > 0 || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0
                 || d.bind > 0 || d.vulnerable > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_TREASURER))) {
+            return 4;
+        }
+        if (PROF_DRIFTER.equals(s.profession) && (isOffPoolCard(s, d) || d.createEcho || d.draw > 0
+                || d.block > 0 || d.skillChargeGain > 0 || d.upgradeRandom || d.bind > 0
+                || d.vulnerable > 0 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_DRIFTER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -27418,7 +27961,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -27469,6 +28012,7 @@ public final class GameCore {
         if (PROF_GAMBITER.equals(s.profession)) return "gambit_clock";
         if (PROF_GRAVEKEEPER.equals(s.profession)) return "grave_lantern";
         if (PROF_TREASURER.equals(s.profession)) return "treasury_key";
+        if (PROF_DRIFTER.equals(s.profession)) return "rift_pass";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -28004,6 +28548,17 @@ public final class GameCore {
             return 2;
         }
         if (PROF_TREASURER.equals(s.profession) && "audit_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_DRIFTER.equals(s.profession) && ("rift_pass".equals(id) || "rift_compass".equals(id)
+                || "void_compass".equals(id) || "phase_lens".equals(id) || "route_crown".equals(id)
+                || "array_disc".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
+                || "mosaic_core".equals(id) || "starforge_lens".equals(id) || "resonance_prism".equals(id)
+                || "echoflow_charm".equals(id) || "hybrid_keystone".equals(id) || "discipline_chart".equals(id)
+                || "overload_etch".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id))) {
+            return 2;
+        }
+        if (PROF_DRIFTER.equals(s.profession) && "junction_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -28646,6 +29201,15 @@ public final class GameCore {
             addUpgradedDeckCard(s, "treasurer_grand_balance");
             addUpgradedDeckCard(s, "treasurer_entry");
             s.gold += 80;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("rift_pass".equals(id)) {
+            addUpgradedDeckCard(s, "drifter_patch");
+            addUpgradedDeckCard(s, "drifter_scout");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("junction_crown".equals(id)) {
+            addUpgradedDeckCard(s, "drifter_grand_junction");
+            addUpgradedDeckCard(s, "drifter_scout");
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
@@ -29618,6 +30182,18 @@ public final class GameCore {
         c.profession = PROF_TREASURER; c.draw = c.drawUp = 1; c.goldGain = 10; c.goldBlock = true; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("treasurer_grand_balance", "终局总平账", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按账印、金币、守势、升级和过载追加终局收益。", "更高伤害、格挡和凭证返还。");
         c.profession = PROF_TREASURER; c.draw = c.drawUp = 1; c.goldGain = 14; c.goldBlock = true; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "treasurer_entry"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("drifter_scout", "异途探签", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害并借来异池牌；异池牌、临时牌和汇流会提高收益。", "更高伤害、更多印记和借牌收益。");
+        c.profession = PROF_DRIFTER; c.draw = c.drawUp = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("drifter_hideout", "借道藏身", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡并借来异池牌；临时牌、守势和异池牌会加厚防线。", "更多格挡、借牌和职业技充能。");
+        c.profession = PROF_DRIFTER; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("drifter_patch", "拼接手札", "通用", 1, 1, 1, 6, 9, 0, 0, "造成伤害、升级手牌并施加标记；异池牌和工坊会提高拼接收益。", "更高伤害、升级和返能窗口。");
+        c.profession = PROF_DRIFTER; c.draw = c.drawUp = 1; c.upgradeRandom = true; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("drifter_raid", "越界突袭", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害并施加束缚、印记和易伤；异池牌和敌方压力会转成爆发。", "更高伤害、束缚和借牌压制。");
+        c.profession = PROF_DRIFTER; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("drifter_overcross", "过载越界", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、升级和充能，并借来异池牌；过载、汇流和异池牌会追加追击。", "更多格挡、借牌和职业技充能。");
+        c.profession = PROF_DRIFTER; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("drifter_grand_junction", "终局汇途", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡；按异池牌、汇流、升级和过载追加终局收益。", "更高伤害、格挡和异池返还。");
+        c.profession = PROF_DRIFTER; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -29933,6 +30509,8 @@ public final class GameCore {
         addRelicDef("requiem_crown", "安魂冠", "获得升级终局安魂曲；守墓人状态、消耗、治疗、守势和稀有牌会滚动束缚、净化与镇魂追击。");
         addRelicDef("treasury_key", "司库钥", "司库金币、格挡、升级和控场牌更快推动职业技；释放后制造入账凭证并返还金币。");
         addRelicDef("audit_crown", "审计冠", "获得升级终局总平账；司库金币、守势、升级和稀有牌会滚动标记、束缚与结算追击。");
+        addRelicDef("rift_pass", "裂界通票", "异旅者异池、临时、抽牌和升级牌更快推动职业技；释放后借来异池牌并扩散印记。");
+        addRelicDef("junction_crown", "汇途冠", "获得升级终局汇途；异旅者异池、临时、升级、汇流和稀有牌会滚动标记、束缚与借势追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -30225,6 +30803,9 @@ public final class GameCore {
         addTalent("t_treasurer_entry", PROF_TREASURER, "入账回路", "获得升级入账凭证和催收清单；金币、抽牌和司库牌追加标记，并把账印转成穿透追击。");
         addTalent("t_treasurer_vault", PROF_TREASURER, "金库防线", "获得生命、金币和升级金库护栏；格挡、金币格挡、技能和司库牌提供额外防线。");
         addTalent("t_treasurer_audit", PROF_TREASURER, "审账流程", "获得升级审账令并升级牌组；升级、控场和充能牌会扩张账印压力并转成结算追击。");
+        addTalent("t_drifter_scout", PROF_DRIFTER, "异途回路", "获得升级异途探签和越界突袭；异池、临时、抽牌和异旅者牌追加印记，并把旅印转成穿透追击。");
+        addTalent("t_drifter_hideout", PROF_DRIFTER, "借道防线", "获得生命和升级借道藏身；格挡、技能、临时和异池牌提供额外防线。");
+        addTalent("t_drifter_patch", PROF_DRIFTER, "拼接流程", "获得升级拼接手札并升级牌组；升级、异池、汇流和充能牌会扩张旅印压力并转成借势追击。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -30275,6 +30856,7 @@ public final class GameCore {
         addTalent("t_gambiter_grand", PROF_GAMBITER, "终局残局", "获得升级终局残局；低费、格挡、控场、汇流与过载牌持续抽牌、升级并把棋势印记转为将杀裁切。");
         addTalent("t_gravekeeper_grand", PROF_GRAVEKEEPER, "终局安魂", "获得升级终局安魂曲；状态、消耗、治疗、守势与过载牌持续净化、抽牌并把墓印转为镇魂裁切。");
         addTalent("t_treasurer_grand", PROF_TREASURER, "终局总账", "获得升级终局总平账；金币、格挡、升级、控场与过载牌持续抽牌、返金并把账印转为结算裁切。");
+        addTalent("t_drifter_grand", PROF_DRIFTER, "终局汇途", "获得升级终局汇途；异池、临时、汇流、升级与过载牌持续抽牌、升级并把旅印转为借势裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

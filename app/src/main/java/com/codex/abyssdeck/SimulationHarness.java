@@ -258,6 +258,8 @@ public final class SimulationHarness {
             if (isGravekeeperCard(d)) score += 14;
             if (GameCore.PROF_TREASURER.equals(s.profession) && isTreasurerSignal(d)) score += 14;
             if (isTreasurerCard(d)) score += 14;
+            if (GameCore.PROF_DRIFTER.equals(s.profession) && isDrifterSignal(s, d)) score += 14;
+            if (isDrifterCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -437,6 +439,11 @@ public final class SimulationHarness {
             if (s.relics.contains("audit_crown") && (isTreasurerSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.goldGain > 0 || d.bind > 0
                     || d.vulnerable > 0)) score += 20;
+            if (s.relics.contains("rift_pass") && (isDrifterSignal(s, d) || isOffPoolCard(s, d)
+                    || d.createEcho || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("junction_crown") && (isDrifterSignal(s, d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.createEcho
+                    || d.vulnerable > 0 || d.bind > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -703,8 +710,16 @@ public final class SimulationHarness {
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "overload_etch".equals(id)
                     || "discipline_chart".equals(id))) score += 36;
+            if (GameCore.PROF_DRIFTER.equals(s.profession) && ("junction_crown".equals(id) || "rift_pass".equals(id)
+                    || "rift_compass".equals(id) || "void_compass".equals(id) || "phase_lens".equals(id)
+                    || "route_crown".equals(id) || "array_disc".equals(id) || "confluence_map".equals(id)
+                    || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                    || "resonance_prism".equals(id) || "echoflow_charm".equals(id) || "hybrid_keystone".equals(id)
+                    || "discipline_chart".equals(id) || "overload_etch".equals(id) || "mirror_anvil".equals(id)
+                    || "polished_cog".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
+            if ("rift_pass".equals(id) || "junction_crown".equals(id)) score += 20;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
@@ -1627,6 +1642,20 @@ public final class SimulationHarness {
                     if (s.gold >= 100 && ("treasurer_vault".equals(c.id)
                             || "treasurer_audit".equals(c.id) || "treasurer_grand_balance".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_DRIFTER.equals(s.profession) && (isDrifterSignal(s, d) || c.temp)) {
+                    score += 15;
+                    if (isOffPoolCard(s, d) || d.createEcho || d.draw > 0 || d.block > 0
+                            || d.upgradeRandom || d.bind > 0 || d.vulnerable > 0 || isDrifterCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isDrifterCard(d)
+                            || isOffPoolCard(s, d) || d.upgradeRandom || d.block > 0)) score += 6;
+                    if (drifterCrossPressure(s) >= 8 && ("drifter_raid".equals(c.id)
+                            || "drifter_overcross".equals(c.id) || "drifter_grand_junction".equals(c.id))) score += 8;
+                    if ((tempOrEchoHandCards(s) >= 2 || s.confluenceChain >= 3 || upgradedDeckCards(s) >= 6)
+                            && (d.draw > 0 || d.block > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                            || isDrifterCard(d) || isOffPoolCard(s, d))) score += 5;
+                    if ((isOffPoolCard(s, d) || c.temp) && ("drifter_scout".equals(c.id)
+                            || "drifter_patch".equals(c.id) || "drifter_grand_junction".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1903,6 +1932,16 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_treasurer_grand") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
                         || d.upgradeRandom || d.block > 0 || d.skillChargeGain > 0 || d.rarity == 2
                         || isTreasurerCard(d))) score += 14;
+                if (s.talents.contains("t_drifter_scout") && (isOffPoolCard(s, d) || c.temp
+                        || d.draw > 0 || d.createEcho || isDrifterCard(d))) score += 12;
+                if (s.talents.contains("t_drifter_hideout") && (d.block > 0 || d.type == 1
+                        || c.temp || d.createEcho || isDrifterCard(d))) score += 12;
+                if (s.talents.contains("t_drifter_patch") && (d.upgradeRandom || c.upgraded
+                        || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0
+                        || isOffPoolCard(s, d) || isDrifterCard(d))) score += 12;
+                if (s.talents.contains("t_drifter_grand") && (isOffPoolCard(s, d) || c.temp || d.draw > 0
+                        || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                        || isDrifterCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2166,6 +2205,12 @@ public final class SimulationHarness {
                 if (s.relics.contains("audit_crown") && (isTreasurerSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
                         || d.goldGain > 0 || d.bind > 0 || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("rift_pass") && (isDrifterSignal(s, d) || c.temp
+                        || isOffPoolCard(s, d) || d.createEcho || d.draw > 0
+                        || d.block > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("junction_crown") && (isDrifterSignal(s, d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                        || d.bind > 0 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2529,6 +2574,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_DRIFTER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean junctionWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || junctionWindow
+                    || offPoolDeckCards(s) + offPoolHandCards(s) >= 5 || tempOrEchoHandCards(s) >= 3
+                    || s.confluenceChain >= 3 || upgradedDeckCards(s) >= 6
+                    || drifterCrossPressure(s) >= 7 || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2559,7 +2615,8 @@ public final class SimulationHarness {
                 || "t_arrayist_grand".equals(id) || "t_gambiter_pawn".equals(id)
                 || "t_gambiter_grand".equals(id) || "t_gravekeeper_lantern".equals(id)
                 || "t_gravekeeper_grand".equals(id) || "t_treasurer_entry".equals(id)
-                || "t_treasurer_grand".equals(id));
+                || "t_treasurer_grand".equals(id) || "t_drifter_scout".equals(id)
+                || "t_drifter_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2908,6 +2965,7 @@ public final class SimulationHarness {
                 || s.relics.contains("gambit_clock") || s.relics.contains("checkmate_crown")
                 || s.relics.contains("grave_lantern") || s.relics.contains("requiem_crown")
                 || s.relics.contains("treasury_key") || s.relics.contains("audit_crown")
+                || s.relics.contains("rift_pass") || s.relics.contains("junction_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3482,6 +3540,33 @@ public final class SimulationHarness {
         return pressure;
     }
 
+    private static boolean isDrifterSignal(GameCore.State s, GameCore.CardDef d) {
+        return d != null && (isOffPoolCard(s, d) || d.createEcho || d.draw > 0 || d.block > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || isHybridCore(d) || GameCore.PROF_DRIFTER.equals(d.profession)
+                || GameCore.PROF_VOIDNAVIGATOR.equals(d.profession) || GameCore.PROF_PRISMIST.equals(d.profession)
+                || GameCore.PROF_SHIFTER.equals(d.profession) || GameCore.PROF_PATHFINDER.equals(d.profession));
+    }
+
+    private static boolean isDrifterCard(GameCore.CardDef d) {
+        return d != null && ("drifter_scout".equals(d.id) || "drifter_hideout".equals(d.id)
+                || "drifter_patch".equals(d.id) || "drifter_raid".equals(d.id)
+                || "drifter_overcross".equals(d.id) || "drifter_grand_junction".equals(d.id));
+    }
+
+    private static int drifterCrossPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 3 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(6, offPoolDeckCards(s) + offPoolHandCards(s));
+        pressure += Math.min(5, tempOrEchoHandCards(s));
+        pressure += Math.min(4, s.confluenceChain);
+        return pressure;
+    }
+
     private static int archivistEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -3757,6 +3842,25 @@ public final class SimulationHarness {
         boolean offOrigin = !"通用".equals(d.origin) && !d.origin.equals(s.origin);
         boolean offProfession = d.profession.length() > 0 && !d.profession.equals(s.profession);
         return offOrigin || offProfession;
+    }
+
+    private static int offPoolDeckCards(GameCore.State s) {
+        return offPoolCardsInPile(s, s.deck);
+    }
+
+    private static int offPoolHandCards(GameCore.State s) {
+        return offPoolCardsInPile(s, s.hand);
+    }
+
+    private static int offPoolCardsInPile(GameCore.State s, java.util.List<GameCore.Card> pile) {
+        int count = 0;
+        for (GameCore.Card c : pile) {
+            GameCore.CardDef d = GameCore.card(c.id);
+            if (d != null && isOffPoolCard(s, d)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static boolean isResonanceBridgeCard(GameCore.CardDef d) {
