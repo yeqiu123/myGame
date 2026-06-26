@@ -260,6 +260,8 @@ public final class SimulationHarness {
             if (isTreasurerCard(d)) score += 14;
             if (GameCore.PROF_DRIFTER.equals(s.profession) && isDrifterSignal(s, d)) score += 14;
             if (isDrifterCard(d)) score += 14;
+            if (GameCore.PROF_OATHKEEPER.equals(s.profession) && isOathkeeperSignal(d)) score += 14;
+            if (isOathkeeperCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -443,6 +445,11 @@ public final class SimulationHarness {
                     || d.createEcho || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("junction_crown") && (isDrifterSignal(s, d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.createEcho
+                    || d.vulnerable > 0 || d.bind > 0)) score += 20;
+            if (s.relics.contains("oath_seal") && (isOathkeeperSignal(d) || d.block > 0
+                    || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("judgment_crown") && (isOathkeeperSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.block > 0 || d.heal > 0
                     || d.vulnerable > 0 || d.bind > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
@@ -717,9 +724,20 @@ public final class SimulationHarness {
                     || "resonance_prism".equals(id) || "echoflow_charm".equals(id) || "hybrid_keystone".equals(id)
                     || "discipline_chart".equals(id) || "overload_etch".equals(id) || "mirror_anvil".equals(id)
                     || "polished_cog".equals(id))) score += 36;
+            if (GameCore.PROF_OATHKEEPER.equals(s.profession) && ("judgment_crown".equals(id) || "oath_seal".equals(id)
+                    || "command_banner".equals(id) || "aegis_throne".equals(id) || "warden_plate".equals(id)
+                    || "vital_sprout".equals(id) || "vigil_bloom".equals(id) || "bulwark_core".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "stormglass_seal".equals(id)
+                    || "war_table".equals(id) || "grand_war_room".equals(id) || "verdict_seal".equals(id)
+                    || "judgment_codex".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
+                    || "split_anvil".equals(id) || "lantern_wick".equals(id) || "dawn_beacon".equals(id)
+                    || "discipline_chart".equals(id) || "overload_etch".equals(id) || "confluence_map".equals(id)
+                    || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                    || "resonance_prism".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("rift_pass".equals(id) || "junction_crown".equals(id)) score += 20;
+            if ("oath_seal".equals(id) || "judgment_crown".equals(id)) score += 20;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
@@ -1656,6 +1674,20 @@ public final class SimulationHarness {
                     if ((isOffPoolCard(s, d) || c.temp) && ("drifter_scout".equals(c.id)
                             || "drifter_patch".equals(c.id) || "drifter_grand_junction".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_OATHKEEPER.equals(s.profession) && (isOathkeeperSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.block > 0 || d.heal > 0 || d.draw > 0 || d.upgradeRandom
+                            || d.bind > 0 || d.vulnerable > 0 || isOathkeeperCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isOathkeeperCard(d)
+                            || d.block > 0 || d.heal > 0 || d.upgradeRandom)) score += 6;
+                    if (oathkeeperPressure(s) >= 8 && ("oathkeeper_smite".equals(c.id)
+                            || "oathkeeper_overedict".equals(c.id) || "oathkeeper_grand_judgment".equals(c.id))) score += 8;
+                    if ((s.block >= 14 || healingDeckCards(s) >= 3 || upgradedDeckCards(s) >= 6)
+                            && (d.draw > 0 || d.block > 0 || d.heal > 0 || d.upgradeRandom
+                            || d.skillChargeGain > 0 || isOathkeeperCard(d))) score += 5;
+                    if (s.block >= 12 && ("oathkeeper_guard".equals(c.id)
+                            || "oathkeeper_sanctuary".equals(c.id) || "oathkeeper_grand_judgment".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1942,6 +1974,15 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_drifter_grand") && (isOffPoolCard(s, d) || c.temp || d.draw > 0
                         || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
                         || isDrifterCard(d))) score += 14;
+                if (s.talents.contains("t_oathkeeper_vow") && (d.block > 0 || d.heal > 0
+                        || d.draw > 0 || d.vulnerable > 0 || isOathkeeperCard(d))) score += 12;
+                if (s.talents.contains("t_oathkeeper_guard") && (d.block > 0 || d.heal > 0 || d.type == 1
+                        || d.skillChargeGain > 0 || isOathkeeperCard(d))) score += 12;
+                if (s.talents.contains("t_oathkeeper_sanctum") && (d.upgradeRandom || c.upgraded
+                        || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || isOathkeeperCard(d))) score += 12;
+                if (s.talents.contains("t_oathkeeper_grand") && (d.block > 0 || d.heal > 0
+                        || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                        || isOathkeeperCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2211,6 +2252,11 @@ public final class SimulationHarness {
                 if (s.relics.contains("junction_crown") && (isDrifterSignal(s, d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
                         || d.bind > 0 || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("oath_seal") && (isOathkeeperSignal(d) || c.temp
+                        || d.block > 0 || d.heal > 0 || d.draw > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("judgment_crown") && (isOathkeeperSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                        || d.block > 0 || d.heal > 0 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2585,6 +2631,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_OATHKEEPER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean judgmentWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || judgmentWindow
+                    || s.block >= 18 || healingDeckCards(s) >= 4 || upgradedDeckCards(s) >= 6
+                    || oathkeeperPressure(s) >= 7 || s.hp < s.maxHp * 0.55f
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2616,7 +2673,8 @@ public final class SimulationHarness {
                 || "t_gambiter_grand".equals(id) || "t_gravekeeper_lantern".equals(id)
                 || "t_gravekeeper_grand".equals(id) || "t_treasurer_entry".equals(id)
                 || "t_treasurer_grand".equals(id) || "t_drifter_scout".equals(id)
-                || "t_drifter_grand".equals(id));
+                || "t_drifter_grand".equals(id) || "t_oathkeeper_vow".equals(id)
+                || "t_oathkeeper_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -2966,6 +3024,7 @@ public final class SimulationHarness {
                 || s.relics.contains("grave_lantern") || s.relics.contains("requiem_crown")
                 || s.relics.contains("treasury_key") || s.relics.contains("audit_crown")
                 || s.relics.contains("rift_pass") || s.relics.contains("junction_crown")
+                || s.relics.contains("oath_seal") || s.relics.contains("judgment_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3567,6 +3626,33 @@ public final class SimulationHarness {
         return pressure;
     }
 
+    private static boolean isOathkeeperSignal(GameCore.CardDef d) {
+        return d != null && (d.block > 0 || d.heal > 0 || d.retainBlock || d.blockToDamage
+                || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0
+                || d.bind > 0 || isHybridCore(d) || GameCore.PROF_OATHKEEPER.equals(d.profession)
+                || GameCore.PROF_WARDEN.equals(d.profession) || GameCore.PROF_LIGHTKEEPER.equals(d.profession)
+                || GameCore.PROF_ADJUDICATOR.equals(d.profession) || GameCore.PROF_TACTICIAN.equals(d.profession));
+    }
+
+    private static boolean isOathkeeperCard(GameCore.CardDef d) {
+        return d != null && ("oathkeeper_vow".equals(d.id) || "oathkeeper_guard".equals(d.id)
+                || "oathkeeper_smite".equals(d.id) || "oathkeeper_sanctuary".equals(d.id)
+                || "oathkeeper_overedict".equals(d.id) || "oathkeeper_grand_judgment".equals(d.id));
+    }
+
+    private static int oathkeeperPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 4 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(6, s.block / 6);
+        pressure += Math.min(5, healingDeckCards(s));
+        pressure += Math.min(5, upgradedDeckCards(s) / 2);
+        return pressure;
+    }
+
     private static int archivistEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -3834,6 +3920,15 @@ public final class SimulationHarness {
         for (GameCore.Card c : s.deck) {
             GameCore.CardDef d = GameCore.card(c.id);
             if (d != null && d.bind > 0) count++;
+        }
+        return count;
+    }
+
+    private static int healingDeckCards(GameCore.State s) {
+        int count = 0;
+        for (GameCore.Card c : s.deck) {
+            GameCore.CardDef d = GameCore.card(c.id);
+            if (d != null && d.heal > 0) count++;
         }
         return count;
     }
