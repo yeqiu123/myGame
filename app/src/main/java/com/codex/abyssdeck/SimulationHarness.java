@@ -262,6 +262,8 @@ public final class SimulationHarness {
             if (isDrifterCard(d)) score += 14;
             if (GameCore.PROF_OATHKEEPER.equals(s.profession) && isOathkeeperSignal(d)) score += 14;
             if (isOathkeeperCard(d)) score += 14;
+            if (GameCore.PROF_MOONSINGER.equals(s.profession) && isMoonsingerSignal(d)) score += 14;
+            if (isMoonsingerCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -451,6 +453,11 @@ public final class SimulationHarness {
             if (s.relics.contains("judgment_crown") && (isOathkeeperSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.block > 0 || d.heal > 0
                     || d.vulnerable > 0 || d.bind > 0)) score += 20;
+            if (s.relics.contains("moon_lyre") && (isMoonsingerSignal(d) || d.scry > 0
+                    || d.draw > 0 || d.createEcho || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("eclipse_crown") && (isMoonsingerSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.createEcho || d.bind > 0
+                    || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
             if (s.relics.contains("starforge_lens") && (isHybridCore(d) || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0)) score += 16;
@@ -734,10 +741,21 @@ public final class SimulationHarness {
                     || "discipline_chart".equals(id) || "overload_etch".equals(id) || "confluence_map".equals(id)
                     || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
                     || "resonance_prism".equals(id))) score += 36;
+            if (GameCore.PROF_MOONSINGER.equals(s.profession) && ("eclipse_crown".equals(id) || "moon_lyre".equals(id)
+                    || "star_compass".equals(id) || "celestial_orrery".equals(id) || "dreamcatcher_charm".equals(id)
+                    || "oneiric_crown".equals(id) || "songbook".equals(id) || "finale_crown".equals(id)
+                    || "echo_prism".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
+                    || "hourglass_charm".equals(id) || "time_engine".equals(id) || "fate_lantern".equals(id)
+                    || "fate_crown".equals(id) || "markchain_seal".equals(id) || "pressure_gauge".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "split_anvil".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "discipline_chart".equals(id)
+                    || "overload_etch".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("rift_pass".equals(id) || "junction_crown".equals(id)) score += 20;
             if ("oath_seal".equals(id) || "judgment_crown".equals(id)) score += 20;
+            if ("moon_lyre".equals(id) || "eclipse_crown".equals(id)) score += 20;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
@@ -1688,6 +1706,20 @@ public final class SimulationHarness {
                     if (s.block >= 12 && ("oathkeeper_guard".equals(c.id)
                             || "oathkeeper_sanctuary".equals(c.id) || "oathkeeper_grand_judgment".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_MOONSINGER.equals(s.profession) && (isMoonsingerSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.scry > 0 || d.draw > 0 || d.createEcho || d.upgradeRandom
+                            || d.bind > 0 || d.vulnerable > 0 || isMoonsingerCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isMoonsingerCard(d)
+                            || d.scry > 0 || d.createEcho || d.upgradeRandom)) score += 6;
+                    if (moonsingerPressure(s) >= 8 && ("moonsinger_eclipse".equals(c.id)
+                            || "moonsinger_overmoon".equals(c.id) || "moonsinger_grand_eclipse".equals(c.id))) score += 8;
+                    if ((tempOrEchoHandCards(s) >= 2 || scryDeckCards(s) >= 3 || upgradedDeckCards(s) >= 6)
+                            && (d.draw > 0 || d.scry > 0 || d.createEcho || d.upgradeRandom
+                            || d.skillChargeGain > 0 || isMoonsingerCard(d))) score += 5;
+                    if (tempOrEchoHandCards(s) >= 2 && ("moonsinger_tide".equals(c.id)
+                            || "moonsinger_overmoon".equals(c.id) || "moonsinger_grand_eclipse".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -1983,6 +2015,15 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_oathkeeper_grand") && (d.block > 0 || d.heal > 0
                         || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
                         || isOathkeeperCard(d))) score += 14;
+                if (s.talents.contains("t_moonsinger_newmoon") && (d.scry > 0 || d.draw > 0
+                        || d.vulnerable > 0 || isMoonsingerCard(d))) score += 12;
+                if (s.talents.contains("t_moonsinger_crescent") && (d.block > 0 || d.heal > 0
+                        || d.draw > 0 || d.type == 1 || isMoonsingerCard(d))) score += 12;
+                if (s.talents.contains("t_moonsinger_tide") && (d.createEcho || c.temp || d.upgradeRandom
+                        || d.skillChargeGain > 0 || c.upgraded || isMoonsingerCard(d))) score += 12;
+                if (s.talents.contains("t_moonsinger_grand") && (d.scry > 0 || d.draw > 0
+                        || d.createEcho || c.temp || d.upgradeRandom || d.skillChargeGain > 0
+                        || d.rarity == 2 || isMoonsingerCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2257,6 +2298,11 @@ public final class SimulationHarness {
                 if (s.relics.contains("judgment_crown") && (isOathkeeperSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
                         || d.block > 0 || d.heal > 0 || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("moon_lyre") && (isMoonsingerSignal(d) || c.temp
+                        || d.scry > 0 || d.draw > 0 || d.createEcho || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("eclipse_crown") && (isMoonsingerSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                        || d.createEcho || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2642,6 +2688,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_MOONSINGER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean eclipseWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || eclipseWindow
+                    || tempOrEchoHandCards(s) >= 3 || scryDeckCards(s) >= 4 || upgradedDeckCards(s) >= 6
+                    || moonsingerPressure(s) >= 7 || s.cardsPlayedThisTurn >= 4
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2674,7 +2731,8 @@ public final class SimulationHarness {
                 || "t_gravekeeper_grand".equals(id) || "t_treasurer_entry".equals(id)
                 || "t_treasurer_grand".equals(id) || "t_drifter_scout".equals(id)
                 || "t_drifter_grand".equals(id) || "t_oathkeeper_vow".equals(id)
-                || "t_oathkeeper_grand".equals(id));
+                || "t_oathkeeper_grand".equals(id) || "t_moonsinger_newmoon".equals(id)
+                || "t_moonsinger_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -3025,6 +3083,7 @@ public final class SimulationHarness {
                 || s.relics.contains("treasury_key") || s.relics.contains("audit_crown")
                 || s.relics.contains("rift_pass") || s.relics.contains("junction_crown")
                 || s.relics.contains("oath_seal") || s.relics.contains("judgment_crown")
+                || s.relics.contains("moon_lyre") || s.relics.contains("eclipse_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3653,6 +3712,33 @@ public final class SimulationHarness {
         return pressure;
     }
 
+    private static boolean isMoonsingerSignal(GameCore.CardDef d) {
+        return d != null && (d.scry > 0 || d.draw > 0 || d.createEcho || d.energyGain > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.heal > 0 || isHybridCore(d) || GameCore.PROF_MOONSINGER.equals(d.profession)
+                || GameCore.PROF_ASTROLOGER.equals(d.profession) || GameCore.PROF_BARD.equals(d.profession)
+                || GameCore.PROF_DREAMWALKER.equals(d.profession) || GameCore.PROF_FATESEER.equals(d.profession));
+    }
+
+    private static boolean isMoonsingerCard(GameCore.CardDef d) {
+        return d != null && ("moonsinger_newmoon".equals(d.id) || "moonsinger_crescent".equals(d.id)
+                || "moonsinger_eclipse".equals(d.id) || "moonsinger_tide".equals(d.id)
+                || "moonsinger_overmoon".equals(d.id) || "moonsinger_grand_eclipse".equals(d.id));
+    }
+
+    private static int moonsingerPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 4 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(6, scryDeckCards(s));
+        pressure += Math.min(5, tempOrEchoHandCards(s) + tempOrEchoDeckCards(s) / 2);
+        pressure += Math.min(5, upgradedDeckCards(s) / 2);
+        return pressure;
+    }
+
     private static int archivistEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -3886,6 +3972,15 @@ public final class SimulationHarness {
         for (GameCore.Card c : s.deck) {
             GameCore.CardDef d = GameCore.card(c.id);
             if (c.temp || (d != null && d.createEcho)) count++;
+        }
+        return count;
+    }
+
+    private static int scryDeckCards(GameCore.State s) {
+        int count = 0;
+        for (GameCore.Card c : s.deck) {
+            GameCore.CardDef d = GameCore.card(c.id);
+            if (d != null && d.scry > 0) count++;
         }
         return count;
     }
