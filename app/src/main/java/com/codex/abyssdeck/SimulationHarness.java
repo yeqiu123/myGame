@@ -264,6 +264,8 @@ public final class SimulationHarness {
             if (isOathkeeperCard(d)) score += 14;
             if (GameCore.PROF_MOONSINGER.equals(s.profession) && isMoonsingerSignal(d)) score += 14;
             if (isMoonsingerCard(d)) score += 14;
+            if (GameCore.PROF_SPY.equals(s.profession) && isSpySignal(d)) score += 14;
+            if (isSpyCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -457,6 +459,11 @@ public final class SimulationHarness {
                     || d.draw > 0 || d.createEcho || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("eclipse_crown") && (isMoonsingerSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.createEcho || d.bind > 0
+                    || d.vulnerable > 0)) score += 20;
+            if (s.relics.contains("cipher_ring") && (isSpySignal(d) || d.cost == 0
+                    || d.draw > 0 || d.goldGain > 0 || d.createEcho || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("mastermind_crown") && (isSpySignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.goldGain > 0 || d.bind > 0
                     || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
@@ -751,11 +758,21 @@ public final class SimulationHarness {
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "discipline_chart".equals(id)
                     || "overload_etch".equals(id))) score += 36;
+            if (GameCore.PROF_SPY.equals(s.profession) && ("mastermind_crown".equals(id) || "cipher_ring".equals(id)
+                    || "flash_heel".equals(id) || "ledger_stamp".equals(id) || "kingmaker_seal".equals(id)
+                    || "shadow_sash".equals(id) || "eclipse_mask".equals(id) || "scrap_magnet".equals(id)
+                    || "scrap_king_crown".equals(id) || "echo_prism".equals(id) || "echo_ledger".equals(id)
+                    || "echoflow_charm".equals(id) || "tithe_box".equals(id) || "golden_throne".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "mirror_anvil".equals(id)
+                    || "polished_cog".equals(id) || "split_anvil".equals(id) || "confluence_map".equals(id)
+                    || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                    || "resonance_prism".equals(id) || "discipline_chart".equals(id) || "overload_etch".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("rift_pass".equals(id) || "junction_crown".equals(id)) score += 20;
             if ("oath_seal".equals(id) || "judgment_crown".equals(id)) score += 20;
             if ("moon_lyre".equals(id) || "eclipse_crown".equals(id)) score += 20;
+            if ("cipher_ring".equals(id) || "mastermind_crown".equals(id)) score += 20;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
@@ -1720,6 +1737,20 @@ public final class SimulationHarness {
                     if (tempOrEchoHandCards(s) >= 2 && ("moonsinger_tide".equals(c.id)
                             || "moonsinger_overmoon".equals(c.id) || "moonsinger_grand_eclipse".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_SPY.equals(s.profession) && (isSpySignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.cost == 0 || d.draw > 0 || d.goldGain > 0 || d.createEcho || d.upgradeRandom
+                            || d.bind > 0 || d.vulnerable > 0 || isSpyCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isSpyCard(d)
+                            || d.cost == 0 || d.goldGain > 0 || d.upgradeRandom)) score += 6;
+                    if (spyPressure(s) >= 8 && ("spy_blackmail".equals(c.id)
+                            || "spy_overcover".equals(c.id) || "spy_grand_heist".equals(c.id))) score += 8;
+                    if ((s.gold >= 100 || tempOrEchoHandCards(s) >= 2 || upgradedDeckCards(s) >= 6)
+                            && (d.draw > 0 || d.cost == 0 || d.goldGain > 0 || d.createEcho
+                            || d.skillChargeGain > 0 || isSpyCard(d))) score += 5;
+                    if (s.gold >= 100 && ("spy_contact".equals(c.id)
+                            || "spy_blackmail".equals(c.id) || "spy_grand_heist".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -2024,6 +2055,15 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_moonsinger_grand") && (d.scry > 0 || d.draw > 0
                         || d.createEcho || c.temp || d.upgradeRandom || d.skillChargeGain > 0
                         || d.rarity == 2 || isMoonsingerCard(d))) score += 14;
+                if (s.talents.contains("t_spy_contact") && (d.cost == 0 || d.draw > 0
+                        || d.goldGain > 0 || d.vulnerable > 0 || isSpyCard(d))) score += 12;
+                if (s.talents.contains("t_spy_smoke") && (d.block > 0 || d.goldGain > 0
+                        || d.draw > 0 || d.type == 1 || isSpyCard(d))) score += 12;
+                if (s.talents.contains("t_spy_blackmail") && (d.upgradeRandom || c.upgraded
+                        || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0 || isSpyCard(d))) score += 12;
+                if (s.talents.contains("t_spy_grand") && (d.cost == 0 || d.draw > 0
+                        || d.goldGain > 0 || d.createEcho || c.temp || d.upgradeRandom
+                        || d.skillChargeGain > 0 || d.rarity == 2 || isSpyCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2303,6 +2343,12 @@ public final class SimulationHarness {
                 if (s.relics.contains("eclipse_crown") && (isMoonsingerSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
                         || d.createEcho || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("cipher_ring") && (isSpySignal(d) || c.temp
+                        || d.cost == 0 || d.draw > 0 || d.goldGain > 0 || d.createEcho
+                        || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("mastermind_crown") && (isSpySignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                        || d.goldGain > 0 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2699,6 +2745,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_SPY.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean heistWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || heistWindow
+                    || s.gold >= 120 || tempOrEchoHandCards(s) >= 3 || upgradedDeckCards(s) >= 6
+                    || spyPressure(s) >= 7 || s.cardsPlayedThisTurn >= 4
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2732,7 +2789,8 @@ public final class SimulationHarness {
                 || "t_treasurer_grand".equals(id) || "t_drifter_scout".equals(id)
                 || "t_drifter_grand".equals(id) || "t_oathkeeper_vow".equals(id)
                 || "t_oathkeeper_grand".equals(id) || "t_moonsinger_newmoon".equals(id)
-                || "t_moonsinger_grand".equals(id));
+                || "t_moonsinger_grand".equals(id) || "t_spy_contact".equals(id)
+                || "t_spy_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -3084,6 +3142,7 @@ public final class SimulationHarness {
                 || s.relics.contains("rift_pass") || s.relics.contains("junction_crown")
                 || s.relics.contains("oath_seal") || s.relics.contains("judgment_crown")
                 || s.relics.contains("moon_lyre") || s.relics.contains("eclipse_crown")
+                || s.relics.contains("cipher_ring") || s.relics.contains("mastermind_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3734,6 +3793,34 @@ public final class SimulationHarness {
             }
         }
         pressure += Math.min(6, scryDeckCards(s));
+        pressure += Math.min(5, tempOrEchoHandCards(s) + tempOrEchoDeckCards(s) / 2);
+        pressure += Math.min(5, upgradedDeckCards(s) / 2);
+        return pressure;
+    }
+
+    private static boolean isSpySignal(GameCore.CardDef d) {
+        return d != null && (d.cost == 0 || d.draw > 0 || d.goldGain > 0 || d.goldDamage
+                || d.goldBlock || d.createEcho || d.energyGain > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || isHybridCore(d)
+                || GameCore.PROF_SPY.equals(d.profession) || GameCore.PROF_SHADOWDANCER.equals(d.profession)
+                || GameCore.PROF_MERCHANT.equals(d.profession) || GameCore.PROF_DUELIST.equals(d.profession)
+                || GameCore.PROF_SCAVENGER.equals(d.profession));
+    }
+
+    private static boolean isSpyCard(GameCore.CardDef d) {
+        return d != null && ("spy_contact".equals(d.id) || "spy_smoke".equals(d.id)
+                || "spy_blackmail".equals(d.id) || "spy_falseflag".equals(d.id)
+                || "spy_overcover".equals(d.id) || "spy_grand_heist".equals(d.id));
+    }
+
+    private static int spyPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 4 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(6, s.gold / 35);
         pressure += Math.min(5, tempOrEchoHandCards(s) + tempOrEchoDeckCards(s) / 2);
         pressure += Math.min(5, upgradedDeckCards(s) / 2);
         return pressure;

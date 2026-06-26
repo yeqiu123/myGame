@@ -145,6 +145,7 @@ public final class GameCore {
     public static final String PROF_DRIFTER = "异旅者";
     public static final String PROF_OATHKEEPER = "誓卫";
     public static final String PROF_MOONSINGER = "月咏者";
+    public static final String PROF_SPY = "密探";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -156,7 +157,7 @@ public final class GameCore {
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
             PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER, PROF_TREASURER,
-            PROF_DRIFTER, PROF_OATHKEEPER, PROF_MOONSINGER
+            PROF_DRIFTER, PROF_OATHKEEPER, PROF_MOONSINGER, PROF_SPY
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -890,6 +891,7 @@ public final class GameCore {
         if (PROF_DRIFTER.equals(profession)) return "借势";
         if (PROF_OATHKEEPER.equals(profession)) return "圣裁";
         if (PROF_MOONSINGER.equals(profession)) return "月蚀";
+        if (PROF_SPY.equals(profession)) return "潜袭";
         return "职业技";
     }
 
@@ -981,6 +983,7 @@ public final class GameCore {
         if (PROF_DRIFTER.equals(profession)) return "满充能：消耗旅印借势，按异池牌、临时牌、汇流、升级和过载造成穿透，抽牌、格挡并制造异池牌。";
         if (PROF_OATHKEEPER.equals(profession)) return "满充能：消耗誓印圣裁，按格挡、治疗、印记、易伤、升级和过载造成穿透，获得格挡、治疗、抽牌并制造誓卫牌。";
         if (PROF_MOONSINGER.equals(profession)) return "满充能：消耗月相月蚀，按检视、抽牌、回声、升级、异常和过载造成穿透，抽牌、返能、治疗并制造月咏牌。";
+        if (PROF_SPY.equals(profession)) return "满充能：消耗线报潜袭，按低费连打、金币、临时牌、标记、升级和过载造成穿透，获得金币、抽牌、格挡并制造密探牌。";
         return "选择职业后可用。";
     }
 
@@ -2857,6 +2860,54 @@ public final class GameCore {
             addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, forge / 4));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, phases / 2);
+        } else if (PROF_SPY.equals(s.profession)) {
+            int intel = Math.max(1, s.professionCharge);
+            int tempo = Math.min(24, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int wealth = Math.min(20, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD) * 2);
+            int echo = Math.min(18, tempOrEchoHandCount(s) + tempOrEchoDeckCards(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int control = Math.min(20, bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS)
+                    + bestEnemyPressure(s) / 7);
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 4 + target.vulnerable * 4 + target.bind * 3 + target.burn;
+            int damage = 9 + s.act * 3 + Math.min(98, intel * 3 + tempo * 4 + wealth * 3
+                    + echo * 4 + control * 4 + forge * 3 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(4, intel / 4 + tempo / 5 + wealth / 6);
+                target.vulnerable += 1 + Math.min(3, control / 5 + overload / 3);
+                target.bind += 1 + s.bindPower / 2 + Math.min(3, echo / 5 + tempo / 6) + overload / 2;
+            }
+            s.gold += 8 + Math.min(26, intel * 2 + wealth * 2 + tempo);
+            gainBlock(s, 6 + s.act * 2 + Math.min(42, intel * 2 + tempo * 2
+                    + echo * 3 + forge * 2) + overload * 3);
+            draw(s, 1 + Math.min(4, intel / 5 + tempo / 5 + echo / 4 + wealth / 6) + overload / 4);
+            if (forge >= 4 || echo >= 4 || overload >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            if (tempo >= 5 || echo >= 4 || overload >= 2) {
+                s.energy++;
+            }
+            Card lead = new Card(overload >= 4 || hasTalent(s, "t_spy_grand")
+                    ? "spy_grand_heist" : "spy_contact");
+            lead.temp = true;
+            lead.upgraded = intel >= 5 || hasTalent(s, "t_spy_contact");
+            addToHand(s, lead);
+            if (hasTalent(s, "t_spy_grand")) {
+                Card blackmail = new Card("spy_blackmail");
+                blackmail.temp = true;
+                blackmail.upgraded = true;
+                addToHand(s, blackmail);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_COMBO, 1 + Math.min(3, tempo / 4));
+            addQuestProgress(s, QUEST_TREASURE, 1 + Math.min(3, wealth / 5));
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.min(3, echo / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, control / 4 + pressure / 14));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, intel / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -4390,6 +4441,9 @@ public final class GameCore {
         if (PROF_MOONSINGER.equals(profession)) {
             return "用检视、抽牌、回声和月相循环规划牌序，把节奏回合转成月蚀爆发。适合循环、回声、异常、工坊和过载构筑。";
         }
+        if (PROF_SPY.equals(profession)) {
+            return "用低费牌、金币、临时牌和控场积累线报，把情报运营转成潜袭爆发。适合循环、金币、回声、异常和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4552,6 +4606,9 @@ public final class GameCore {
         }
         if (PROF_MOONSINGER.equals(profession)) {
             return 0xffb7d6ff;
+        }
+        if (PROF_SPY.equals(profession)) {
+            return 0xff8fd0b6;
         }
         return 0xffd6c07a;
     }
@@ -5057,6 +5114,11 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_SPY.equals(profession)) {
+            s.deck.add(new Card("spy_contact"));
+            s.deck.add(new Card("spy_smoke"));
+            s.gold += 20;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -5131,6 +5193,7 @@ public final class GameCore {
         else if (PROF_DRIFTER.equals(profession)) upgradeDeckCard(s, "drifter_scout");
         else if (PROF_OATHKEEPER.equals(profession)) upgradeDeckCard(s, "oathkeeper_vow");
         else if (PROF_MOONSINGER.equals(profession)) upgradeDeckCard(s, "moonsinger_newmoon");
+        else if (PROF_SPY.equals(profession)) upgradeDeckCard(s, "spy_contact");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -5371,6 +5434,11 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_SPY.equals(profession)) {
+            addUpgradedDeckCard(s, "spy_blackmail");
+            s.gold += 40;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -5428,6 +5496,7 @@ public final class GameCore {
         if (PROF_DRIFTER.equals(profession)) return "drifter_overcross";
         if (PROF_OATHKEEPER.equals(profession)) return "oathkeeper_overedict";
         if (PROF_MOONSINGER.equals(profession)) return "moonsinger_overmoon";
+        if (PROF_SPY.equals(profession)) return "spy_overcover";
         return "forge_signal";
     }
 
@@ -6213,6 +6282,22 @@ public final class GameCore {
         } else if ("t_moonsinger_grand".equals(id)) {
             addUpgradedDeckCard(s, "moonsinger_grand_eclipse");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_spy_contact".equals(id)) {
+            addUpgradedDeckCard(s, "spy_contact");
+            addUpgradedDeckCard(s, "spy_blackmail");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_spy_smoke".equals(id)) {
+            addUpgradedDeckCard(s, "spy_smoke");
+            s.gold += 35;
+            s.maxHp += 2;
+            s.hp += 2;
+        } else if ("t_spy_blackmail".equals(id)) {
+            addUpgradedDeckCard(s, "spy_blackmail");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_spy_grand".equals(id)) {
+            addUpgradedDeckCard(s, "spy_grand_heist");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -6665,7 +6750,7 @@ public final class GameCore {
                 || "t_arrayist_grand".equals(id) || "t_gambiter_grand".equals(id)
                 || "t_gravekeeper_grand".equals(id) || "t_treasurer_grand".equals(id)
                 || "t_drifter_grand".equals(id) || "t_oathkeeper_grand".equals(id)
-                || "t_moonsinger_grand".equals(id);
+                || "t_moonsinger_grand".equals(id) || "t_spy_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6695,7 +6780,7 @@ public final class GameCore {
                 || "arrayist_grand_array".equals(id) || "gambiter_grand_endgame".equals(id)
                 || "gravekeeper_grand_requiem".equals(id) || "treasurer_grand_balance".equals(id)
                 || "drifter_grand_junction".equals(id) || "oathkeeper_grand_judgment".equals(id)
-                || "moonsinger_grand_eclipse".equals(id);
+                || "moonsinger_grand_eclipse".equals(id) || "spy_grand_heist".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6723,7 +6808,7 @@ public final class GameCore {
                 || "array_crown".equals(id) || "checkmate_crown".equals(id)
                 || "requiem_crown".equals(id) || "audit_crown".equals(id)
                 || "junction_crown".equals(id) || "judgment_crown".equals(id)
-                || "eclipse_crown".equals(id);
+                || "eclipse_crown".equals(id) || "mastermind_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -7372,6 +7457,12 @@ public final class GameCore {
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MOONSINGER)
                 || d.profession.equals(PROF_ASTROLOGER) || d.profession.equals(PROF_BARD)
                 || d.profession.equals(PROF_DREAMWALKER) || d.profession.equals(PROF_FATESEER))) amount++;
+        else if (PROF_SPY.equals(s.profession) && d != null && (d.cost == 0 || d.draw > 0
+                || d.goldGain > 0 || d.goldDamage || d.goldBlock || d.createEcho || d.energyGain > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_SPY)
+                || d.profession.equals(PROF_SHADOWDANCER) || d.profession.equals(PROF_MERCHANT)
+                || d.profession.equals(PROF_DUELIST) || d.profession.equals(PROF_SCAVENGER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -9946,6 +10037,41 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "cipher_ring") && PROF_SPY.equals(s.profession)) {
+            int tempo = zeroCostDeckCards(s) + s.cardsPlayedThisTurn;
+            int wealth = s.gold / 35 + buildFocusDeckCards(s, BUILD_GOLD);
+            draw(s, 1);
+            s.gold += 8 + Math.min(18, tempo * 2 + wealth * 2);
+            gainBlock(s, 5 + s.act + Math.min(22, s.professionCharge * 2 + tempo * 2 + wealth * 2));
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + tempo / 4 + wealth / 4));
+            Card contact = new Card("spy_contact");
+            contact.temp = true;
+            contact.upgraded = true;
+            addToHand(s, contact);
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(34, target.mark * 2
+                        + s.professionCharge * 2 + tempo * 2 + wealth * 2), true);
+            }
+        }
+        if (hasRelic(s, "mastermind_crown") && PROF_SPY.equals(s.profession)) {
+            Card over = new Card("spy_overcover");
+            over.temp = true;
+            over.upgraded = true;
+            addToHand(s, over);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.gold >= 120 || tempOrEchoHandCount(s) >= 2
+                    || upgradedCardCount(s) >= 6 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 2;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -10073,6 +10199,9 @@ public final class GameCore {
         if (hasRelic(s, "moon_lyre") && PROF_MOONSINGER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || scryDeckCards(s) >= 3 || tempOrEchoHandCount(s) >= 2
                 || upgradedCardCount(s) >= 5 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "cipher_ring") && PROF_SPY.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.gold >= 100 || zeroCostDeckCards(s) >= 3
+                || tempOrEchoHandCount(s) >= 2 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -12201,6 +12330,41 @@ public final class GameCore {
                 tide.temp = true;
                 tide.upgraded = true;
                 addToHand(s, tide);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_SPY.equals(s.profession) && s.turn == 1) {
+            int tempo = Math.min(12, zeroCostDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_CYCLE));
+            int wealth = Math.min(10, s.gold / 30 + buildFocusDeckCards(s, BUILD_GOLD));
+            int echo = Math.min(8, tempOrEchoDeckCards(s) + buildFocusDeckCards(s, BUILD_ECHO));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, tempo / 3 + wealth / 3 + echo / 3);
+            s.gold += 6 + Math.min(16, tempo + wealth * 2);
+            gainBlock(s, 5 + s.act + Math.min(14, tempo * 2 + echo * 2 + s.professionCharge));
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += hasTalent(s, "t_spy_contact") ? 2 : 1;
+                firstLiving(s).vulnerable += hasTalent(s, "t_spy_blackmail") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_spy_contact")) {
+                Card contact = new Card("spy_contact");
+                contact.temp = true;
+                contact.upgraded = true;
+                addToHand(s, contact);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_spy_smoke")) {
+                gainBlock(s, 5 + s.act + Math.min(10, tempo + echo * 2));
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_spy_blackmail")) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_spy_grand")) {
+                Card blackmail = new Card("spy_blackmail");
+                blackmail.temp = true;
+                blackmail.upgraded = true;
+                addToHand(s, blackmail);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -16988,6 +17152,138 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
+        if ("spy_contact".equals(d.id) && target != null) {
+            int intel = Math.max(0, s.professionCharge);
+            int tempo = Math.min(18, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int wealth = Math.min(14, s.gold / 30 + buildFocusDeckCards(s, BUILD_GOLD));
+            damage += Math.min(c.upgraded ? 42 : 30, intel * 2 + tempo * 4 + wealth * 3 + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            s.gold += 5 + Math.min(c.upgraded ? 14 : 9, tempo + wealth);
+            if (tempo >= 4 || wealth >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if ("spy_smoke".equals(d.id)) {
+            int intel = Math.max(0, s.professionCharge);
+            int tempo = Math.min(18, zeroCostDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_CYCLE));
+            int echo = Math.min(16, tempOrEchoDeckCards(s) + buildFocusDeckCards(s, BUILD_ECHO));
+            block += Math.min(c.upgraded ? 48 : 34, intel * 2 + tempo * 4 + echo * 4 + s.gold / 20);
+            s.gold += 4 + Math.min(c.upgraded ? 12 : 8, tempo + echo);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            if (tempo >= 4 || echo >= 4 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_ECHO, 1);
+        }
+        if ("spy_blackmail".equals(d.id) && target != null) {
+            int wealth = Math.min(20, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int pressure = target.mark * 4 + target.vulnerable * 4 + target.bind * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 66 : 48, pressure + wealth * 5 + s.professionCharge * 3);
+            target.mark += c.upgraded ? 3 : 2;
+            target.vulnerable += 1;
+            target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            s.gold += 8 + Math.min(c.upgraded ? 18 : 12, wealth + target.mark);
+            if (wealth >= 5 || target.mark >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if ("spy_falseflag".equals(d.id)) {
+            int tempo = Math.min(22, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int echo = Math.min(18, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int forge = Math.min(14, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            block += Math.min(c.upgraded ? 54 : 38, s.professionCharge * 2 + tempo * 3 + echo * 4 + forge * 2);
+            upgradeRandomHandCard(s);
+            Card contact = new Card("spy_contact");
+            contact.temp = true;
+            contact.upgraded = c.upgraded || tempo >= 6;
+            addToHand(s, contact);
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += c.upgraded ? 2 : 1;
+                firstLiving(s).vulnerable += 1;
+            }
+            if (tempo >= 5 || echo >= 4 || forge >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("spy_overcover".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tempo = Math.min(24, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int wealth = Math.min(20, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int echo = Math.min(20, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            block += Math.min(c.upgraded ? 60 : 44, s.professionCharge * 2 + tempo * 4
+                    + wealth * 3 + echo * 3 + overloadNow * 7);
+            s.gold += 10 + Math.min(26, wealth * 2 + tempo + overloadNow * 4);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 4 : 3;
+                target.vulnerable += 2;
+                target.bind += 2 + s.bindPower / 2;
+                damage += Math.min(c.upgraded ? 86 : 64, overloadNow * 8 + tempo * 5
+                        + wealth * 4 + echo * 4 + target.mark * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || tempo >= 7 || echo >= 5 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if ("spy_grand_heist".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tempo = Math.min(28, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int wealth = Math.min(24, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int echo = Math.min(22, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int control = buildFocusDeckCards(s, BUILD_STATUS) + bindDeckCards(s) + bestEnemyPressure(s) / 8;
+            damage += Math.min(c.upgraded ? 120 : 90, s.professionCharge * 4 + tempo * 7
+                    + wealth * 5 + echo * 5 + control * 4 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 72 : 52, s.professionCharge * 3 + tempo * 3
+                    + wealth * 3 + echo * 4 + overloadNow * 6);
+            s.gold += 16 + Math.min(c.upgraded ? 38 : 28, wealth * 2 + tempo + echo);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 6 : 4;
+                target.vulnerable += 2;
+                target.bind += 2 + s.bindPower / 2;
+            }
+            Card contact = new Card("spy_contact");
+            contact.temp = true;
+            contact.upgraded = true;
+            addToHand(s, contact);
+            if (tempo >= 8 || wealth >= 6 || echo >= 6 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -18092,6 +18388,144 @@ public final class GameCore {
                 if (e.mark >= 5 || tempOrEchoHandCount(s) >= 2 || scryDeckCards(s) >= 4 || upgradedCardCount(s) >= 6) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
                             + s.professionCharge + tempOrEchoHandCount(s) * 3 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+    }
+
+    private static void applySpyAfterPlay(State s, Card c, CardDef d) {
+        if (PROF_SPY.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                || d.goldDamage || d.goldBlock || d.createEcho || c.temp || d.energyGain > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_SPY))) {
+            int tempo = Math.min(22, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int wealth = Math.min(18, s.gold / 30 + buildFocusDeckCards(s, BUILD_GOLD));
+            int echo = Math.min(18, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            s.professionCharge += 1 + Math.min(2, (tempo / 4 + wealth / 4 + echo / 4
+                    + (d.cost == 0 || d.draw > 0 ? 2 : 0)
+                    + (d.goldGain > 0 || d.goldDamage || d.goldBlock ? 2 : 0)
+                    + (d.createEcho || c.temp ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1 + (tempo >= 7 ? 1 : 0);
+                    e.vulnerable += 1;
+                    if (echo >= 5 || d.bind > 0 || hasTalent(s, "t_spy_blackmail")) {
+                        e.bind += 1 + s.bindPower / 2;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(44, e.mark * 2 + e.vulnerable * 3
+                            + tempo * 2 + wealth * 2 + echo * 2 + s.professionCharge * 2), true);
+                }
+                s.gold += 4 + Math.min(16, wealth + tempo);
+                if (d.draw > 0 || d.cost == 0 || hasTalent(s, "t_spy_smoke")) {
+                    gainBlock(s, 4 + s.act + Math.min(22, s.professionCharge + tempo * 2 + echo));
+                }
+                if (tempo >= 6 || echo >= 5 || hasTalent(s, "t_spy_grand")) {
+                    draw(s, 1);
+                }
+                if (forge >= 4 || hasTalent(s, "t_spy_grand")) {
+                    upgradeRandomHandCard(s);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_spy_contact") && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                || d.vulnerable > 0 || d.profession.equals(PROF_SPY))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.mark * 2
+                        + s.professionCharge * 2 + zeroCostDeckCards(s) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.gold >= 100 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_spy_smoke") && (d.block > 0 || d.goldGain > 0 || d.draw > 0
+                || d.type == 1 || d.profession.equals(PROF_SPY))) {
+            gainBlock(s, 5 + s.act + Math.min(24, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + tempOrEchoDeckCards(s) * 2));
+            s.gold += 3 + Math.min(8, zeroCostDeckCards(s) + s.cardsPlayedThisTurn);
+            if (s.block >= 14 || s.gold >= 120) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_spy_blackmail") && (d.upgradeRandom || d.bind > 0 || d.vulnerable > 0
+                || d.skillChargeGain > 0 || c.upgraded || d.profession.equals(PROF_SPY))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (s.gold >= 100 || upgradedCardCount(s) >= 5 || bestEnemyPressure(s) >= 8) {
+                    e.bind += 1 + s.bindPower / 2;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(42, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + s.gold / 20 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || upgradedCardCount(s) >= 6 || s.gold >= 140) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_spy_grand") && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                || d.createEcho || c.temp || d.upgradeRandom || d.skillChargeGain > 0
+                || d.rarity == 2 || d.profession.equals(PROF_SPY))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.professionCharge >= 4 || s.gold >= 120
+                    || tempOrEchoHandCount(s) >= 2 || upgradedCardCount(s) >= 6)) {
+                e.mark += 2;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(48, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + s.gold / 20 + tempOrEchoHandCount(s) * 3), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+    }
+
+    private static void applySpyRelicsAfterPlay(State s, CardDef d) {
+        if (hasRelic(s, "cipher_ring") && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                || d.goldDamage || d.goldBlock || d.createEcho || d.skillChargeGain > 0
+                || d.profession.equals(PROF_SPY))) {
+            addProfessionSkillCharge(s, 1);
+            int tempo = zeroCostDeckCards(s) + s.cardsPlayedThisTurn;
+            int wealth = s.gold / 35 + buildFocusDeckCards(s, BUILD_GOLD);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 4 + s.act + Math.min(18, s.professionCharge + tempo * 2 + wealth * 2));
+                s.gold += 4 + Math.min(10, tempo + wealth);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (tempo >= 4 || wealth >= 3 || d.draw > 0) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.mark * 2
+                            + tempo * 3 + wealth * 2 + s.professionCharge), true);
+                }
+            }
+        }
+        if (hasRelic(s, "mastermind_crown") && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_SPY))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 2;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (e.mark >= 5 || s.gold >= 120 || tempOrEchoHandCount(s) >= 2 || upgradedCardCount(s) >= 6) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
+                            + s.professionCharge + s.gold / 20 + upgradedCardCount(s)), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -21891,6 +22325,7 @@ public final class GameCore {
         }
         applyOathkeeperAfterPlay(s, c, d);
         applyMoonsingerAfterPlay(s, c, d);
+        applySpyAfterPlay(s, c, d);
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -23147,6 +23582,7 @@ public final class GameCore {
         }
         applyOathkeeperRelicsAfterPlay(s, d);
         applyMoonsingerRelicsAfterPlay(s, d);
+        applySpyRelicsAfterPlay(s, d);
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && s.professionCharge >= 3) {
@@ -24546,6 +24982,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 20 : focus == BUILD_ECHO ? 16 : focus == BUILD_STATUS ? 14
                     : focus == BUILD_FORGE ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_GUARD ? 8 : 0;
         }
+        if (PROF_SPY.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_GOLD ? 16 : focus == BUILD_ECHO ? 14
+                    : focus == BUILD_STATUS ? 14 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_FORGE ? 10 : 0;
+        }
         return 0;
     }
 
@@ -24693,6 +25133,9 @@ public final class GameCore {
         }
         if (PROF_MOONSINGER.equals(d.profession)) {
             return moonsingerFocusCardValue(d, focus);
+        }
+        if (PROF_SPY.equals(d.profession)) {
+            return spyFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -26218,6 +26661,54 @@ public final class GameCore {
         return 0;
     }
 
+    private static int spyFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 8 : 0)
+                    + d.skillChargeGain * 2 + ("spy_contact".equals(d.id) ? 18 : 0)
+                    + ("spy_falseflag".equals(d.id) ? 18 : 0)
+                    + ("spy_overcover".equals(d.id) ? 14 : 0)
+                    + ("spy_grand_heist".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_GOLD) {
+            return d.goldGain / 2 + (d.goldDamage ? 9 : 0) + (d.goldBlock ? 9 : 0)
+                    + d.draw * 2 + d.skillChargeGain * 2
+                    + ("spy_contact".equals(d.id) ? 16 : 0)
+                    + ("spy_smoke".equals(d.id) ? 12 : 0)
+                    + ("spy_blackmail".equals(d.id) ? 20 : 0)
+                    + ("spy_overcover".equals(d.id) ? 18 : 0)
+                    + ("spy_grand_heist".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 10 : 0) + d.draw * 2 + d.skillChargeGain * 2
+                    + ("spy_contact".equals(d.id) ? 10 : 0)
+                    + ("spy_falseflag".equals(d.id) ? 20 : 0)
+                    + ("spy_overcover".equals(d.id) ? 18 : 0)
+                    + ("spy_grand_heist".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("spy_contact".equals(d.id) ? 10 : 0)
+                    + ("spy_blackmail".equals(d.id) ? 20 : 0)
+                    + ("spy_overcover".equals(d.id) ? 18 : 0)
+                    + ("spy_grand_heist".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.block + d.goldGain / 3
+                    + (d.upgradeRandom ? 4 : 0)
+                    + ("spy_blackmail".equals(d.id) ? 8 : 0)
+                    + ("spy_overcover".equals(d.id) ? 20 : 0)
+                    + ("spy_grand_heist".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.skillChargeGain * 2 + d.draw * 2
+                    + (d.rarity == 2 ? 3 : 0)
+                    + ("spy_falseflag".equals(d.id) ? 18 : 0)
+                    + ("spy_overcover".equals(d.id) ? 16 : 0)
+                    + ("spy_grand_heist".equals(d.id) ? 18 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -26778,6 +27269,16 @@ public final class GameCore {
         else if ("t_moonsinger_grand".equals(id)) bonus += professionCards + scryDeckCards(s) * 2
                 + tempOrEchoDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_CYCLE)
                 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_spy_contact".equals(id)) bonus += zeroCost * 3 + drawDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_GOLD) + professionCards;
+        else if ("t_spy_smoke".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + buildFocusDeckCards(s, BUILD_GOLD) * 2 + tempOrEchoDeckCards(s) + professionCards
+                + Math.min(10, s.gold / 30);
+        else if ("t_spy_blackmail".equals(id)) bonus += upgraded + buildFocusDeckCards(s, BUILD_STATUS) * 2
+                + buildFocusDeckCards(s, BUILD_GOLD) + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_spy_grand".equals(id)) bonus += professionCards + zeroCost * 2
+                + tempOrEchoDeckCards(s) + buildFocusDeckCards(s, BUILD_CYCLE)
+                + buildFocusDeckCards(s, BUILD_GOLD) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -26904,6 +27405,15 @@ public final class GameCore {
             if (focus == BUILD_FORGE && isAny(id, "t_moonsinger_tide", "t_moonsinger_grand")) return 3;
             if (focus == BUILD_OVERLOAD && isAny(id, "t_moonsinger_tide", "t_moonsinger_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_moonsinger_crescent", "t_moonsinger_grand")) return 3;
+        }
+        if (isAny(id, "t_spy_contact", "t_spy_smoke", "t_spy_blackmail", "t_spy_grand")) {
+            if (focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_GOLD) return 3;
+            if (focus == BUILD_ECHO && isAny(id, "t_spy_contact", "t_spy_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_spy_blackmail", "t_spy_grand")) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_spy_blackmail", "t_spy_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_spy_blackmail", "t_spy_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_spy_smoke", "t_spy_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -27710,6 +28220,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE || focus == BUILD_ECHO || focus == BUILD_STATUS
                     || focus == BUILD_FORGE || focus == BUILD_OVERLOAD || focus == BUILD_GUARD ? 3 : 0;
         }
+        if ("cipher_ring".equals(id) || "mastermind_crown".equals(id)) {
+            return focus == BUILD_CYCLE || focus == BUILD_GOLD || focus == BUILD_ECHO
+                    || focus == BUILD_STATUS || focus == BUILD_OVERLOAD || focus == BUILD_FORGE ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -27865,7 +28379,8 @@ public final class GameCore {
                 || (PROF_TREASURER.equals(s.profession) && "treasury_key".equals(id))
                 || (PROF_DRIFTER.equals(s.profession) && "rift_pass".equals(id))
                 || (PROF_OATHKEEPER.equals(s.profession) && "oath_seal".equals(id))
-                || (PROF_MOONSINGER.equals(s.profession) && "moon_lyre".equals(id));
+                || (PROF_MOONSINGER.equals(s.profession) && "moon_lyre".equals(id))
+                || (PROF_SPY.equals(s.profession) && "cipher_ring".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -27930,6 +28445,7 @@ public final class GameCore {
                 || hasRelic(s, "rift_pass") || hasRelic(s, "junction_crown")
                 || hasRelic(s, "oath_seal") || hasRelic(s, "judgment_crown")
                 || hasRelic(s, "moon_lyre") || hasRelic(s, "eclipse_crown")
+                || hasRelic(s, "cipher_ring") || hasRelic(s, "mastermind_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
@@ -28236,6 +28752,12 @@ public final class GameCore {
                 || d.energyGain > 0 || d.skillChargeGain > 0 || d.upgradeRandom
                 || d.bind > 0 || d.vulnerable > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_MOONSINGER))) {
+            return 4;
+        }
+        if (PROF_SPY.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                || d.goldDamage || d.goldBlock || d.createEcho || d.energyGain > 0
+                || d.skillChargeGain > 0 || d.upgradeRandom || d.bind > 0 || d.vulnerable > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_SPY))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -28775,6 +29297,17 @@ public final class GameCore {
                 || d.profession.equals(PROF_MOONSINGER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "cipher_ring") && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                || d.goldDamage || d.goldBlock || d.createEcho || d.energyGain > 0
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.profession.equals(PROF_SPY))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "mastermind_crown") && (d.cost == 0 || d.draw > 0 || d.goldGain > 0
+                || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.vulnerable > 0 || d.bind > 0 || d.profession.equals(PROF_SPY))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "storm_rod") && (d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
                 || d.draw > 0 || d.profession.equals(PROF_STORMCALLER))) {
             bonus += 4;
@@ -29005,7 +29538,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass", "oath_seal", "moon_lyre"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass", "oath_seal", "moon_lyre", "cipher_ring"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -29059,6 +29592,7 @@ public final class GameCore {
         if (PROF_DRIFTER.equals(s.profession)) return "rift_pass";
         if (PROF_OATHKEEPER.equals(s.profession)) return "oath_seal";
         if (PROF_MOONSINGER.equals(s.profession)) return "moon_lyre";
+        if (PROF_SPY.equals(s.profession)) return "cipher_ring";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -29633,6 +30167,20 @@ public final class GameCore {
             return 2;
         }
         if (PROF_MOONSINGER.equals(s.profession) && "eclipse_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_SPY.equals(s.profession) && ("cipher_ring".equals(id) || "flash_heel".equals(id)
+                || "ledger_stamp".equals(id) || "kingmaker_seal".equals(id) || "shadow_sash".equals(id)
+                || "eclipse_mask".equals(id) || "scrap_magnet".equals(id) || "scrap_king_crown".equals(id)
+                || "echo_prism".equals(id) || "echo_ledger".equals(id) || "echoflow_charm".equals(id)
+                || "tithe_box".equals(id) || "golden_throne".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "mirror_anvil".equals(id) || "polished_cog".equals(id)
+                || "split_anvil".equals(id) || "confluence_map".equals(id) || "prism_gear".equals(id)
+                || "mosaic_core".equals(id) || "starforge_lens".equals(id) || "resonance_prism".equals(id)
+                || "discipline_chart".equals(id) || "overload_etch".equals(id))) {
+            return 2;
+        }
+        if (PROF_SPY.equals(s.profession) && "mastermind_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -30305,6 +30853,17 @@ public final class GameCore {
         } else if ("eclipse_crown".equals(id)) {
             addUpgradedDeckCard(s, "moonsinger_grand_eclipse");
             addUpgradedDeckCard(s, "moonsinger_newmoon");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("cipher_ring".equals(id)) {
+            addUpgradedDeckCard(s, "spy_blackmail");
+            addUpgradedDeckCard(s, "spy_contact");
+            s.gold += 35;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("mastermind_crown".equals(id)) {
+            addUpgradedDeckCard(s, "spy_grand_heist");
+            addUpgradedDeckCard(s, "spy_contact");
+            s.gold += 70;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
@@ -31313,6 +31872,18 @@ public final class GameCore {
         c.profession = PROF_MOONSINGER; c.draw = c.drawUp = 1; c.scry = 4; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "moonsinger_newmoon"; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("moonsinger_grand_eclipse", "终局月蚀", "通用", 2, 2, 0, 10, 14, 9, 13, "造成伤害并获得格挡；按月相、检视、回声、升级和过载追加终局收益。", "更高伤害、格挡和新月返还。");
         c.profession = PROF_MOONSINGER; c.draw = c.drawUp = 1; c.scry = 4; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "moonsinger_newmoon"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("spy_contact", "线人接头", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、获得金币并抽牌；低费连打、金币和线报提高收益。", "更高伤害、金币和线报。");
+        c.profession = PROF_SPY; c.draw = c.drawUp = 1; c.goldGain = 6; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("spy_smoke", "烟幕撤离", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡和金币；低费、临时牌和线报会加厚防线。", "更多格挡、金币和职业技充能。");
+        c.profession = PROF_SPY; c.draw = c.drawUp = 1; c.goldGain = 5; c.skillChargeGain = 1;
+        c = addCard("spy_blackmail", "勒索密函", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害，获得金币并施加印记、束缚和易伤；金币会转成勒索爆发。", "更高伤害、金币和压制。");
+        c.profession = PROF_SPY; c.goldGain = 8; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("spy_falseflag", "伪旗行动", "通用", 1, 1, 1, 0, 0, 7, 11, "获得格挡、升级手牌并制造线人接头；临时牌与循环会返还节奏。", "更多格挡、升级和返能窗口。");
+        c.profession = PROF_SPY; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "spy_contact"; c.upgradeRandom = true; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("spy_overcover", "过载潜伏", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、金币、升级和充能；过载、金币与临时牌会追加潜袭追击。", "更多格挡、金币和职业技充能。");
+        c.profession = PROF_SPY; c.draw = c.drawUp = 1; c.goldGain = 10; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "spy_contact"; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("spy_grand_heist", "终局窃局", "通用", 2, 2, 0, 10, 14, 9, 13, "造成伤害并获得格挡和金币；按线报、低费、金币、临时牌和过载追加终局收益。", "更高伤害、格挡和线人返还。");
+        c.profession = PROF_SPY; c.draw = c.drawUp = 1; c.goldGain = 14; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "spy_contact"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -31634,6 +32205,8 @@ public final class GameCore {
         addRelicDef("judgment_crown", "圣判冠", "获得升级终局圣判；誓卫守势、治疗、升级、控场和稀有牌会滚动标记、易伤与圣裁追击。");
         addRelicDef("moon_lyre", "月弦琴", "月咏者检视、抽牌、回声和升级牌更快推动职业技；释放后制造新月咏并返还节奏。");
         addRelicDef("eclipse_crown", "月蚀冠", "获得升级终局月蚀；月咏者循环、回声、升级、控场和稀有牌会滚动标记、束缚与月蚀追击。");
+        addRelicDef("cipher_ring", "密文戒", "密探低费、金币、抽牌、临时和控场牌更快推动职业技；释放后制造线人接头并返还金币。");
+        addRelicDef("mastermind_crown", "幕后冠", "获得升级终局窃局；密探低费、金币、回声、升级和稀有牌会滚动标记、束缚与潜袭追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -31935,6 +32508,9 @@ public final class GameCore {
         addTalent("t_moonsinger_newmoon", PROF_MOONSINGER, "新月回路", "获得升级新月咏和月蚀印；检视、抽牌和月咏牌追加印记，并把月相转成穿透追击。");
         addTalent("t_moonsinger_crescent", PROF_MOONSINGER, "弦月护幕", "获得生命和升级弦月护；技能、格挡、治疗和月咏牌提供额外防线与续航。");
         addTalent("t_moonsinger_tide", PROF_MOONSINGER, "月潮流程", "获得升级月潮回旋并升级牌组；回声、临时、升级和充能牌会扩张月相压力。");
+        addTalent("t_spy_contact", PROF_SPY, "线人网络", "获得升级线人接头和勒索密函；低费、抽牌、金币和密探牌追加印记，并把线报转成穿透追击。");
+        addTalent("t_spy_smoke", PROF_SPY, "烟幕金库", "获得金币、生命和升级烟幕撤离；技能、格挡、金币和密探牌提供额外防线。");
+        addTalent("t_spy_blackmail", PROF_SPY, "勒索流程", "获得升级勒索密函并升级牌组；升级、控场和充能牌会扩张线报压力。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -31988,6 +32564,7 @@ public final class GameCore {
         addTalent("t_drifter_grand", PROF_DRIFTER, "终局汇途", "获得升级终局汇途；异池、临时、汇流、升级与过载牌持续抽牌、升级并把旅印转为借势裁切。");
         addTalent("t_oathkeeper_grand", PROF_OATHKEEPER, "终局圣判", "获得升级终局圣判；格挡、治疗、升级、控场与过载牌持续抽牌、升级并把誓印转为圣裁裁切。");
         addTalent("t_moonsinger_grand", PROF_MOONSINGER, "终局月蚀", "获得升级终局月蚀；检视、抽牌、回声、升级与过载牌持续抽牌、升级并把月相转为月蚀裁切。");
+        addTalent("t_spy_grand", PROF_SPY, "终局窃局", "获得升级终局窃局；低费、金币、回声、升级与过载牌持续抽牌、升级并把线报转为潜袭裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
