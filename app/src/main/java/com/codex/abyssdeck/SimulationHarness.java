@@ -479,6 +479,7 @@ public final class SimulationHarness {
             if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 20;
             if (s.relics.contains("resonance_prism") && (isHybridCore(d) || isConfluenceCore(d) || specSignal >= 4)) score += 20;
             if (s.relics.contains("hybrid_keystone") && (isHybridCore(d) || isConfluenceCore(d) || specSignal >= 4)) score += 20;
+            if (s.relics.contains("cascade_lattice") && isCascadeSignal(d)) score += 20;
             if (s.deck.size() > 34 && d.cost >= 2 && d.draw == 0) score -= 6;
             if (score > bestScore) {
                 bestScore = score;
@@ -1057,6 +1058,12 @@ public final class SimulationHarness {
                     || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_GEOMANCER.equals(s.profession)
                     || GameCore.PROF_FATESEER.equals(s.profession) || GameCore.PROF_VOIDNAVIGATOR.equals(s.profession)
                     || GameCore.PROF_RELICSMITH.equals(s.profession) || GameCore.PROF_STARFORGER.equals(s.profession)) ? 34 : 27;
+            else if ("spec_cascade".equals(id)) score += (GameCore.PROF_TUNER.equals(s.profession)
+                    || GameCore.PROF_SHADOWDANCER.equals(s.profession) || GameCore.PROF_CHRONOMANCER.equals(s.profession)
+                    || GameCore.PROF_PRISMIST.equals(s.profession) || GameCore.PROF_BARD.equals(s.profession)
+                    || GameCore.PROF_MIRRORIST.equals(s.profession) || GameCore.PROF_ARRAYIST.equals(s.profession)
+                    || GameCore.PROF_DRIFTER.equals(s.profession) || GameCore.PROF_MOONSINGER.equals(s.profession)
+                    || GameCore.PROF_SPY.equals(s.profession) || GameCore.PROF_PERFUMER.equals(s.profession)) ? 35 : 28;
             else if ("spec_tempo".equals(id)) score += 28;
             else if ("spec_burst".equals(id)) score += (GameCore.PROF_DUELIST.equals(s.profession) || GameCore.PROF_RANGER.equals(s.profession)
                     || GameCore.PROF_SHADOWDANCER.equals(s.profession)) ? 32 : 22;
@@ -1223,7 +1230,8 @@ public final class SimulationHarness {
             if (s.ascension >= 6 && "spec_sustain".equals(id)) score += 10;
             if (s.ascension >= 6 && "spec_burst".equals(id)) score -= 4;
             if (s.ascension >= 6 && ("spec_markchain".equals(id) || "spec_control".equals(id)
-                    || "spec_pressure".equals(id) || "spec_salvage".equals(id) || "spec_hybrid".equals(id))) score += 4;
+                    || "spec_pressure".equals(id) || "spec_salvage".equals(id) || "spec_hybrid".equals(id)
+                    || "spec_cascade".equals(id))) score += 4;
             if (score > bestScore) {
                 bestScore = score;
                 best = i;
@@ -2203,6 +2211,7 @@ public final class SimulationHarness {
                         || "treasurer_audit".equals(c.id) || "treasurer_collection".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
+                if (isCascadeSignal(d)) score += 10 + Math.min(12, s.cardsPlayedThisTurn * 2);
                 if ("hybrid_rift_engine".equals(c.id)) score += 10;
                 if (s.relics.contains("loom_shuttle") && d.scry > 0) score += 6;
                 if (s.relics.contains("void_abacus") && d.exhaust) score += 6;
@@ -2241,6 +2250,7 @@ public final class SimulationHarness {
                 if (s.relics.contains("prism_gear") && (isHybridCore(d) || isConfluenceCore(d))) score += 16;
                 if (s.relics.contains("resonance_prism") && (isHybridCore(d) || isConfluenceCore(d)
                         || GameCore.skillSpecCardBonus(s, d) >= 4)) score += 16;
+                if (s.relics.contains("cascade_lattice") && isCascadeSignal(d)) score += 16;
                 if (s.relics.contains("aegis_throne") && d.type == 1) score += 9;
                 if (s.relics.contains("finale_rapier") && d.type == 0 && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.relics.contains("solar_crucible") && (d.createPotion || d.burn > 0 || d.bind > 0)) score += 10;
@@ -3204,7 +3214,7 @@ public final class SimulationHarness {
                 || s.relics.contains("cipher_ring") || s.relics.contains("mastermind_crown")
                 || s.relics.contains("scent_vial") || s.relics.contains("bouquet_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
-                || s.relics.contains("hybrid_keystone");
+                || s.relics.contains("hybrid_keystone") || s.relics.contains("cascade_lattice");
     }
 
     private static boolean isStormcallerSignal(GameCore.CardDef d) {
@@ -4258,6 +4268,13 @@ public final class SimulationHarness {
                 || "apex_confluence".equals(d.id) || "fusion_spark".equals(d.id)
                 || "echo_forge_loop".equals(d.id) || "bloodcoin_catalyst".equals(d.id)
                 || "prism_guard_matrix".equals(d.id) || "apex_resonance".equals(d.id));
+    }
+
+    private static boolean isCascadeSignal(GameCore.CardDef d) {
+        return d != null && ("cascade_probe".equals(d.id) || "cascade_apex".equals(d.id)
+                || d.draw > 0 || d.createEcho || d.skillChargeGain > 0 || d.energyGain > 0
+                || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0
+                || isHybridCore(d) || isConfluenceCore(d));
     }
 
     private static int firstEnemy(GameCore.State s) {

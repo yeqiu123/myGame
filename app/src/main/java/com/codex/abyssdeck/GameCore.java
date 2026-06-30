@@ -6996,6 +6996,10 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if ("spec_cascade".equals(id)) {
+            addUpgradedDeckCard(s, "cascade_probe");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+            upgradeRandomDeckCard(s);
         }
     }
 
@@ -7073,6 +7077,14 @@ public final class GameCore {
             Card c = new Card(s.skillSpecLevel >= 3 ? "apex_confluence" : "prism_anchor");
             c.upgraded = true;
             s.deck.add(c);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + s.skillSpecLevel);
+        } else if ("spec_cascade".equals(spec.id)) {
+            Card c = new Card(s.skillSpecLevel >= 3 ? "cascade_apex" : "cascade_probe");
+            c.upgraded = true;
+            s.deck.add(c);
+            if (s.skillSpecLevel >= 3) {
+                upgradeRandomDeckCard(s);
+            }
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1 + s.skillSpecLevel);
         }
         log(s, "职业技专修晋阶：" + spec.name + " " + skillSpecLevelSuffix(s));
@@ -7787,6 +7799,22 @@ public final class GameCore {
             if (statuses > 0 && pulse >= 5) {
                 removeStatusCard(s);
             }
+        } else if ("spec_cascade".equals(specId)) {
+            int chain = Math.max(1, s.cardsPlayedThisTurn + tempOrEchoHandCount(s) + focusMaskCount(s.confluenceMask));
+            draw(s, 1 + (pulse >= 7 ? 1 : 0));
+            gainBlock(s, 3 + s.act + Math.min(16, chain * 2 + overload * 2));
+            addProfessionSkillCharge(s, 1 + Math.min(3, chain / 4));
+            if (target != null) {
+                target.mark += 1 + pulse / 4;
+                target.vulnerable += chain >= 6 ? 1 : 0;
+                damageEnemy(s, target, 3 + s.act + Math.min(24, chain * 2 + pulse * 2 + overload * 2), true);
+            }
+            if (pulse >= 6) {
+                Card c = new Card(chain >= 7 ? "cascade_apex" : "cascade_probe");
+                c.temp = true;
+                c.upgraded = pulse >= 7;
+                addToHand(s, c);
+            }
         }
     }
 
@@ -8118,6 +8146,32 @@ public final class GameCore {
             }
             addQuestProgress(s, QUEST_CONFLUENCE, 2 + Math.min(3, labels / 2));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+        } else if ("spec_cascade".equals(spec.id)) {
+            int labels = Math.max(1, focusMaskCount(s.confluenceMask) + s.confluenceChain);
+            int echoes = tempOrEchoHandCount(s) + s.pactTempCards;
+            int pressure = bestEnemyPressure(s);
+            int chain = Math.min(24, s.cardsPlayedThisTurn * 2 + echoes * 2 + labels + pressure / 4 + overload * 3);
+            draw(s, 1 + (level >= 3 ? 1 : 0) + (chain >= 12 ? 1 : 0));
+            gainBlock(s, 4 + level * 3 + s.act + Math.min(24, chain * 2));
+            upgradeRandomHandCard(s);
+            addProfessionSkillCharge(s, level + overload / 2 + Math.min(4, chain / 5));
+            Card c = new Card(chain >= 12 || level >= 3 ? "cascade_apex" : "cascade_probe");
+            c.temp = true;
+            c.upgraded = level >= 2 || overload >= 3;
+            addToHand(s, c);
+            if (target != null) {
+                target.mark += 1 + level / 2 + overload / 4;
+                target.vulnerable += chain >= 8 ? 1 : 0;
+                target.bind += chain >= 12 ? 1 + s.bindPower / 2 : 0;
+                damageEnemy(s, target, 4 + level * 3 + overload * 2 + Math.min(34, chain * 2 + pressure / 3), true);
+            }
+            if (level >= 2 || chain >= 10 || overload >= 3) {
+                s.energy++;
+            }
+            addQuestProgress(s, QUEST_CONFLUENCE, 1 + Math.min(4, labels / 2 + chain / 8));
+            addQuestProgress(s, QUEST_FORGE, 1);
+            addQuestProgress(s, QUEST_MARK, 1 + overload / 3);
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
         }
         applySkillSpecRelics(s, target, overload, level, spec.id);
         log(s, "专修触发：" + spec.name + "。");
@@ -8259,6 +8313,20 @@ public final class GameCore {
             if (target != null) {
                 target.mark += 1 + level / 2;
                 damageEnemy(s, target, 4 + level * 3 + Math.min(24, labels * 3 + overload * 3), true);
+            }
+        } else if ("spec_cascade".equals(specId) && hasRelic(s, "cascade_lattice")) {
+            int chain = Math.max(1, s.cardsPlayedThisTurn + tempOrEchoHandCount(s) + focusMaskCount(s.confluenceMask));
+            draw(s, chain >= 7 || level >= 3 ? 2 : 1);
+            addProfessionSkillCharge(s, 2 + Math.min(3, chain / 3));
+            gainBlock(s, 4 + level * 3 + Math.min(16, chain * 2 + overload * 2));
+            Card c = new Card(chain >= 8 || level >= 3 ? "cascade_apex" : "cascade_probe");
+            c.temp = true;
+            c.upgraded = level >= 2;
+            addToHand(s, c);
+            if (target != null) {
+                target.mark += 1 + level / 2;
+                target.vulnerable += chain >= 6 ? 1 : 0;
+                damageEnemy(s, target, 4 + level * 3 + Math.min(26, chain * 3 + overload * 3), true);
             }
         }
         if (hasRelic(s, "overload_etch") && overload > 0) {
@@ -27333,6 +27401,26 @@ public final class GameCore {
                 addProfessionSkillCharge(s, c.upgraded ? 3 : 2);
                 upgradeRandomHandCard(s);
             }
+        } else if ("cascade_probe".equals(d.id)) {
+            addQuestProgress(s, QUEST_CONFLUENCE, 1);
+            if (s.cardsPlayedThisTurn >= 3 || s.confluenceChain >= 4) {
+                addProfessionSkillCharge(s, c.upgraded ? 2 : 1);
+                draw(s, 1);
+            }
+            if (e != null && s.confluenceChain >= 3) {
+                e.mark += 1;
+            }
+        } else if ("cascade_apex".equals(d.id)) {
+            addQuestProgress(s, QUEST_CONFLUENCE, 2);
+            addQuestProgress(s, QUEST_MARK, 1);
+            upgradeRandomHandCard(s);
+            if (s.cardsPlayedThisTurn >= 4 || s.confluenceChain >= 5) {
+                s.energy++;
+            }
+            if (e != null) {
+                e.mark += 1 + Math.max(0, s.confluenceChain / 4);
+                damageEnemy(s, e, 4 + Math.min(28, s.cardsPlayedThisTurn * 3 + s.confluenceChain * 2), true);
+            }
         }
     }
 
@@ -28677,6 +28765,10 @@ public final class GameCore {
     }
 
     private static int relicFocusValue(String id, int focus) {
+        if ("cascade_lattice".equals(id)) {
+            return focus == BUILD_CYCLE || focus == BUILD_ECHO || focus == BUILD_FORGE
+                    || focus == BUILD_STATUS || focus == BUILD_OVERLOAD || focus == BUILD_GUARD ? 3 : 0;
+        }
         if ("plague_case".equals(id) || "plague_crown".equals(id)) {
             return focus == BUILD_BREW || focus == BUILD_STATUS || focus == BUILD_CYCLE
                     || focus == BUILD_GUARD || focus == BUILD_OVERLOAD || focus == BUILD_BLOOD
@@ -28968,7 +29060,7 @@ public final class GameCore {
                 || hasRelic(s, "scent_vial") || hasRelic(s, "bouquet_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
-                || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
+                || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone") || hasRelic(s, "cascade_lattice")
                 || hasRelic(s, "discipline_chart") || hasRelic(s, "overload_etch") || hasRelic(s, "trial_ledger");
     }
 
@@ -29513,6 +29605,14 @@ public final class GameCore {
             if (d.skillChargeGain > 0 || d.draw > 0 || d.upgradeRandom || d.energyGain > 0) bonus += 2;
             if (!"通用".equals(d.origin) && !d.origin.equals(s.origin)) bonus += 1;
             if (d.profession.length() > 0 && !d.profession.equals(s.profession)) bonus += 1;
+        } else if ("spec_cascade".equals(spec.id)) {
+            if (d.draw > 0 || d.skillChargeGain > 0 || d.createEcho || d.energyGain > 0 || d.cost == 0) bonus += 4;
+            if (d.upgradeRandom || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2) bonus += 3;
+            if ("cascade_probe".equals(d.id) || "cascade_apex".equals(d.id)
+                    || "confluence_chord".equals(d.id) || "fusion_spark".equals(d.id)
+                    || "echo_forge_loop".equals(d.id) || "prism_anchor".equals(d.id)
+                    || "apex_resonance".equals(d.id) || "cycle_metronome".equals(d.id)
+                    || "hybrid_echo_step".equals(d.id)) bonus += 5;
         }
         if (isAny(d.id, "plaguedoctor_lancet", "plaguedoctor_mask", "plaguedoctor_culture",
                 "plaguedoctor_quarantine", "plaguedoctor_overdose", "plaguedoctor_grand_plague")) {
@@ -29727,6 +29827,11 @@ public final class GameCore {
             bonus += 4;
         }
         if (hasRelic(s, "discipline_chart") && skillSpecCardBonus(s, d) >= 4) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "cascade_lattice") && (d.draw > 0 || d.createEcho || d.skillChargeGain > 0
+                || d.upgradeRandom || d.vulnerable > 0 || d.bind > 0 || hybridFocusCount(d) >= 2
+                || "cascade_probe".equals(d.id) || "cascade_apex".equals(d.id))) {
             bonus += 4;
         }
         if (hasRelic(s, "bulwark_core") && (d.block > 0 || d.type == 1 || d.skillChargeGain > 0 || bulwarkCardId(d.id))) {
@@ -30785,6 +30890,7 @@ public final class GameCore {
         if ("spec_pressure".equals(spec.id) && "pressure_gauge".equals(id)) return 5;
         if ("spec_salvage".equals(spec.id) && "salvage_hook".equals(id)) return 5;
         if ("spec_hybrid".equals(spec.id) && "hybrid_keystone".equals(id)) return 5;
+        if ("spec_cascade".equals(spec.id) && "cascade_lattice".equals(id)) return 5;
         if ("spec_burst".equals(spec.id) && isAny(id, "tempo_metronome", "flash_heel", "hunter_mark", "conductor_baton")) return 1;
         if ("spec_tempo".equals(spec.id) && isAny(id, "amber_quill", "ink_fountain", "moon_lantern", "echo_crown", "echo_ledger", "tuning_fork", "storm_rod", "shadow_sash", "eclipse_mask", "scrap_magnet", "scrap_king_crown")) return 1;
         if ("spec_sustain".equals(spec.id) && isAny(id, "bone_mask", "ruby_branch", "black_bread", "cup_of_mist", "bloodspark_contract")) return 1;
@@ -30799,6 +30905,7 @@ public final class GameCore {
         if ("spec_pressure".equals(spec.id) && isAny(id, "root_drum", "green_bell", "stormglass_seal", "curse_censer", "emberroot_charm", "apex_compass", "hex_moon", "warden_brand", "markchain_seal", "resonance_prism", "storm_rod", "tempest_crown", "conductor_baton", "judgment_codex", "spirit_planchette", "songbook", "string_spool", "scrap_magnet", "scrap_king_crown")) return 1;
         if ("spec_salvage".equals(spec.id) && isAny(id, "scrap_magnet", "scrap_king_crown", "echo_ledger", "bloodcoin_broach", "curse_censer", "contract_stamp", "grand_ledger", "void_abacus", "tithe_box", "empty_coin", "bloodspark_contract", "echoflow_charm")) return 1;
         if ("spec_hybrid".equals(spec.id) && isAny(id, "confluence_map", "prism_gear", "mosaic_core", "starforge_lens", "resonance_prism", "split_anvil", "echo_ledger", "bloodspark_contract", "assembly_frame")) return 1;
+        if ("spec_cascade".equals(spec.id) && isAny(id, "tempo_spindle", "echoflow_charm", "markchain_seal", "pressure_gauge", "assembly_frame", "confluence_map", "prism_gear", "resonance_prism", "mosaic_core", "starforge_lens")) return 1;
         if (isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
         if ("spec_burst".equals(spec.id) && "overload_etch".equals(id)) return 2;
         if ("spec_tempo".equals(spec.id) && "discipline_chart".equals(id)) return 2;
@@ -30813,6 +30920,7 @@ public final class GameCore {
         if ("spec_pressure".equals(spec.id) && isAny(id, "trial_ledger", "overload_etch")) return 2;
         if ("spec_salvage".equals(spec.id) && isAny(id, "discipline_chart", "trial_ledger")) return 2;
         if ("spec_hybrid".equals(spec.id) && isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
+        if ("spec_cascade".equals(spec.id) && isAny(id, "discipline_chart", "overload_etch", "trial_ledger")) return 2;
         return 0;
     }
 
@@ -30834,6 +30942,7 @@ public final class GameCore {
         if ("spec_pressure".equals(spec.id)) return "pressure_gauge";
         if ("spec_salvage".equals(spec.id)) return "salvage_hook";
         if ("spec_hybrid".equals(spec.id)) return "hybrid_keystone";
+        if ("spec_cascade".equals(spec.id)) return "cascade_lattice";
         return randomSkillRelicFor(s);
     }
 
@@ -31483,6 +31592,10 @@ public final class GameCore {
             addUpgradedDeckCard(s, "apex_resonance");
             addUpgradedDeckCard(s, "fusion_spark");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("cascade_lattice".equals(id)) {
+            addUpgradedDeckCard(s, "cascade_probe");
+            addUpgradedDeckCard(s, "cascade_apex");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
         log(s, "获得遗物：" + r.name);
     }
@@ -31763,6 +31876,10 @@ public final class GameCore {
         c.draw = c.drawUp = 1; c.upgradeRandom = true; c.gainSteelEngine = 1; c.skillChargeGain = 1; c.retainBlock = true;
         c = addCard("apex_resonance", "终点共鸣", "通用", 2, 2, 2, 9, 13, 8, 12, "造成伤害并获得格挡；按汇流、构筑标签和专修追加抽牌、升级、临时牌与职业技充能。", "更高伤害、格挡和融合返还。");
         c.draw = c.drawUp = 1; c.scry = 3; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "fusion_spark"; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("cascade_probe", "连锁探针", "通用", 1, 0, 2, 3, 5, 0, 0, "造成伤害、抽牌并充能；本回合出牌与汇流链会追加收益。", "更多抽牌和连锁充能。");
+        c.draw = 1; c.drawUp = 2; c.skillChargeGain = 1; c.vulnerable = 1; c.targetEnemy = true;
+        c = addCard("cascade_apex", "连锁终端", "通用", 2, 1, 1, 7, 10, 7, 11, "造成伤害并获得格挡；抽牌、升级手牌并按连锁节奏追加标记与返能。", "更高攻防与连锁返还。");
+        c.draw = c.drawUp = 1; c.upgradeRandom = true; c.createEcho = true; c.echoCardId = "cascade_probe"; c.vulnerable = 1; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("warden_oath", "坚守誓言", "通用", 0, 1, 1, 0, 0, 10, 14, "获得格挡。守卫：推动护卫计数。", "更多格挡。");
         c.profession = PROF_WARDEN;
@@ -32787,6 +32904,7 @@ public final class GameCore {
         addRelicDef("mastermind_crown", "幕后冠", "获得升级终局窃局；密探低费、金币、回声、升级和稀有牌会滚动标记、束缚与潜袭追击。");
         addRelicDef("scent_vial", "香谱瓶", "调香师药剂、治疗、燃缚和抽牌牌更快推动职业技；释放后制造调香便笺并返还防线。");
         addRelicDef("bouquet_crown", "馥冠", "获得升级终局馥爆；调香师药剂、治疗、异常、升级和稀有牌会滚动燃缚与馥爆追击。");
+        addRelicDef("cascade_lattice", "连锁格栅", "连锁专修释放职业技时制造连锁牌并回充；抽牌、临时、升级和异常牌会滚动连锁收益。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -32904,6 +33022,7 @@ public final class GameCore {
         addSkillSpec("spec_pressure", "压强专修", "职业技读取燃灼、束缚、易伤和印记压力，并把高压目标转成穿透、格挡、抽牌与充能。");
         addSkillSpec("spec_salvage", "回收专修", "职业技把弃牌、消耗、状态牌和金币转成抽牌、格挡、治疗、临时回收牌与额外资源。");
         addSkillSpec("spec_hybrid", "混融专修", "职业技把汇流链和多构筑标签转成抽牌、格挡、临时汇流牌、能量与职业技回充。");
+        addSkillSpec("spec_cascade", "连锁专修", "职业技按本回合出牌、临时牌、异常压力和汇流标签形成连锁，释放后抽牌、升级、标记并返还充能。");
     }
 
     private static void addSkillSpec(String id, String name, String text) {
