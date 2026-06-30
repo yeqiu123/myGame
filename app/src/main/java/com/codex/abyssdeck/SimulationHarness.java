@@ -266,6 +266,8 @@ public final class SimulationHarness {
             if (isMoonsingerCard(d)) score += 14;
             if (GameCore.PROF_SPY.equals(s.profession) && isSpySignal(d)) score += 14;
             if (isSpyCard(d)) score += 14;
+            if (GameCore.PROF_PERFUMER.equals(s.profession) && isPerfumerSignal(d)) score += 14;
+            if (isPerfumerCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -464,6 +466,11 @@ public final class SimulationHarness {
                     || d.draw > 0 || d.goldGain > 0 || d.createEcho || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("mastermind_crown") && (isSpySignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.goldGain > 0 || d.bind > 0
+                    || d.vulnerable > 0)) score += 20;
+            if (s.relics.contains("scent_vial") && (isPerfumerSignal(d) || d.createPotion
+                    || d.heal > 0 || d.burn > 0 || d.draw > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("bouquet_crown") && (isPerfumerSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.burn > 0 || d.bind > 0
                     || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("salvage_hook") && isSalvageSignal(d)) score += 18;
             if (s.relics.contains("mosaic_core") && isHybridCore(d)) score += 16;
@@ -767,12 +774,23 @@ public final class SimulationHarness {
                     || "polished_cog".equals(id) || "split_anvil".equals(id) || "confluence_map".equals(id)
                     || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
                     || "resonance_prism".equals(id) || "discipline_chart".equals(id) || "overload_etch".equals(id))) score += 36;
+            if (GameCore.PROF_PERFUMER.equals(s.profession) && ("bouquet_crown".equals(id) || "scent_vial".equals(id)
+                    || "catalyst_pump".equals(id) || "solar_crucible".equals(id) || "witch_bottle".equals(id)
+                    || "witch_moon_crown".equals(id) || "recipe_book".equals(id) || "banquet_crown".equals(id)
+                    || "plague_case".equals(id) || "plague_crown".equals(id) || "vital_sprout".equals(id)
+                    || "vigil_bloom".equals(id) || "hex_moon".equals(id) || "stormglass_seal".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bloodspark_contract".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "split_anvil".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "discipline_chart".equals(id)
+                    || "overload_etch".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("rift_pass".equals(id) || "junction_crown".equals(id)) score += 20;
             if ("oath_seal".equals(id) || "judgment_crown".equals(id)) score += 20;
             if ("moon_lyre".equals(id) || "eclipse_crown".equals(id)) score += 20;
             if ("cipher_ring".equals(id) || "mastermind_crown".equals(id)) score += 20;
+            if ("scent_vial".equals(id) || "bouquet_crown".equals(id)) score += 20;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
@@ -1751,6 +1769,20 @@ public final class SimulationHarness {
                     if (s.gold >= 100 && ("spy_contact".equals(c.id)
                             || "spy_blackmail".equals(c.id) || "spy_grand_heist".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_PERFUMER.equals(s.profession) && (isPerfumerSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.createPotion || d.heal > 0 || d.burn > 0 || d.bind > 0 || d.draw > 0
+                            || d.upgradeRandom || isPerfumerCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isPerfumerCard(d)
+                            || d.createPotion || d.heal > 0 || d.burn > 0)) score += 6;
+                    if (perfumerPressure(s) >= 8 && ("perfumer_caustic".equals(c.id)
+                            || "perfumer_overaroma".equals(c.id) || "perfumer_grand_bloom".equals(c.id))) score += 8;
+                    if ((healingDeckCards(s) >= 3 || potionCards(s) >= 3 || upgradedDeckCards(s) >= 6)
+                            && (d.draw > 0 || d.heal > 0 || d.createPotion || d.upgradeRandom
+                            || d.skillChargeGain > 0 || isPerfumerCard(d))) score += 5;
+                    if (s.hp < s.maxHp && ("perfumer_mist".equals(c.id)
+                            || "perfumer_distill".equals(c.id) || "perfumer_grand_bloom".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -2064,6 +2096,15 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_spy_grand") && (d.cost == 0 || d.draw > 0
                         || d.goldGain > 0 || d.createEcho || c.temp || d.upgradeRandom
                         || d.skillChargeGain > 0 || d.rarity == 2 || isSpyCard(d))) score += 14;
+                if (s.talents.contains("t_perfumer_note") && (d.createPotion || d.heal > 0
+                        || d.draw > 0 || d.burn > 0 || isPerfumerCard(d))) score += 12;
+                if (s.talents.contains("t_perfumer_mist") && (d.block > 0 || d.heal > 0 || d.createPotion
+                        || d.type == 1 || isPerfumerCard(d))) score += 12;
+                if (s.talents.contains("t_perfumer_distill") && (d.upgradeRandom || c.upgraded
+                        || d.burn > 0 || d.bind > 0 || d.skillChargeGain > 0 || isPerfumerCard(d))) score += 12;
+                if (s.talents.contains("t_perfumer_grand") && (d.createPotion || d.heal > 0
+                        || d.burn > 0 || d.bind > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                        || d.rarity == 2 || isPerfumerCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2349,6 +2390,12 @@ public final class SimulationHarness {
                 if (s.relics.contains("mastermind_crown") && (isSpySignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
                         || d.goldGain > 0 || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("scent_vial") && (isPerfumerSignal(d) || c.temp
+                        || d.createPotion || d.heal > 0 || d.burn > 0 || d.draw > 0
+                        || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("bouquet_crown") && (isPerfumerSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                        || d.burn > 0 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2756,6 +2803,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_PERFUMER.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean bloomWindow = target >= 0 && (s.enemies.get(target).burn >= 3
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || bloomWindow
+                    || s.potions.size() > 0 || potionCards(s) >= 4 || healingDeckCards(s) >= 4
+                    || perfumerPressure(s) >= 7 || s.hp < s.maxHp * 0.65f
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2790,7 +2848,8 @@ public final class SimulationHarness {
                 || "t_drifter_grand".equals(id) || "t_oathkeeper_vow".equals(id)
                 || "t_oathkeeper_grand".equals(id) || "t_moonsinger_newmoon".equals(id)
                 || "t_moonsinger_grand".equals(id) || "t_spy_contact".equals(id)
-                || "t_spy_grand".equals(id));
+                || "t_spy_grand".equals(id) || "t_perfumer_note".equals(id)
+                || "t_perfumer_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -3143,6 +3202,7 @@ public final class SimulationHarness {
                 || s.relics.contains("oath_seal") || s.relics.contains("judgment_crown")
                 || s.relics.contains("moon_lyre") || s.relics.contains("eclipse_crown")
                 || s.relics.contains("cipher_ring") || s.relics.contains("mastermind_crown")
+                || s.relics.contains("scent_vial") || s.relics.contains("bouquet_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone");
     }
@@ -3826,6 +3886,33 @@ public final class SimulationHarness {
         return pressure;
     }
 
+    private static boolean isPerfumerSignal(GameCore.CardDef d) {
+        return d != null && (d.createPotion || d.heal > 0 || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                || d.exhaust || isHybridCore(d) || GameCore.PROF_PERFUMER.equals(d.profession)
+                || GameCore.PROF_ALCHEMIST.equals(d.profession) || GameCore.PROF_CHEF.equals(d.profession)
+                || GameCore.PROF_WITCH.equals(d.profession) || GameCore.PROF_PLAGUEDOCTOR.equals(d.profession));
+    }
+
+    private static boolean isPerfumerCard(GameCore.CardDef d) {
+        return d != null && ("perfumer_note".equals(d.id) || "perfumer_mist".equals(d.id)
+                || "perfumer_caustic".equals(d.id) || "perfumer_distill".equals(d.id)
+                || "perfumer_overaroma".equals(d.id) || "perfumer_grand_bloom".equals(d.id));
+    }
+
+    private static int perfumerPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.burn * 3 + e.bind * 4 + e.vulnerable * 3 + e.mark * 2;
+            }
+        }
+        pressure += Math.min(6, potionCards(s) + s.potions.size());
+        pressure += Math.min(5, healingDeckCards(s));
+        pressure += Math.min(5, upgradedDeckCards(s) / 2);
+        return pressure;
+    }
+
     private static int archivistEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -4111,6 +4198,15 @@ public final class SimulationHarness {
         for (GameCore.Card c : s.deck) {
             GameCore.CardDef d = GameCore.card(c.id);
             if (d != null && d.heal > 0) count++;
+        }
+        return count;
+    }
+
+    private static int potionCards(GameCore.State s) {
+        int count = 0;
+        for (GameCore.Card c : s.deck) {
+            GameCore.CardDef d = GameCore.card(c.id);
+            if (d != null && d.createPotion) count++;
         }
         return count;
     }

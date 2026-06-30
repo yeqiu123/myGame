@@ -146,6 +146,7 @@ public final class GameCore {
     public static final String PROF_OATHKEEPER = "誓卫";
     public static final String PROF_MOONSINGER = "月咏者";
     public static final String PROF_SPY = "密探";
+    public static final String PROF_PERFUMER = "调香师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -157,7 +158,7 @@ public final class GameCore {
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
             PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER, PROF_TREASURER,
-            PROF_DRIFTER, PROF_OATHKEEPER, PROF_MOONSINGER, PROF_SPY
+            PROF_DRIFTER, PROF_OATHKEEPER, PROF_MOONSINGER, PROF_SPY, PROF_PERFUMER
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -892,6 +893,7 @@ public final class GameCore {
         if (PROF_OATHKEEPER.equals(profession)) return "圣裁";
         if (PROF_MOONSINGER.equals(profession)) return "月蚀";
         if (PROF_SPY.equals(profession)) return "潜袭";
+        if (PROF_PERFUMER.equals(profession)) return "馥爆";
         return "职业技";
     }
 
@@ -984,6 +986,7 @@ public final class GameCore {
         if (PROF_OATHKEEPER.equals(profession)) return "满充能：消耗誓印圣裁，按格挡、治疗、印记、易伤、升级和过载造成穿透，获得格挡、治疗、抽牌并制造誓卫牌。";
         if (PROF_MOONSINGER.equals(profession)) return "满充能：消耗月相月蚀，按检视、抽牌、回声、升级、异常和过载造成穿透，抽牌、返能、治疗并制造月咏牌。";
         if (PROF_SPY.equals(profession)) return "满充能：消耗线报潜袭，按低费连打、金币、临时牌、标记、升级和过载造成穿透，获得金币、抽牌、格挡并制造密探牌。";
+        if (PROF_PERFUMER.equals(profession)) return "满充能：消耗香调馥爆，按药剂、治疗、燃缚异常、抽牌、升级和过载造成穿透，治疗、抽牌、格挡并制造调香牌。";
         return "选择职业后可用。";
     }
 
@@ -2908,6 +2911,58 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, control / 4 + pressure / 14));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, intel / 2);
+        } else if (PROF_PERFUMER.equals(s.profession)) {
+            int aroma = Math.max(1, s.professionCharge);
+            int brew = Math.min(24, potionCards(s) * 2 + s.potions.size() * 2
+                    + buildFocusDeckCards(s, BUILD_BREW) * 2);
+            int healing = Math.min(20, healingDeckCards(s) + buildFocusDeckCards(s, BUILD_BLOOD)
+                    + Math.max(0, s.maxHp - s.hp) / 10);
+            int status = Math.min(22, burnDeckCards(s) + bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS)
+                    + bestEnemyPressure(s) / 7);
+            int tempo = Math.min(18, drawDeckCards(s) + s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE));
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.burn * 3 + target.bind * 4 + target.vulnerable * 3 + target.mark * 2;
+            int damage = 9 + s.act * 3 + Math.min(98, aroma * 3 + brew * 5 + healing * 3
+                    + status * 5 + tempo * 3 + forge * 2 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.burn += 2 + s.burnPower / 2 + Math.min(5, brew / 4 + status / 5) + overload / 2;
+                target.bind += 1 + s.bindPower / 2 + Math.min(4, healing / 5 + status / 5);
+                target.vulnerable += 1 + Math.min(3, status / 6 + overload / 3);
+                target.mark += 1 + Math.min(3, aroma / 5 + tempo / 5);
+            }
+            gainBlock(s, 6 + s.act * 2 + Math.min(42, aroma * 2 + brew * 2
+                    + healing * 3 + forge * 2) + overload * 3);
+            s.hp = Math.min(s.maxHp, s.hp + 3 + Math.min(16, aroma / 3 + healing * 2 + brew / 4) + overload);
+            draw(s, 1 + Math.min(4, aroma / 5 + brew / 5 + tempo / 4 + status / 6) + overload / 4);
+            if (s.potions.size() < potionLimit(s) && (brew >= 4 || overload >= 2)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            if (forge >= 4 || brew >= 6 || overload >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            if (tempo >= 5 || brew >= 7 || overload >= 2) {
+                s.energy++;
+            }
+            Card note = new Card(overload >= 4 || hasTalent(s, "t_perfumer_grand")
+                    ? "perfumer_grand_bloom" : "perfumer_note");
+            note.temp = true;
+            note.upgraded = aroma >= 5 || hasTalent(s, "t_perfumer_note");
+            addToHand(s, note);
+            if (hasTalent(s, "t_perfumer_grand")) {
+                Card caustic = new Card("perfumer_caustic");
+                caustic.temp = true;
+                caustic.upgraded = true;
+                addToHand(s, caustic);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_BREW, 1 + Math.min(3, brew / 4));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, healing / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, status / 4 + pressure / 14));
+            addQuestProgress(s, QUEST_COMBO, 1 + Math.min(3, tempo / 4));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, aroma / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -4444,6 +4499,9 @@ public final class GameCore {
         if (PROF_SPY.equals(profession)) {
             return "用低费牌、金币、临时牌和控场积累线报，把情报运营转成潜袭爆发。适合循环、金币、回声、异常和过载构筑。";
         }
+        if (PROF_PERFUMER.equals(profession)) {
+            return "用药剂、治疗、燃灼束缚和抽牌积累香调，把续航回合转成馥爆爆发。适合炼调、异常、血契、循环和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4609,6 +4667,9 @@ public final class GameCore {
         }
         if (PROF_SPY.equals(profession)) {
             return 0xff8fd0b6;
+        }
+        if (PROF_PERFUMER.equals(profession)) {
+            return 0xfff2a7c8;
         }
         return 0xffd6c07a;
     }
@@ -5119,6 +5180,15 @@ public final class GameCore {
             s.deck.add(new Card("spy_smoke"));
             s.gold += 20;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_PERFUMER.equals(profession)) {
+            s.deck.add(new Card("perfumer_note"));
+            s.deck.add(new Card("perfumer_mist"));
+            while (s.potions.size() < Math.min(potionLimit(s), 1)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -5194,6 +5264,7 @@ public final class GameCore {
         else if (PROF_OATHKEEPER.equals(profession)) upgradeDeckCard(s, "oathkeeper_vow");
         else if (PROF_MOONSINGER.equals(profession)) upgradeDeckCard(s, "moonsinger_newmoon");
         else if (PROF_SPY.equals(profession)) upgradeDeckCard(s, "spy_contact");
+        else if (PROF_PERFUMER.equals(profession)) upgradeDeckCard(s, "perfumer_note");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -5439,6 +5510,13 @@ public final class GameCore {
             s.gold += 40;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_PERFUMER.equals(profession)) {
+            addUpgradedDeckCard(s, "perfumer_caustic");
+            upgradeRandomDeckCard(s);
+            while (s.potions.size() < Math.min(potionLimit(s), 2)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -5497,6 +5575,7 @@ public final class GameCore {
         if (PROF_OATHKEEPER.equals(profession)) return "oathkeeper_overedict";
         if (PROF_MOONSINGER.equals(profession)) return "moonsinger_overmoon";
         if (PROF_SPY.equals(profession)) return "spy_overcover";
+        if (PROF_PERFUMER.equals(profession)) return "perfumer_overaroma";
         return "forge_signal";
     }
 
@@ -6298,6 +6377,24 @@ public final class GameCore {
         } else if ("t_spy_grand".equals(id)) {
             addUpgradedDeckCard(s, "spy_grand_heist");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_perfumer_note".equals(id)) {
+            addUpgradedDeckCard(s, "perfumer_note");
+            addUpgradedDeckCard(s, "perfumer_caustic");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_perfumer_mist".equals(id)) {
+            addUpgradedDeckCard(s, "perfumer_mist");
+            s.maxHp += 3;
+            s.hp += 3;
+            while (s.potions.size() < Math.min(potionLimit(s), 2)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+        } else if ("t_perfumer_distill".equals(id)) {
+            addUpgradedDeckCard(s, "perfumer_distill");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_perfumer_grand".equals(id)) {
+            addUpgradedDeckCard(s, "perfumer_grand_bloom");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -6750,7 +6847,8 @@ public final class GameCore {
                 || "t_arrayist_grand".equals(id) || "t_gambiter_grand".equals(id)
                 || "t_gravekeeper_grand".equals(id) || "t_treasurer_grand".equals(id)
                 || "t_drifter_grand".equals(id) || "t_oathkeeper_grand".equals(id)
-                || "t_moonsinger_grand".equals(id) || "t_spy_grand".equals(id);
+                || "t_moonsinger_grand".equals(id) || "t_spy_grand".equals(id)
+                || "t_perfumer_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6780,7 +6878,8 @@ public final class GameCore {
                 || "arrayist_grand_array".equals(id) || "gambiter_grand_endgame".equals(id)
                 || "gravekeeper_grand_requiem".equals(id) || "treasurer_grand_balance".equals(id)
                 || "drifter_grand_junction".equals(id) || "oathkeeper_grand_judgment".equals(id)
-                || "moonsinger_grand_eclipse".equals(id) || "spy_grand_heist".equals(id);
+                || "moonsinger_grand_eclipse".equals(id) || "spy_grand_heist".equals(id)
+                || "perfumer_grand_bloom".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6808,7 +6907,8 @@ public final class GameCore {
                 || "array_crown".equals(id) || "checkmate_crown".equals(id)
                 || "requiem_crown".equals(id) || "audit_crown".equals(id)
                 || "junction_crown".equals(id) || "judgment_crown".equals(id)
-                || "eclipse_crown".equals(id) || "mastermind_crown".equals(id);
+                || "eclipse_crown".equals(id) || "mastermind_crown".equals(id)
+                || "bouquet_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -7463,6 +7563,12 @@ public final class GameCore {
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_SPY)
                 || d.profession.equals(PROF_SHADOWDANCER) || d.profession.equals(PROF_MERCHANT)
                 || d.profession.equals(PROF_DUELIST) || d.profession.equals(PROF_SCAVENGER))) amount++;
+        else if (PROF_PERFUMER.equals(s.profession) && d != null && (d.createPotion || d.heal > 0
+                || d.burn > 0 || d.bind > 0 || d.vulnerable > 0 || d.draw > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.exhaust || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_PERFUMER) || d.profession.equals(PROF_ALCHEMIST)
+                || d.profession.equals(PROF_CHEF) || d.profession.equals(PROF_WITCH)
+                || d.profession.equals(PROF_PLAGUEDOCTOR))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -10072,6 +10178,44 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "scent_vial") && PROF_PERFUMER.equals(s.profession)) {
+            int brew = potionCards(s) + s.potions.size() + buildFocusDeckCards(s, BUILD_BREW);
+            int healing = healingDeckCards(s) + Math.max(0, s.maxHp - s.hp) / 10;
+            draw(s, 1);
+            gainBlock(s, 5 + s.act + Math.min(22, s.professionCharge * 2 + brew * 3 + healing * 2));
+            s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(8, healing + brew / 2));
+            if (s.potions.size() < potionLimit(s) && brew >= 3) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + brew / 4 + healing / 4));
+            Card note = new Card("perfumer_note");
+            note.temp = true;
+            note.upgraded = true;
+            addToHand(s, note);
+            if (target != null) {
+                target.burn += 2 + s.burnPower / 2;
+                target.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(34, target.burn * 2
+                        + s.professionCharge * 2 + brew * 2 + healing * 2), true);
+            }
+        }
+        if (hasRelic(s, "bouquet_crown") && PROF_PERFUMER.equals(s.profession)) {
+            Card over = new Card("perfumer_overaroma");
+            over.temp = true;
+            over.upgraded = true;
+            addToHand(s, over);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.potions.size() > 0 || potionCards(s) >= 3
+                    || upgradedCardCount(s) >= 6 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.burn += 3 + s.burnPower / 2;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -10202,6 +10346,9 @@ public final class GameCore {
         if (hasRelic(s, "cipher_ring") && PROF_SPY.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.gold >= 100 || zeroCostDeckCards(s) >= 3
                 || tempOrEchoHandCount(s) >= 2 || firstLiving(s) != null && firstLiving(s).mark > 0)) amount++;
+        if (hasRelic(s, "scent_vial") && PROF_PERFUMER.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.potions.size() > 0 || potionCards(s) >= 3
+                || healingDeckCards(s) >= 3 || firstLiving(s) != null && firstLiving(s).burn > 0)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -12365,6 +12512,41 @@ public final class GameCore {
                 blackmail.temp = true;
                 blackmail.upgraded = true;
                 addToHand(s, blackmail);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_PERFUMER.equals(s.profession) && s.turn == 1) {
+            int brew = Math.min(12, potionCards(s) + s.potions.size() * 2 + buildFocusDeckCards(s, BUILD_BREW));
+            int healing = Math.min(10, healingDeckCards(s) + Math.max(0, s.maxHp - s.hp) / 10);
+            int status = Math.min(8, burnDeckCards(s) + bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, brew / 3 + healing / 3 + status / 3);
+            gainBlock(s, 5 + s.act + Math.min(14, brew * 2 + healing * 2 + s.professionCharge));
+            s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(5, healing + brew / 3));
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += hasTalent(s, "t_perfumer_note") ? 2 : 1;
+                firstLiving(s).bind += hasTalent(s, "t_perfumer_distill") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_perfumer_note")) {
+                Card note = new Card("perfumer_note");
+                note.temp = true;
+                note.upgraded = true;
+                addToHand(s, note);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_perfumer_mist")) {
+                gainBlock(s, 5 + s.act + Math.min(10, brew + healing * 2));
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_perfumer_distill")) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_perfumer_grand")) {
+                Card caustic = new Card("perfumer_caustic");
+                caustic.temp = true;
+                caustic.upgraded = true;
+                addToHand(s, caustic);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -17284,6 +17466,132 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
+        if ("perfumer_note".equals(d.id) && target != null) {
+            int aroma = Math.max(0, s.professionCharge);
+            int brew = Math.min(18, potionCards(s) + s.potions.size() * 2 + buildFocusDeckCards(s, BUILD_BREW));
+            int healing = Math.min(14, healingDeckCards(s) + Math.max(0, s.maxHp - s.hp) / 10);
+            damage += Math.min(c.upgraded ? 42 : 30, aroma * 2 + brew * 4 + healing * 3 + target.burn * 2);
+            target.burn += c.upgraded ? 2 : 1;
+            target.bind += 1 + s.bindPower / 2;
+            s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(c.upgraded ? 6 : 4, healing + brew / 4));
+            if (brew >= 4 || healing >= 3 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("perfumer_mist".equals(d.id)) {
+            int aroma = Math.max(0, s.professionCharge);
+            int brew = Math.min(18, potionCards(s) + s.potions.size() * 2 + buildFocusDeckCards(s, BUILD_BREW));
+            int healing = Math.min(16, healingDeckCards(s) + Math.max(0, s.maxHp - s.hp) / 10);
+            block += Math.min(c.upgraded ? 48 : 34, aroma * 2 + brew * 4 + healing * 4 + s.block / 5);
+            s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(c.upgraded ? 8 : 5, healing + brew / 3));
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += 1 + s.burnPower / 2;
+            }
+            if (brew >= 4 || healing >= 4 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_BREW, 1);
+        }
+        if ("perfumer_caustic".equals(d.id) && target != null) {
+            int brew = Math.min(20, potionCards(s) + s.potions.size() * 2 + buildFocusDeckCards(s, BUILD_BREW));
+            int pressure = target.burn * 4 + target.bind * 4 + target.vulnerable * 3 + bestEnemyPressure(s) / 4;
+            damage += Math.min(c.upgraded ? 66 : 48, pressure + brew * 5 + s.professionCharge * 3);
+            target.burn += c.upgraded ? 4 : 3;
+            target.vulnerable += 1;
+            target.bind += 1 + s.bindPower / 2 + (c.upgraded ? 1 : 0);
+            if (brew >= 5 || target.burn >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_BREW, 1);
+        }
+        if ("perfumer_distill".equals(d.id)) {
+            int brew = Math.min(22, potionCards(s) + s.potions.size() * 2 + buildFocusDeckCards(s, BUILD_BREW));
+            int healing = Math.min(18, healingDeckCards(s) + Math.max(0, s.maxHp - s.hp) / 8);
+            int forge = Math.min(14, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            block += Math.min(c.upgraded ? 54 : 38, s.professionCharge * 2 + brew * 4 + healing * 3 + forge * 2);
+            s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(c.upgraded ? 10 : 7, healing + brew / 2));
+            upgradeRandomHandCard(s);
+            if (s.potions.size() < potionLimit(s) && (brew >= 4 || c.upgraded)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += c.upgraded ? 2 : 1;
+                firstLiving(s).vulnerable += 1;
+            }
+            if (brew >= 5 || healing >= 4 || forge >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("perfumer_overaroma".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int brew = Math.min(24, potionCards(s) + s.potions.size() * 2 + buildFocusDeckCards(s, BUILD_BREW));
+            int healing = Math.min(18, healingDeckCards(s) + Math.max(0, s.maxHp - s.hp) / 8);
+            int status = Math.min(18, burnDeckCards(s) + bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS));
+            block += Math.min(c.upgraded ? 60 : 44, s.professionCharge * 2 + brew * 5
+                    + healing * 3 + status * 2 + overloadNow * 7);
+            s.hp = Math.min(s.maxHp, s.hp + 2 + Math.min(10, healing * 2 + overloadNow * 2));
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.burn += c.upgraded ? 5 : 4;
+                target.vulnerable += 2;
+                target.bind += 2 + s.bindPower / 2;
+                damage += Math.min(c.upgraded ? 88 : 66, overloadNow * 8 + brew * 5
+                        + healing * 4 + status * 4 + target.burn * 2 + s.professionCharge * 2);
+            }
+            if (overloadNow >= 2 || brew >= 7 || healing >= 5 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("perfumer_grand_bloom".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int brew = Math.min(28, potionCards(s) + s.potions.size() * 2 + buildFocusDeckCards(s, BUILD_BREW));
+            int healing = Math.min(22, healingDeckCards(s) + Math.max(0, s.maxHp - s.hp) / 8);
+            int status = Math.min(22, burnDeckCards(s) + bindDeckCards(s) + buildFocusDeckCards(s, BUILD_STATUS)
+                    + bestEnemyPressure(s) / 8);
+            int forge = Math.min(18, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            damage += Math.min(c.upgraded ? 120 : 90, s.professionCharge * 4 + brew * 8
+                    + healing * 5 + status * 5 + forge * 3 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 76 : 56, s.professionCharge * 3 + brew * 4
+                    + healing * 4 + status * 3 + overloadNow * 6);
+            s.hp = Math.min(s.maxHp, s.hp + 4 + Math.min(c.upgraded ? 16 : 12, healing * 2 + brew / 3));
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.burn += c.upgraded ? 7 : 5;
+                target.vulnerable += 2;
+                target.bind += 2 + s.bindPower / 2;
+                target.mark += c.upgraded ? 3 : 2;
+            }
+            Card note = new Card("perfumer_note");
+            note.temp = true;
+            note.upgraded = true;
+            addToHand(s, note);
+            if (brew >= 8 || healing >= 6 || status >= 6 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -18526,6 +18834,140 @@ public final class GameCore {
                 if (e.mark >= 5 || s.gold >= 120 || tempOrEchoHandCount(s) >= 2 || upgradedCardCount(s) >= 6) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
                             + s.professionCharge + s.gold / 20 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+    }
+
+    private static void applyPerfumerAfterPlay(State s, Card c, CardDef d) {
+        if (PROF_PERFUMER.equals(s.profession) && (d.createPotion || d.heal > 0 || d.burn > 0
+                || d.bind > 0 || d.vulnerable > 0 || d.draw > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.exhaust || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_PERFUMER))) {
+            int brew = Math.min(22, potionCards(s) + s.potions.size() * 2 + buildFocusDeckCards(s, BUILD_BREW));
+            int healing = Math.min(18, healingDeckCards(s) + Math.max(0, s.maxHp - s.hp) / 10);
+            int status = Math.min(20, burnDeckCards(s) + bindDeckCards(s)
+                    + buildFocusDeckCards(s, BUILD_STATUS));
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            s.professionCharge += 1 + Math.min(2, (brew / 4 + healing / 4 + status / 4
+                    + (d.createPotion || d.heal > 0 ? 2 : 0)
+                    + (d.burn > 0 || d.bind > 0 || d.vulnerable > 0 ? 2 : 0)
+                    + (d.upgradeRandom || c.upgraded ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.burn += 1 + s.burnPower / 2 + (brew >= 7 ? 1 : 0);
+                    e.bind += 1 + s.bindPower / 2;
+                    e.vulnerable += status >= 5 ? 1 : 0;
+                    damageEnemy(s, e, 3 + s.act + Math.min(44, e.burn * 2 + e.bind * 2
+                            + brew * 2 + healing * 2 + status * 2 + s.professionCharge * 2), true);
+                }
+                gainBlock(s, 4 + s.act + Math.min(22, s.professionCharge + brew * 2 + healing));
+                s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(5, healing / 2 + brew / 4));
+                if (brew >= 6 || status >= 5 || hasTalent(s, "t_perfumer_grand")) {
+                    draw(s, 1);
+                }
+                if (forge >= 4 || hasTalent(s, "t_perfumer_grand")) {
+                    upgradeRandomHandCard(s);
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_perfumer_note") && (d.createPotion || d.draw > 0 || d.heal > 0
+                || d.burn > 0 || d.profession.equals(PROF_PERFUMER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.burn * 2
+                        + s.professionCharge * 2 + potionCards(s) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.potions.size() > 0 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_perfumer_mist") && (d.block > 0 || d.heal > 0 || d.createPotion
+                || d.type == 1 || d.profession.equals(PROF_PERFUMER))) {
+            gainBlock(s, 5 + s.act + Math.min(24, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_BREW) * 2 + healingDeckCards(s) * 2));
+            s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, potionCards(s)));
+            if (s.block >= 14 || healingDeckCards(s) >= 3 || s.potions.size() > 0) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_perfumer_distill") && (d.upgradeRandom || d.burn > 0 || d.bind > 0
+                || d.vulnerable > 0 || d.skillChargeGain > 0 || c.upgraded
+                || d.profession.equals(PROF_PERFUMER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                e.vulnerable += 1;
+                if (potionCards(s) >= 3 || upgradedCardCount(s) >= 5 || bestEnemyPressure(s) >= 8) {
+                    e.bind += 1 + s.bindPower / 2;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(42, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + potionCards(s) * 3 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || upgradedCardCount(s) >= 6 || potionCards(s) >= 4) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_perfumer_grand") && (d.createPotion || d.heal > 0 || d.burn > 0
+                || d.bind > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_PERFUMER))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.professionCharge >= 4 || potionCards(s) >= 4
+                    || healingDeckCards(s) >= 4 || upgradedCardCount(s) >= 6)) {
+                e.burn += 2 + s.burnPower / 2;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(48, e.burn * 2 + e.bind * 2
+                        + s.professionCharge * 2 + potionCards(s) * 3 + upgradedCardCount(s)), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+    }
+
+    private static void applyPerfumerRelicsAfterPlay(State s, CardDef d) {
+        if (hasRelic(s, "scent_vial") && (d.createPotion || d.heal > 0 || d.burn > 0
+                || d.bind > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.profession.equals(PROF_PERFUMER))) {
+            addProfessionSkillCharge(s, 1);
+            int brew = potionCards(s) + s.potions.size() + buildFocusDeckCards(s, BUILD_BREW);
+            int healing = healingDeckCards(s);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 4 + s.act + Math.min(18, s.professionCharge + brew * 2 + healing * 2));
+                s.hp = Math.min(s.maxHp, s.hp + 1 + Math.min(4, healing + brew / 3));
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                if (brew >= 4 || healing >= 3 || d.burn > 0) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.burn * 2
+                            + brew * 3 + healing * 2 + s.professionCharge), true);
+                }
+            }
+        }
+        if (hasRelic(s, "bouquet_crown") && (d.createPotion || d.heal > 0 || d.burn > 0
+                || d.bind > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_PERFUMER))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 2 + s.burnPower / 2;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (e.burn >= 5 || potionCards(s) >= 4 || healingDeckCards(s) >= 4 || upgradedCardCount(s) >= 6) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.burn * 2 + e.bind * 2
+                            + s.professionCharge + potionCards(s) * 3 + upgradedCardCount(s)), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -22326,6 +22768,7 @@ public final class GameCore {
         applyOathkeeperAfterPlay(s, c, d);
         applyMoonsingerAfterPlay(s, c, d);
         applySpyAfterPlay(s, c, d);
+        applyPerfumerAfterPlay(s, c, d);
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -23583,6 +24026,7 @@ public final class GameCore {
         applyOathkeeperRelicsAfterPlay(s, d);
         applyMoonsingerRelicsAfterPlay(s, d);
         applySpyRelicsAfterPlay(s, d);
+        applyPerfumerRelicsAfterPlay(s, d);
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && s.professionCharge >= 3) {
@@ -24986,6 +25430,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_GOLD ? 16 : focus == BUILD_ECHO ? 14
                     : focus == BUILD_STATUS ? 14 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_FORGE ? 10 : 0;
         }
+        if (PROF_PERFUMER.equals(s.profession)) {
+            return focus == BUILD_BREW ? 20 : focus == BUILD_STATUS ? 16 : focus == BUILD_BLOOD ? 12
+                    : focus == BUILD_CYCLE ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_FORGE ? 10 : 0;
+        }
         return 0;
     }
 
@@ -25136,6 +25584,9 @@ public final class GameCore {
         }
         if (PROF_SPY.equals(d.profession)) {
             return spyFocusCardValue(d, focus);
+        }
+        if (PROF_PERFUMER.equals(d.profession)) {
+            return perfumerFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -26709,6 +27160,51 @@ public final class GameCore {
         return 0;
     }
 
+    private static int perfumerFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_BREW) {
+            return (d.createPotion ? 14 : 0) + d.burn * 4 + d.bind * 3 + d.heal * 3
+                    + d.skillChargeGain * 2 + ("perfumer_note".equals(d.id) ? 16 : 0)
+                    + ("perfumer_mist".equals(d.id) ? 12 : 0)
+                    + ("perfumer_caustic".equals(d.id) ? 20 : 0)
+                    + ("perfumer_distill".equals(d.id) ? 18 : 0)
+                    + ("perfumer_overaroma".equals(d.id) ? 20 : 0)
+                    + ("perfumer_grand_bloom".equals(d.id) ? 22 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 5 + d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2
+                    + ("perfumer_note".equals(d.id) ? 10 : 0)
+                    + ("perfumer_caustic".equals(d.id) ? 20 : 0)
+                    + ("perfumer_overaroma".equals(d.id) ? 18 : 0)
+                    + ("perfumer_grand_bloom".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_BLOOD) {
+            return d.heal * 5 + d.block * 2 + (d.createPotion ? 5 : 0)
+                    + ("perfumer_mist".equals(d.id) ? 18 : 0)
+                    + ("perfumer_distill".equals(d.id) ? 18 : 0)
+                    + ("perfumer_grand_bloom".equals(d.id) ? 16 : 0);
+        }
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 5 : 0) + d.skillChargeGain * 2
+                    + ("perfumer_note".equals(d.id) ? 14 : 0)
+                    + ("perfumer_distill".equals(d.id) ? 12 : 0)
+                    + ("perfumer_grand_bloom".equals(d.id) ? 12 : 0);
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.block + d.heal * 2 + (d.upgradeRandom ? 4 : 0)
+                    + ("perfumer_caustic".equals(d.id) ? 8 : 0)
+                    + ("perfumer_overaroma".equals(d.id) ? 20 : 0)
+                    + ("perfumer_grand_bloom".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.skillChargeGain * 2 + d.draw * 2
+                    + (d.rarity == 2 ? 3 : 0)
+                    + ("perfumer_distill".equals(d.id) ? 18 : 0)
+                    + ("perfumer_overaroma".equals(d.id) ? 16 : 0)
+                    + ("perfumer_grand_bloom".equals(d.id) ? 18 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -27279,6 +27775,16 @@ public final class GameCore {
         else if ("t_spy_grand".equals(id)) bonus += professionCards + zeroCost * 2
                 + tempOrEchoDeckCards(s) + buildFocusDeckCards(s, BUILD_CYCLE)
                 + buildFocusDeckCards(s, BUILD_GOLD) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_perfumer_note".equals(id)) bonus += potionCards(s) * 3 + healingDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_BREW) + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
+        else if ("t_perfumer_mist".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + healingDeckCards(s) * 3 + potionCards(s) + professionCards + (s.hp < s.maxHp * 0.8f ? 5 : 2);
+        else if ("t_perfumer_distill".equals(id)) bonus += upgraded + buildFocusDeckCards(s, BUILD_FORGE) * 2
+                + buildFocusDeckCards(s, BUILD_BREW) + buildFocusDeckCards(s, BUILD_STATUS)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_perfumer_grand".equals(id)) bonus += professionCards + potionCards(s) * 2
+                + healingDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW)
+                + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -27414,6 +27920,14 @@ public final class GameCore {
             if (focus == BUILD_FORGE && isAny(id, "t_spy_blackmail", "t_spy_grand")) return 3;
             if (focus == BUILD_OVERLOAD && isAny(id, "t_spy_blackmail", "t_spy_grand")) return 3;
             if (focus == BUILD_GUARD && isAny(id, "t_spy_smoke", "t_spy_grand")) return 3;
+        }
+        if (isAny(id, "t_perfumer_note", "t_perfumer_mist", "t_perfumer_distill", "t_perfumer_grand")) {
+            if (focus == BUILD_BREW) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_perfumer_note", "t_perfumer_distill", "t_perfumer_grand")) return 3;
+            if (focus == BUILD_BLOOD && isAny(id, "t_perfumer_mist", "t_perfumer_grand")) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_perfumer_distill", "t_perfumer_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_perfumer_distill", "t_perfumer_grand")) return 3;
+            if (focus == BUILD_CYCLE && isAny(id, "t_perfumer_note", "t_perfumer_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -28224,6 +28738,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE || focus == BUILD_GOLD || focus == BUILD_ECHO
                     || focus == BUILD_STATUS || focus == BUILD_OVERLOAD || focus == BUILD_FORGE ? 3 : 0;
         }
+        if ("scent_vial".equals(id) || "bouquet_crown".equals(id)) {
+            return focus == BUILD_BREW || focus == BUILD_STATUS || focus == BUILD_BLOOD
+                    || focus == BUILD_CYCLE || focus == BUILD_OVERLOAD || focus == BUILD_FORGE ? 3 : 0;
+        }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "sapphire_cell", "amber_quill", "tempo_metronome", "stormglass_seal",
                     "command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism",
@@ -28380,7 +28898,8 @@ public final class GameCore {
                 || (PROF_DRIFTER.equals(s.profession) && "rift_pass".equals(id))
                 || (PROF_OATHKEEPER.equals(s.profession) && "oath_seal".equals(id))
                 || (PROF_MOONSINGER.equals(s.profession) && "moon_lyre".equals(id))
-                || (PROF_SPY.equals(s.profession) && "cipher_ring".equals(id));
+                || (PROF_SPY.equals(s.profession) && "cipher_ring".equals(id))
+                || (PROF_PERFUMER.equals(s.profession) && "scent_vial".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -28446,6 +28965,7 @@ public final class GameCore {
                 || hasRelic(s, "oath_seal") || hasRelic(s, "judgment_crown")
                 || hasRelic(s, "moon_lyre") || hasRelic(s, "eclipse_crown")
                 || hasRelic(s, "cipher_ring") || hasRelic(s, "mastermind_crown")
+                || hasRelic(s, "scent_vial") || hasRelic(s, "bouquet_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone")
@@ -28758,6 +29278,12 @@ public final class GameCore {
                 || d.goldDamage || d.goldBlock || d.createEcho || d.energyGain > 0
                 || d.skillChargeGain > 0 || d.upgradeRandom || d.bind > 0 || d.vulnerable > 0
                 || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_SPY))) {
+            return 4;
+        }
+        if (PROF_PERFUMER.equals(s.profession) && (d.createPotion || d.heal > 0 || d.burn > 0
+                || d.bind > 0 || d.vulnerable > 0 || d.draw > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.exhaust || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_PERFUMER))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -29308,6 +29834,16 @@ public final class GameCore {
                 || d.vulnerable > 0 || d.bind > 0 || d.profession.equals(PROF_SPY))) {
             bonus += 5;
         }
+        if (hasRelic(s, "scent_vial") && (d.createPotion || d.heal > 0 || d.burn > 0
+                || d.bind > 0 || d.vulnerable > 0 || d.draw > 0 || d.skillChargeGain > 0
+                || d.profession.equals(PROF_PERFUMER))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "bouquet_crown") && (d.createPotion || d.heal > 0 || d.burn > 0
+                || d.bind > 0 || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.vulnerable > 0 || d.profession.equals(PROF_PERFUMER))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "storm_rod") && (d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
                 || d.draw > 0 || d.profession.equals(PROF_STORMCALLER))) {
             bonus += 4;
@@ -29538,7 +30074,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass", "oath_seal", "moon_lyre", "cipher_ring"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass", "oath_seal", "moon_lyre", "cipher_ring", "scent_vial"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -29593,6 +30129,7 @@ public final class GameCore {
         if (PROF_OATHKEEPER.equals(s.profession)) return "oath_seal";
         if (PROF_MOONSINGER.equals(s.profession)) return "moon_lyre";
         if (PROF_SPY.equals(s.profession)) return "cipher_ring";
+        if (PROF_PERFUMER.equals(s.profession)) return "scent_vial";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -30181,6 +30718,20 @@ public final class GameCore {
             return 2;
         }
         if (PROF_SPY.equals(s.profession) && "mastermind_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_PERFUMER.equals(s.profession) && ("scent_vial".equals(id) || "catalyst_pump".equals(id)
+                || "solar_crucible".equals(id) || "witch_bottle".equals(id) || "witch_moon_crown".equals(id)
+                || "recipe_book".equals(id) || "banquet_crown".equals(id) || "plague_case".equals(id)
+                || "plague_crown".equals(id) || "vital_sprout".equals(id) || "vigil_bloom".equals(id)
+                || "hex_moon".equals(id) || "stormglass_seal".equals(id) || "markchain_seal".equals(id)
+                || "pressure_gauge".equals(id) || "bloodspark_contract".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "split_anvil".equals(id) || "confluence_map".equals(id)
+                || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                || "resonance_prism".equals(id) || "discipline_chart".equals(id) || "overload_etch".equals(id))) {
+            return 2;
+        }
+        if (PROF_PERFUMER.equals(s.profession) && "bouquet_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -30865,6 +31416,21 @@ public final class GameCore {
             addUpgradedDeckCard(s, "spy_contact");
             s.gold += 70;
             upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("scent_vial".equals(id)) {
+            addUpgradedDeckCard(s, "perfumer_distill");
+            addUpgradedDeckCard(s, "perfumer_note");
+            while (s.potions.size() < Math.min(potionLimit(s), 2)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("bouquet_crown".equals(id)) {
+            addUpgradedDeckCard(s, "perfumer_grand_bloom");
+            addUpgradedDeckCard(s, "perfumer_note");
+            upgradeRandomDeckCard(s);
+            while (s.potions.size() < Math.min(potionLimit(s), 2)) {
+                s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
+            }
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -31884,6 +32450,18 @@ public final class GameCore {
         c.profession = PROF_SPY; c.draw = c.drawUp = 1; c.goldGain = 10; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "spy_contact"; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
         c = addCard("spy_grand_heist", "终局窃局", "通用", 2, 2, 0, 10, 14, 9, 13, "造成伤害并获得格挡和金币；按线报、低费、金币、临时牌和过载追加终局收益。", "更高伤害、格挡和线人返还。");
         c.profession = PROF_SPY; c.draw = c.drawUp = 1; c.goldGain = 14; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "spy_contact"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("perfumer_note", "调香便笺", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、治疗并施加燃灼束缚；药剂和治疗提高收益。", "更高伤害、治疗和燃缚。");
+        c.profession = PROF_PERFUMER; c.draw = c.drawUp = 1; c.heal = 1; c.healUp = 2; c.burn = 1; c.burnUp = 2; c.bind = 1; c.bindUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("perfumer_mist", "安神雾", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡、治疗并扩散燃灼；药剂与续航会加厚防线。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_PERFUMER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.burn = 1; c.burnUp = 2; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("perfumer_caustic", "辛辣挥发", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害并施加燃灼、束缚和易伤；异常压力会转成爆发。", "更高伤害、燃灼和压制。");
+        c.profession = PROF_PERFUMER; c.burn = 3; c.burnUp = 4; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("perfumer_distill", "回流萃香", "通用", 1, 1, 1, 0, 0, 7, 11, "获得格挡、治疗、升级并可能补药剂；药剂与工坊会返还节奏。", "更多格挡、治疗、升级和返能窗口。");
+        c.profession = PROF_PERFUMER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 4; c.createPotion = true; c.upgradeRandom = true; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("perfumer_overaroma", "过载香域", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、治疗、升级和充能；过载、药剂与异常会追加馥爆追击。", "更多格挡、治疗和职业技充能。");
+        c.profession = PROF_PERFUMER; c.draw = c.drawUp = 1; c.heal = 2; c.healUp = 3; c.burn = 4; c.burnUp = 5; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createPotion = true; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("perfumer_grand_bloom", "终局馥爆", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡与治疗；按香调、药剂、治疗、异常和过载追加终局收益。", "更高伤害、格挡、治疗和便笺返还。");
+        c.profession = PROF_PERFUMER; c.draw = c.drawUp = 1; c.heal = 4; c.healUp = 6; c.burn = 5; c.burnUp = 7; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createPotion = true; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
@@ -32207,6 +32785,8 @@ public final class GameCore {
         addRelicDef("eclipse_crown", "月蚀冠", "获得升级终局月蚀；月咏者循环、回声、升级、控场和稀有牌会滚动标记、束缚与月蚀追击。");
         addRelicDef("cipher_ring", "密文戒", "密探低费、金币、抽牌、临时和控场牌更快推动职业技；释放后制造线人接头并返还金币。");
         addRelicDef("mastermind_crown", "幕后冠", "获得升级终局窃局；密探低费、金币、回声、升级和稀有牌会滚动标记、束缚与潜袭追击。");
+        addRelicDef("scent_vial", "香谱瓶", "调香师药剂、治疗、燃缚和抽牌牌更快推动职业技；释放后制造调香便笺并返还防线。");
+        addRelicDef("bouquet_crown", "馥冠", "获得升级终局馥爆；调香师药剂、治疗、异常、升级和稀有牌会滚动燃缚与馥爆追击。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
         addBossRelicDef("blood_contract", "血契杯", "最大生命+18；每场战斗首回合失去2生命并抽2张。");
@@ -32511,6 +33091,9 @@ public final class GameCore {
         addTalent("t_spy_contact", PROF_SPY, "线人网络", "获得升级线人接头和勒索密函；低费、抽牌、金币和密探牌追加印记，并把线报转成穿透追击。");
         addTalent("t_spy_smoke", PROF_SPY, "烟幕金库", "获得金币、生命和升级烟幕撤离；技能、格挡、金币和密探牌提供额外防线。");
         addTalent("t_spy_blackmail", PROF_SPY, "勒索流程", "获得升级勒索密函并升级牌组；升级、控场和充能牌会扩张线报压力。");
+        addTalent("t_perfumer_note", PROF_PERFUMER, "香谱回路", "获得升级调香便笺和辛辣挥发；药剂、治疗、抽牌和调香牌追加燃灼，并把香调转成穿透追击。");
+        addTalent("t_perfumer_mist", PROF_PERFUMER, "安神护幕", "获得生命、药剂和升级安神雾；技能、格挡、治疗和调香牌提供额外防线与续航。");
+        addTalent("t_perfumer_distill", PROF_PERFUMER, "萃香流程", "获得升级回流萃香并升级牌组；升级、燃缚异常和充能牌会扩张香调压力。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -32565,6 +33148,7 @@ public final class GameCore {
         addTalent("t_oathkeeper_grand", PROF_OATHKEEPER, "终局圣判", "获得升级终局圣判；格挡、治疗、升级、控场与过载牌持续抽牌、升级并把誓印转为圣裁裁切。");
         addTalent("t_moonsinger_grand", PROF_MOONSINGER, "终局月蚀", "获得升级终局月蚀；检视、抽牌、回声、升级与过载牌持续抽牌、升级并把月相转为月蚀裁切。");
         addTalent("t_spy_grand", PROF_SPY, "终局窃局", "获得升级终局窃局；低费、金币、回声、升级与过载牌持续抽牌、升级并把线报转为潜袭裁切。");
+        addTalent("t_perfumer_grand", PROF_PERFUMER, "终局馥爆", "获得升级终局馥爆；药剂、治疗、燃缚、升级与过载牌持续抽牌、升级并把香调转为馥爆裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
