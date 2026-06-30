@@ -148,6 +148,7 @@ public final class GameCore {
     public static final String PROF_SPY = "密探";
     public static final String PROF_PERFUMER = "调香师";
     public static final String PROF_CLOCKSMITH = "钟匠";
+    public static final String PROF_MINTSMITH = "铸币师";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -159,7 +160,8 @@ public final class GameCore {
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
             PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER, PROF_TREASURER,
-            PROF_DRIFTER, PROF_OATHKEEPER, PROF_MOONSINGER, PROF_SPY, PROF_PERFUMER, PROF_CLOCKSMITH
+            PROF_DRIFTER, PROF_OATHKEEPER, PROF_MOONSINGER, PROF_SPY, PROF_PERFUMER, PROF_CLOCKSMITH,
+            PROF_MINTSMITH
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -896,6 +898,7 @@ public final class GameCore {
         if (PROF_SPY.equals(profession)) return "潜袭";
         if (PROF_PERFUMER.equals(profession)) return "馥爆";
         if (PROF_CLOCKSMITH.equals(profession)) return "校时";
+        if (PROF_MINTSMITH.equals(profession)) return "熔铸";
         return "职业技";
     }
 
@@ -990,6 +993,7 @@ public final class GameCore {
         if (PROF_SPY.equals(profession)) return "满充能：消耗线报潜袭，按低费连打、金币、临时牌、标记、升级和过载造成穿透，获得金币、抽牌、格挡并制造密探牌。";
         if (PROF_PERFUMER.equals(profession)) return "满充能：消耗香调馥爆，按药剂、治疗、燃缚异常、抽牌、升级和过载造成穿透，治疗、抽牌、格挡并制造调香牌。";
         if (PROF_CLOCKSMITH.equals(profession)) return "满充能：消耗齿轮校时，按低费连打、抽牌、升级、临时牌和过载造成穿透，抽牌、返能、升级并制造钟匠牌。";
+        if (PROF_MINTSMITH.equals(profession)) return "满充能：消耗模印熔铸，按金币、燃灼、升级、格挡和过载造成穿透，获得金币、格挡、抽牌并制造铸币牌。";
         return "选择职业后可用。";
     }
 
@@ -3008,6 +3012,50 @@ public final class GameCore {
             addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, pressure / 12));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, gears / 2);
+        } else if (PROF_MINTSMITH.equals(s.profession)) {
+            int molds = Math.max(1, s.professionCharge);
+            int wealth = Math.min(24, s.gold / 22 + buildFocusDeckCards(s, BUILD_GOLD) * 2);
+            int heat = Math.min(24, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW) * 2 + bestEnemyPressure(s) / 8);
+            int forge = Math.min(18, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int guard = Math.min(18, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.burn * 2 + target.vulnerable * 3 + target.bind * 3 + target.mark * 2;
+            int damage = 9 + s.act * 3 + Math.min(96, molds * 3 + wealth * 4
+                    + heat * 4 + forge * 3 + guard * 3 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.burn += 3 + s.burnPower / 2 + Math.min(4, wealth / 6 + heat / 5);
+                target.bind += 1 + s.bindPower / 2 + Math.min(3, heat / 5 + guard / 6) + overload / 2;
+                target.vulnerable += 1 + Math.min(2, overload / 4 + pressure / 18);
+            }
+            gainBlock(s, 7 + s.act * 2 + Math.min(48, molds * 2 + wealth * 2
+                    + heat * 3 + forge * 2 + guard * 4) + overload * 3);
+            s.gold += 8 + s.act * 2 + Math.min(30, molds + wealth * 2 + heat + forge) + overload * 3;
+            draw(s, 1 + Math.min(3, molds / 5 + wealth / 6 + heat / 6 + forge / 5) + overload / 4);
+            if (heat >= 7 || forge >= 4 || wealth >= 8 || overload >= 2) {
+                upgradeRandomHandCard(s);
+            }
+            if (wealth >= 8 || heat >= 8 || overload >= 2) {
+                s.energy++;
+            }
+            Card spark = new Card(overload >= 4 || hasTalent(s, "t_mintsmith_grand")
+                    ? "mintsmith_grand_mintage" : "mintsmith_spark");
+            spark.temp = true;
+            spark.upgraded = molds >= 5 || hasTalent(s, "t_mintsmith_spark");
+            addToHand(s, spark);
+            if (hasTalent(s, "t_mintsmith_grand")) {
+                Card tax = new Card("mintsmith_tax");
+                tax.temp = true;
+                tax.upgraded = true;
+                addToHand(s, tax);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_TREASURE, 1 + Math.min(3, wealth / 4));
+            addQuestProgress(s, QUEST_BREW, 1 + Math.min(3, heat / 4));
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, forge / 4));
+            addQuestProgress(s, QUEST_GUARD, 1 + Math.min(3, guard / 4));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, molds / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -4550,6 +4598,9 @@ public final class GameCore {
         if (PROF_CLOCKSMITH.equals(profession)) {
             return "用低费连打、抽牌、临时牌和升级积累齿轮，把节奏运营转成校时爆发。适合循环、工坊、回声、守势和过载构筑。";
         }
+        if (PROF_MINTSMITH.equals(profession)) {
+            return "用金币、燃灼、升级和格挡积累模印，把财富与热度熔成爆发、返金和护盾。适合金币、燃灼、工坊、守势和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4721,6 +4772,9 @@ public final class GameCore {
         }
         if (PROF_CLOCKSMITH.equals(profession)) {
             return 0xffb8d27a;
+        }
+        if (PROF_MINTSMITH.equals(profession)) {
+            return 0xffd69656;
         }
         return 0xffd6c07a;
     }
@@ -5247,6 +5301,13 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_MINTSMITH.equals(profession)) {
+            s.deck.add(new Card("mintsmith_spark"));
+            s.deck.add(new Card("mintsmith_mold"));
+            s.gold += 20;
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -5324,6 +5385,7 @@ public final class GameCore {
         else if (PROF_SPY.equals(profession)) upgradeDeckCard(s, "spy_contact");
         else if (PROF_PERFUMER.equals(profession)) upgradeDeckCard(s, "perfumer_note");
         else if (PROF_CLOCKSMITH.equals(profession)) upgradeDeckCard(s, "clocksmith_tick");
+        else if (PROF_MINTSMITH.equals(profession)) upgradeDeckCard(s, "mintsmith_spark");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -5582,6 +5644,11 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_MINTSMITH.equals(profession)) {
+            addUpgradedDeckCard(s, "mintsmith_assay");
+            s.gold += 30;
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -5642,6 +5709,7 @@ public final class GameCore {
         if (PROF_SPY.equals(profession)) return "spy_overcover";
         if (PROF_PERFUMER.equals(profession)) return "perfumer_overaroma";
         if (PROF_CLOCKSMITH.equals(profession)) return "clocksmith_overclock";
+        if (PROF_MINTSMITH.equals(profession)) return "mintsmith_overmint";
         return "forge_signal";
     }
 
@@ -6477,6 +6545,22 @@ public final class GameCore {
         } else if ("t_clocksmith_grand".equals(id)) {
             addUpgradedDeckCard(s, "clocksmith_grand_chronogear");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_mintsmith_spark".equals(id)) {
+            addUpgradedDeckCard(s, "mintsmith_spark");
+            addUpgradedDeckCard(s, "mintsmith_tax");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_mintsmith_mold".equals(id)) {
+            addUpgradedDeckCard(s, "mintsmith_mold");
+            s.gold += 35;
+            s.maxHp += 3;
+            s.hp += 3;
+        } else if ("t_mintsmith_tax".equals(id)) {
+            addUpgradedDeckCard(s, "mintsmith_assay");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_mintsmith_grand".equals(id)) {
+            addUpgradedDeckCard(s, "mintsmith_grand_mintage");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -6930,7 +7014,8 @@ public final class GameCore {
                 || "t_gravekeeper_grand".equals(id) || "t_treasurer_grand".equals(id)
                 || "t_drifter_grand".equals(id) || "t_oathkeeper_grand".equals(id)
                 || "t_moonsinger_grand".equals(id) || "t_spy_grand".equals(id)
-                || "t_perfumer_grand".equals(id) || "t_clocksmith_grand".equals(id);
+                || "t_perfumer_grand".equals(id) || "t_clocksmith_grand".equals(id)
+                || "t_mintsmith_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6961,7 +7046,8 @@ public final class GameCore {
                 || "gravekeeper_grand_requiem".equals(id) || "treasurer_grand_balance".equals(id)
                 || "drifter_grand_junction".equals(id) || "oathkeeper_grand_judgment".equals(id)
                 || "moonsinger_grand_eclipse".equals(id) || "spy_grand_heist".equals(id)
-                || "perfumer_grand_bloom".equals(id) || "clocksmith_grand_chronogear".equals(id);
+                || "perfumer_grand_bloom".equals(id) || "clocksmith_grand_chronogear".equals(id)
+                || "mintsmith_grand_mintage".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6990,7 +7076,8 @@ public final class GameCore {
                 || "requiem_crown".equals(id) || "audit_crown".equals(id)
                 || "junction_crown".equals(id) || "judgment_crown".equals(id)
                 || "eclipse_crown".equals(id) || "mastermind_crown".equals(id)
-                || "bouquet_crown".equals(id) || "chrono_crown".equals(id);
+                || "bouquet_crown".equals(id) || "chrono_crown".equals(id)
+                || "mint_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -7669,6 +7756,13 @@ public final class GameCore {
                 || d.profession.equals(PROF_CLOCKSMITH) || d.profession.equals(PROF_CHRONOMANCER)
                 || d.profession.equals(PROF_MACHINIST) || d.profession.equals(PROF_TUNER)
                 || d.profession.equals(PROF_ARRAYIST))) amount++;
+        else if (PROF_MINTSMITH.equals(s.profession) && d != null && (d.goldGain > 0 || d.goldDamage
+                || d.goldBlock || d.burn > 0 || d.detonateBurn || d.burnToBlock || d.block > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MINTSMITH)
+                || d.profession.equals(PROF_MERCHANT) || d.profession.equals(PROF_TREASURER)
+                || d.profession.equals(PROF_ALCHEMIST) || d.profession.equals(PROF_PERFUMER)
+                || d.profession.equals(PROF_STARFORGER))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -10407,6 +10501,36 @@ public final class GameCore {
                 target.bind += 1 + s.bindPower / 2;
             }
         }
+        if (hasRelic(s, "mint_tongs") && PROF_MINTSMITH.equals(s.profession)) {
+            int overloadNow = professionSkillOverload(s);
+            s.gold += 10 + s.act * 2 + overloadNow * 3;
+            gainBlock(s, 5 + s.act + Math.min(18, s.professionCharge * 2 + s.gold / 20 + overloadNow * 3));
+            addProfessionSkillCharge(s, 1 + overloadNow / 2);
+            Card spark = new Card("mintsmith_spark");
+            spark.temp = true;
+            spark.upgraded = true;
+            addToHand(s, spark);
+            if (target != null) {
+                target.burn += 2 + s.burnPower / 2;
+            }
+        }
+        if (hasRelic(s, "mint_crown") && PROF_MINTSMITH.equals(s.profession)) {
+            Card over = new Card("mintsmith_overmint");
+            over.temp = true;
+            over.upgraded = true;
+            addToHand(s, over);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || s.gold >= 120 || burnDeckCards(s) >= 4
+                    || upgradedCardCount(s) >= 6 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.burn += 3 + s.burnPower / 2;
+                target.bind += 1 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -10543,6 +10667,9 @@ public final class GameCore {
         if (hasRelic(s, "clockwork_key") && PROF_CLOCKSMITH.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || zeroCostDeckCards(s) >= 3 || drawDeckCards(s) >= 4
                 || upgradedCardCount(s) >= 5 || tempOrEchoHandCount(s) >= 2)) amount++;
+        if (hasRelic(s, "mint_tongs") && PROF_MINTSMITH.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || s.gold >= 100 || burnDeckCards(s) >= 3
+                || upgradedCardCount(s) >= 5 || s.block >= 12)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -12775,6 +12902,40 @@ public final class GameCore {
                 gear.temp = true;
                 gear.upgraded = true;
                 addToHand(s, gear);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_MINTSMITH.equals(s.profession) && s.turn == 1) {
+            int wealth = Math.min(8, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int heat = Math.min(8, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW));
+            int forge = Math.min(8, buildFocusDeckCards(s, BUILD_FORGE) + upgradedCardCount(s) / 4);
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, wealth / 3 + heat / 3 + forge / 3);
+            gainBlock(s, 5 + s.act + Math.min(14, wealth * 2 + forge * 2 + s.professionCharge));
+            if (firstLiving(s) != null) {
+                firstLiving(s).burn += 1 + s.burnPower / 2;
+                firstLiving(s).vulnerable += hasTalent(s, "t_mintsmith_tax") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_mintsmith_spark")) {
+                Card spark = new Card("mintsmith_spark");
+                spark.temp = true;
+                spark.upgraded = true;
+                addToHand(s, spark);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_mintsmith_mold")) {
+                s.gold += 10;
+                gainBlock(s, 5 + s.act + Math.min(10, wealth + forge * 2));
+            }
+            if (hasTalent(s, "t_mintsmith_tax")) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_mintsmith_grand")) {
+                Card assay = new Card("mintsmith_assay");
+                assay.temp = true;
+                assay.upgraded = true;
+                addToHand(s, assay);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -17824,6 +17985,10 @@ public final class GameCore {
         damage += clocksmith[0];
         block += clocksmith[1];
         draw += clocksmith[2];
+        int[] mintsmith = applyMintsmithCardEffects(s, c, d, target);
+        damage += mintsmith[0];
+        block += mintsmith[1];
+        draw += mintsmith[2];
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -18803,6 +18968,140 @@ public final class GameCore {
         return new int[] {damage, block, draw};
     }
 
+    private static int[] applyMintsmithCardEffects(State s, Card c, CardDef d, Enemy target) {
+        int damage = 0;
+        int block = 0;
+        int draw = 0;
+        if ("mintsmith_spark".equals(d.id) && target != null) {
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int heat = Math.min(18, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW));
+            damage += Math.min(c.upgraded ? 44 : 32, s.professionCharge * 2 + wealth * 4 + heat * 3 + target.burn * 2);
+            target.burn += c.upgraded ? 3 : 2;
+            if (wealth >= 4 || heat >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.gold += c.upgraded ? 8 : 6;
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_TREASURE, 1);
+            addQuestProgress(s, QUEST_BREW, 1);
+        }
+        if ("mintsmith_mold".equals(d.id)) {
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int guard = Math.min(18, s.block / 5 + buildFocusDeckCards(s, BUILD_GUARD));
+            int heat = Math.min(16, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW));
+            block += Math.min(c.upgraded ? 50 : 36, s.professionCharge * 2 + wealth * 3 + guard * 4 + heat * 3);
+            s.gold += c.upgraded ? 6 : 4;
+            if (wealth >= 4 || guard >= 4 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if ("mintsmith_tax".equals(d.id) && target != null) {
+            int wealth = Math.min(20, s.gold / 22 + buildFocusDeckCards(s, BUILD_GOLD) * 2);
+            int heat = Math.min(20, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW) * 2);
+            damage += Math.min(c.upgraded ? 66 : 48, target.burn * 4 + wealth * 4 + heat * 3 + s.professionCharge * 2);
+            target.burn += c.upgraded ? 4 : 3;
+            target.bind += 1 + s.bindPower / 2;
+            target.vulnerable += 1;
+            s.gold += c.upgraded ? 10 : 8;
+            if (wealth >= 6 || target.burn >= 6 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("mintsmith_assay".equals(d.id)) {
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int heat = Math.min(18, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW));
+            int forge = Math.min(14, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            block += Math.min(c.upgraded ? 46 : 34, s.professionCharge * 2 + wealth * 3 + heat * 2 + forge * 4);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.burn += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 48 : 34, target.burn * 3 + wealth * 3 + forge * 4);
+            }
+            Card spark = new Card("mintsmith_spark");
+            spark.temp = true;
+            spark.upgraded = c.upgraded || forge >= 5;
+            addToHand(s, spark);
+            if (wealth >= 5 || forge >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.gold += c.upgraded ? 8 : 6;
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_TREASURE, 1);
+        }
+        if ("mintsmith_overmint".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int wealth = Math.min(22, s.gold / 22 + buildFocusDeckCards(s, BUILD_GOLD) * 2);
+            int heat = Math.min(22, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW) * 2);
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            block += Math.min(c.upgraded ? 58 : 42, s.professionCharge * 2 + wealth * 3 + heat * 3 + overloadNow * 7);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.burn += c.upgraded ? 4 : 3;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 80 : 58, overloadNow * 8 + wealth * 5
+                        + heat * 4 + forge * 4 + target.burn * 2 + s.professionCharge * 2);
+            }
+            Card assay = new Card("mintsmith_assay");
+            assay.temp = true;
+            assay.upgraded = c.upgraded || overloadNow >= 2;
+            addToHand(s, assay);
+            s.gold += c.upgraded ? 14 : 10;
+            if (overloadNow >= 2 || heat >= 6 || wealth >= 6 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_BREW, 1);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("mintsmith_grand_mintage".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int wealth = Math.min(24, s.gold / 20 + buildFocusDeckCards(s, BUILD_GOLD) * 2);
+            int heat = Math.min(24, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW) * 2);
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            damage += Math.min(c.upgraded ? 116 : 88, s.professionCharge * 4 + wealth * 7
+                    + heat * 6 + forge * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 76 : 56, s.professionCharge * 3 + wealth * 3
+                    + heat * 4 + forge * 3 + overloadNow * 6);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.burn += c.upgraded ? 6 : 4;
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            Card spark = new Card("mintsmith_spark");
+            spark.temp = true;
+            spark.upgraded = true;
+            addToHand(s, spark);
+            s.gold += c.upgraded ? 18 : 14;
+            if (wealth >= 8 || heat >= 7 || forge >= 5 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_TREASURE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_BREW, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        return new int[] {damage, block, draw};
+    }
+
     private static void applyOathkeeperAfterPlay(State s, Card c, CardDef d) {
         if (PROF_OATHKEEPER.equals(s.profession) && (d.block > 0 || d.heal > 0 || d.retainBlock
                 || d.blockToDamage || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0
@@ -19474,6 +19773,146 @@ public final class GameCore {
                 if (e.mark >= 5 || tempOrEchoHandCount(s) >= 2 || zeroCostDeckCards(s) >= 3 || upgradedCardCount(s) >= 6) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
                             + s.professionCharge + tempOrEchoHandCount(s) * 3 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+    }
+
+    private static void applyMintsmithAfterPlay(State s, Card c, CardDef d) {
+        if (PROF_MINTSMITH.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.burn > 0 || d.detonateBurn || d.burnToBlock || d.block > 0
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MINTSMITH))) {
+            int wealth = Math.min(24, s.gold / 22 + buildFocusDeckCards(s, BUILD_GOLD) * 2);
+            int heat = Math.min(20, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW) * 2);
+            int forge = Math.min(18, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int guard = Math.min(18, s.block / 6 + buildFocusDeckCards(s, BUILD_GUARD));
+            s.professionCharge += 1 + Math.min(2, (wealth / 4 + heat / 4 + forge / 4 + guard / 4
+                    + (d.goldGain > 0 || d.burn > 0 ? 2 : 0)
+                    + (d.upgradeRandom || c.upgraded ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.burn += 1 + s.burnPower / 2 + (heat >= 6 ? 1 : 0);
+                    e.vulnerable += 1;
+                    if (heat >= 5 || d.bind > 0 || hasTalent(s, "t_mintsmith_tax")) {
+                        e.bind += 1 + s.bindPower / 2;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(46, e.burn * 2 + e.bind * 2
+                            + wealth * 2 + heat * 2 + forge * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || d.goldBlock || hasTalent(s, "t_mintsmith_mold")) {
+                    gainBlock(s, 4 + s.act + Math.min(24, s.professionCharge + wealth * 2 + guard * 2 + heat));
+                }
+                s.gold += 3 + s.act + Math.min(12, wealth + heat / 2);
+                if (heat >= 6 || wealth >= 6 || hasTalent(s, "t_mintsmith_grand")) {
+                    draw(s, 1);
+                }
+                if (forge >= 4 || hasTalent(s, "t_mintsmith_grand")) {
+                    upgradeRandomHandCard(s);
+                }
+                if (wealth >= 8 || professionSkillOverload(s) >= 2 || hasTalent(s, "t_mintsmith_grand")) {
+                    s.energy++;
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_mintsmith_spark") && (d.goldGain > 0 || d.burn > 0 || d.draw > 0
+                || d.vulnerable > 0 || d.profession.equals(PROF_MINTSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(38, e.burn * 2
+                        + s.professionCharge * 2 + Math.min(14, s.gold / 20)), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || s.gold >= 90 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_mintsmith_mold") && (d.block > 0 || d.goldBlock || d.burnToBlock
+                || d.type == 1 || d.skillChargeGain > 0 || d.profession.equals(PROF_MINTSMITH))) {
+            gainBlock(s, 5 + s.act + Math.min(24, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_GUARD) * 2 + buildFocusDeckCards(s, BUILD_GOLD) * 2));
+            s.gold += 2 + s.act + Math.min(8, s.block / 10 + burnDeckCards(s));
+            if (s.block >= 14 || s.gold >= 100) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_mintsmith_tax") && (d.upgradeRandom || d.burn > 0 || d.goldGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || d.skillChargeGain > 0
+                || d.profession.equals(PROF_MINTSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                e.vulnerable += 1;
+                if (burnDeckCards(s) >= 4 || upgradedCardCount(s) >= 6 || bestEnemyPressure(s) >= 8) {
+                    e.bind += 1 + s.bindPower / 2;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(42, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + burnDeckCards(s) * 4 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || burnDeckCards(s) >= 4 || upgradedCardCount(s) >= 6) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_mintsmith_grand") && (d.goldGain > 0 || d.burn > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.profession.equals(PROF_MINTSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.professionCharge >= 4 || s.gold >= 120
+                    || burnDeckCards(s) >= 4 || upgradedCardCount(s) >= 6)) {
+                e.burn += 2 + s.burnPower / 2;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(48, e.burn * 2 + e.bind * 2
+                        + s.professionCharge * 2 + Math.min(16, s.gold / 20) + upgradedCardCount(s)), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+    }
+
+    private static void applyMintsmithRelicsAfterPlay(State s, CardDef d) {
+        if (hasRelic(s, "mint_tongs") && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.burn > 0 || d.block > 0 || d.upgradeRandom || d.skillChargeGain > 0
+                || d.profession.equals(PROF_MINTSMITH))) {
+            addProfessionSkillCharge(s, 1);
+            int wealth = Math.min(18, s.gold / 25 + buildFocusDeckCards(s, BUILD_GOLD));
+            int heat = Math.min(18, burnDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW));
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 4 + s.act + Math.min(18, s.professionCharge + wealth * 2 + heat * 2));
+                s.gold += 4 + s.act;
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 1 + s.burnPower / 2;
+                if (wealth >= 4 || heat >= 4 || d.burn > 0) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.burn * 2
+                            + wealth * 3 + heat * 3 + s.professionCharge), true);
+                }
+            }
+        }
+        if (hasRelic(s, "mint_crown") && (d.goldGain > 0 || d.burn > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.rarity == 2 || d.vulnerable > 0 || d.bind > 0
+                || d.profession.equals(PROF_MINTSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.burn += 2 + s.burnPower / 2;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (e.burn >= 5 || s.gold >= 100 || burnDeckCards(s) >= 4 || upgradedCardCount(s) >= 6) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.burn * 2 + e.bind * 2
+                            + s.professionCharge + Math.min(16, s.gold / 20) + upgradedCardCount(s)), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -23276,6 +23715,7 @@ public final class GameCore {
         applySpyAfterPlay(s, c, d);
         applyPerfumerAfterPlay(s, c, d);
         applyClocksmithAfterPlay(s, c, d);
+        applyMintsmithAfterPlay(s, c, d);
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -24535,6 +24975,7 @@ public final class GameCore {
         applySpyRelicsAfterPlay(s, d);
         applyPerfumerRelicsAfterPlay(s, d);
         applyClocksmithRelicsAfterPlay(s, d);
+        applyMintsmithRelicsAfterPlay(s, d);
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && s.professionCharge >= 3) {
@@ -25946,6 +26387,10 @@ public final class GameCore {
             return focus == BUILD_CYCLE ? 18 : focus == BUILD_FORGE ? 16 : focus == BUILD_ECHO ? 14
                     : focus == BUILD_GUARD ? 12 : focus == BUILD_OVERLOAD ? 12 : 0;
         }
+        if (PROF_MINTSMITH.equals(s.profession)) {
+            return focus == BUILD_GOLD ? 18 : focus == BUILD_BREW ? 16 : focus == BUILD_FORGE ? 14
+                    : focus == BUILD_GUARD ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_STATUS ? 10 : 0;
+        }
         return 0;
     }
 
@@ -26102,6 +26547,9 @@ public final class GameCore {
         }
         if (PROF_CLOCKSMITH.equals(d.profession)) {
             return clocksmithFocusCardValue(d, focus);
+        }
+        if (PROF_MINTSMITH.equals(d.profession)) {
+            return mintsmithFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -27767,6 +28215,51 @@ public final class GameCore {
         return 0;
     }
 
+    private static int mintsmithFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_GOLD) {
+            return d.goldGain * 5 + (d.goldDamage ? 10 : 0) + (d.goldBlock ? 8 : 0)
+                    + d.skillChargeGain * 2 + ("mintsmith_spark".equals(d.id) ? 18 : 0)
+                    + ("mintsmith_mold".equals(d.id) ? 18 : 0)
+                    + ("mintsmith_tax".equals(d.id) ? 16 : 0)
+                    + ("mintsmith_overmint".equals(d.id) ? 18 : 0)
+                    + ("mintsmith_grand_mintage".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_BREW) {
+            return d.burn * 6 + (d.detonateBurn ? 10 : 0) + d.vulnerable * 5
+                    + ("mintsmith_spark".equals(d.id) ? 16 : 0)
+                    + ("mintsmith_tax".equals(d.id) ? 20 : 0)
+                    + ("mintsmith_overmint".equals(d.id) ? 18 : 0)
+                    + ("mintsmith_grand_mintage".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.skillChargeGain * 2 + d.draw * 2
+                    + ("mintsmith_assay".equals(d.id) ? 18 : 0)
+                    + ("mintsmith_overmint".equals(d.id) ? 16 : 0)
+                    + ("mintsmith_grand_mintage".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + (d.goldBlock ? 12 : 0) + d.draw * 2
+                    + ("mintsmith_mold".equals(d.id) ? 18 : 0)
+                    + ("mintsmith_assay".equals(d.id) ? 14 : 0)
+                    + ("mintsmith_overmint".equals(d.id) ? 18 : 0)
+                    + ("mintsmith_grand_mintage".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.block + d.goldGain
+                    + (d.upgradeRandom ? 4 : 0)
+                    + ("mintsmith_tax".equals(d.id) ? 8 : 0)
+                    + ("mintsmith_overmint".equals(d.id) ? 20 : 0)
+                    + ("mintsmith_grand_mintage".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.burn * 4 + d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2
+                    + ("mintsmith_tax".equals(d.id) ? 18 : 0)
+                    + ("mintsmith_overmint".equals(d.id) ? 16 : 0)
+                    + ("mintsmith_grand_mintage".equals(d.id) ? 18 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -28377,6 +28870,15 @@ public final class GameCore {
         else if ("t_clocksmith_grand".equals(id)) bonus += professionCards + zeroCost * 2
                 + tempOrEchoDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_CYCLE)
                 + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_mintsmith_spark".equals(id)) bonus += Math.min(16, s.gold / 25) + burnDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_GOLD) + buildFocusDeckCards(s, BUILD_BREW) + professionCards;
+        else if ("t_mintsmith_mold".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + buildFocusDeckCards(s, BUILD_GOLD) * 2 + professionCards + Math.min(10, s.gold / 30);
+        else if ("t_mintsmith_tax".equals(id)) bonus += upgraded + buildFocusDeckCards(s, BUILD_BREW) * 2
+                + buildFocusDeckCards(s, BUILD_FORGE) + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_mintsmith_grand".equals(id)) bonus += professionCards + Math.min(16, s.gold / 25)
+                + burnDeckCards(s) + buildFocusDeckCards(s, BUILD_GOLD)
+                + buildFocusDeckCards(s, BUILD_BREW) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -28528,6 +29030,14 @@ public final class GameCore {
             if (focus == BUILD_FORGE && isAny(id, "t_clocksmith_gear", "t_clocksmith_grand")) return 3;
             if (focus == BUILD_OVERLOAD && isAny(id, "t_clocksmith_gear", "t_clocksmith_grand")) return 3;
             if (focus == BUILD_STATUS && isAny(id, "t_clocksmith_tick", "t_clocksmith_grand")) return 3;
+        }
+        if (isAny(id, "t_mintsmith_spark", "t_mintsmith_mold", "t_mintsmith_tax", "t_mintsmith_grand")) {
+            if (focus == BUILD_GOLD) return 3;
+            if (focus == BUILD_BREW && isAny(id, "t_mintsmith_spark", "t_mintsmith_tax", "t_mintsmith_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_mintsmith_mold", "t_mintsmith_grand")) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_mintsmith_tax", "t_mintsmith_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_mintsmith_tax", "t_mintsmith_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_mintsmith_spark", "t_mintsmith_tax", "t_mintsmith_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -29504,7 +30014,8 @@ public final class GameCore {
                 || (PROF_MOONSINGER.equals(s.profession) && "moon_lyre".equals(id))
                 || (PROF_SPY.equals(s.profession) && "cipher_ring".equals(id))
                 || (PROF_PERFUMER.equals(s.profession) && "scent_vial".equals(id))
-                || (PROF_CLOCKSMITH.equals(s.profession) && "clockwork_key".equals(id));
+                || (PROF_CLOCKSMITH.equals(s.profession) && "clockwork_key".equals(id))
+                || (PROF_MINTSMITH.equals(s.profession) && "mint_tongs".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -29572,6 +30083,7 @@ public final class GameCore {
                 || hasRelic(s, "cipher_ring") || hasRelic(s, "mastermind_crown")
                 || hasRelic(s, "scent_vial") || hasRelic(s, "bouquet_crown")
                 || hasRelic(s, "clockwork_key") || hasRelic(s, "chrono_crown")
+                || hasRelic(s, "mint_tongs") || hasRelic(s, "mint_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone") || hasRelic(s, "cascade_lattice")
@@ -29896,6 +30408,12 @@ public final class GameCore {
                 || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0
                 || d.bind > 0 || d.block > 0 || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_CLOCKSMITH))) {
+            return 4;
+        }
+        if (PROF_MINTSMITH.equals(s.profession) && (d.goldGain > 0 || d.goldDamage || d.goldBlock
+                || d.burn > 0 || d.detonateBurn || d.block > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || hybridFocusCount(d) >= 2 || d.profession.equals(PROF_MINTSMITH))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -30709,7 +31227,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass", "oath_seal", "moon_lyre", "cipher_ring", "scent_vial", "clockwork_key"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass", "oath_seal", "moon_lyre", "cipher_ring", "scent_vial", "clockwork_key", "mint_tongs"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -30766,6 +31284,7 @@ public final class GameCore {
         if (PROF_SPY.equals(s.profession)) return "cipher_ring";
         if (PROF_PERFUMER.equals(s.profession)) return "scent_vial";
         if (PROF_CLOCKSMITH.equals(s.profession)) return "clockwork_key";
+        if (PROF_MINTSMITH.equals(s.profession)) return "mint_tongs";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -31381,6 +31900,21 @@ public final class GameCore {
             return 2;
         }
         if (PROF_CLOCKSMITH.equals(s.profession) && "chrono_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_MINTSMITH.equals(s.profession) && ("mint_tongs".equals(id) || "ledger_stamp".equals(id)
+                || "treasury_key".equals(id) || "audit_crown".equals(id) || "cinder_spoon".equals(id)
+                || "solar_crucible".equals(id) || "scent_vial".equals(id) || "bouquet_crown".equals(id)
+                || "star_hammer".equals(id) || "star_crown".equals(id) || "tithe_box".equals(id)
+                || "kingmaker_seal".equals(id) || "bloodcoin_broach".equals(id) || "golden_throne".equals(id)
+                || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "split_anvil".equals(id)
+                || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bulwark_core".equals(id)
+                || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                || "starforge_lens".equals(id) || "resonance_prism".equals(id)
+                || "discipline_chart".equals(id) || "overload_etch".equals(id))) {
+            return 2;
+        }
+        if (PROF_MINTSMITH.equals(s.profession) && "mint_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -32093,6 +32627,17 @@ public final class GameCore {
         } else if ("chrono_crown".equals(id)) {
             addUpgradedDeckCard(s, "clocksmith_grand_chronogear");
             addUpgradedDeckCard(s, "clocksmith_tick");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("mint_tongs".equals(id)) {
+            addUpgradedDeckCard(s, "mintsmith_assay");
+            addUpgradedDeckCard(s, "mintsmith_spark");
+            s.gold += 45;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("mint_crown".equals(id)) {
+            addUpgradedDeckCard(s, "mintsmith_grand_mintage");
+            addUpgradedDeckCard(s, "mintsmith_spark");
+            s.gold += 80;
             upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
@@ -33147,6 +33692,19 @@ public final class GameCore {
         c = addCard("clocksmith_grand_chronogear", "终局时轮", "通用", 2, 2, 0, 10, 14, 9, 13, "造成伤害并获得格挡；按齿轮、节奏、回声、升级和过载追加终局收益。", "更高伤害、格挡和秒针返还。");
         c.profession = PROF_CLOCKSMITH; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "clocksmith_tick"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("mintsmith_spark", "铸火星", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、获得金币并施加燃灼；金币和热度提高收益。", "更高伤害、金币和燃灼。");
+        c.profession = PROF_MINTSMITH; c.draw = c.drawUp = 1; c.goldGain = 6; c.burn = 2; c.burnUp = 3; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("mintsmith_mold", "铸币模", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡和金币；金币、守势与燃灼加厚防线。", "更多格挡、金币和职业技充能。");
+        c.profession = PROF_MINTSMITH; c.draw = c.drawUp = 1; c.goldGain = 5; c.goldBlock = true; c.skillChargeGain = 1;
+        c = addCard("mintsmith_tax", "灼税令", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害、获得金币并施加燃灼、束缚和易伤；金币会转成追缴爆发。", "更高伤害、金币和压制。");
+        c.profession = PROF_MINTSMITH; c.goldGain = 8; c.burn = 3; c.burnUp = 4; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("mintsmith_assay", "验成色", "通用", 1, 1, 1, 0, 0, 7, 11, "获得格挡、金币、升级手牌并制造铸火星；金币和工坊会返还节奏。", "更多格挡、升级和返能窗口。");
+        c.profession = PROF_MINTSMITH; c.draw = c.drawUp = 1; c.goldGain = 8; c.burn = 2; c.burnUp = 3; c.createEcho = true; c.echoCardId = "mintsmith_spark"; c.upgradeRandom = true; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("mintsmith_overmint", "过载铸压", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、金币、升级和充能；过载、金币与燃灼会追加熔铸追击。", "更多格挡、金币和职业技充能。");
+        c.profession = PROF_MINTSMITH; c.draw = c.drawUp = 1; c.goldGain = 10; c.goldBlock = true; c.burn = 4; c.burnUp = 5; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "mintsmith_assay"; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("mintsmith_grand_mintage", "终局铸币", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡与金币；按模印、金币、燃灼、升级和过载追加终局收益。", "更高伤害、格挡和铸火返还。");
+        c.profession = PROF_MINTSMITH; c.draw = c.drawUp = 1; c.goldGain = 14; c.goldBlock = true; c.burn = 5; c.burnUp = 7; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "mintsmith_spark"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -33473,6 +34031,8 @@ public final class GameCore {
         addRelicDef("bouquet_crown", "馥冠", "获得升级终局馥爆；调香师药剂、治疗、异常、升级和稀有牌会滚动燃缚与馥爆追击。");
         addRelicDef("clockwork_key", "钟钥", "钟匠低费、抽牌、回声和升级牌更快推动职业技；释放后制造秒针敲击并返还节奏。");
         addRelicDef("chrono_crown", "时轮冠", "获得升级终局时轮；钟匠低费、回声、升级、控场和稀有牌会滚动印记、束缚与校时追击。");
+        addRelicDef("mint_tongs", "铸币钳", "铸币师金币、燃灼、格挡和升级牌更快推动职业技；释放后制造铸火星并返还金币。");
+        addRelicDef("mint_crown", "铸王冠", "获得升级终局铸币；铸币师金币、燃灼、升级和稀有牌会滚动束缚、易伤与熔铸追击。");
         addRelicDef("cascade_lattice", "连锁格栅", "连锁专修释放职业技时制造连锁牌并回充；抽牌、临时、升级和异常牌会滚动连锁收益。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
@@ -33785,6 +34345,9 @@ public final class GameCore {
         addTalent("t_clocksmith_tick", PROF_CLOCKSMITH, "秒针回路", "获得升级秒针敲击和齿轮校准；低费、抽牌和钟匠牌追加印记，并把齿轮转成穿透追击。");
         addTalent("t_clocksmith_spring", PROF_CLOCKSMITH, "发条防线", "获得生命和升级发条绷簧；技能、格挡、抽牌和钟匠牌提供额外防线与续航。");
         addTalent("t_clocksmith_gear", PROF_CLOCKSMITH, "齿轮校准", "获得升级回摆复位并升级牌组；回声、升级、临时和充能牌会扩张齿轮压力。");
+        addTalent("t_mintsmith_spark", PROF_MINTSMITH, "铸火回路", "获得升级铸火星和灼税令；金币、燃灼和铸币牌追加印记，并把模印转成穿透追击。");
+        addTalent("t_mintsmith_mold", PROF_MINTSMITH, "金模防线", "获得生命、金币和升级铸币模；格挡、金币格挡、技能和铸币牌提供额外防线。");
+        addTalent("t_mintsmith_tax", PROF_MINTSMITH, "验税流程", "获得升级验成色并升级牌组；升级、燃灼、控场和充能牌会扩张模印压力。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -33841,6 +34404,7 @@ public final class GameCore {
         addTalent("t_spy_grand", PROF_SPY, "终局窃局", "获得升级终局窃局；低费、金币、回声、升级与过载牌持续抽牌、升级并把线报转为潜袭裁切。");
         addTalent("t_perfumer_grand", PROF_PERFUMER, "终局馥爆", "获得升级终局馥爆；药剂、治疗、燃缚、升级与过载牌持续抽牌、升级并把香调转为馥爆裁切。");
         addTalent("t_clocksmith_grand", PROF_CLOCKSMITH, "终局时轮", "获得升级终局时轮；低费、回声、升级、临时与过载牌持续抽牌、返能并把齿轮转为校时裁切。");
+        addTalent("t_mintsmith_grand", PROF_MINTSMITH, "终局铸币", "获得升级终局铸币；金币、燃灼、升级、守势与过载牌持续返金、抽牌并把模印转为熔铸裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {

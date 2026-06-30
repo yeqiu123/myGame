@@ -270,6 +270,8 @@ public final class SimulationHarness {
             if (isPerfumerCard(d)) score += 14;
             if (GameCore.PROF_CLOCKSMITH.equals(s.profession) && isClocksmithSignal(d)) score += 14;
             if (isClocksmithCard(d)) score += 14;
+            if (GameCore.PROF_MINTSMITH.equals(s.profession) && isMintsmithSignal(d)) score += 14;
+            if (isMintsmithCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -453,6 +455,11 @@ public final class SimulationHarness {
                     || d.draw > 0 || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("chrono_crown") && (isClocksmithSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.bind > 0
+                    || d.vulnerable > 0)) score += 20;
+            if (s.relics.contains("mint_tongs") && (isMintsmithSignal(d) || d.goldGain > 0
+                    || d.goldDamage || d.goldBlock || d.burn > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("mint_crown") && (isMintsmithSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.goldGain > 0 || d.burn > 0
                     || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("rift_pass") && (isDrifterSignal(s, d) || isOffPoolCard(s, d)
                     || d.createEcho || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 18;
@@ -801,6 +808,16 @@ public final class SimulationHarness {
                     || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
                     || "resonance_prism".equals(id) || "discipline_chart".equals(id) || "overload_etch".equals(id)
                     || "cascade_lattice".equals(id))) score += 36;
+            if (GameCore.PROF_MINTSMITH.equals(s.profession) && ("mint_crown".equals(id) || "mint_tongs".equals(id)
+                    || "ledger_stamp".equals(id) || "treasury_key".equals(id) || "audit_crown".equals(id)
+                    || "cinder_spoon".equals(id) || "solar_crucible".equals(id) || "scent_vial".equals(id)
+                    || "bouquet_crown".equals(id) || "star_hammer".equals(id) || "star_crown".equals(id)
+                    || "tithe_box".equals(id) || "kingmaker_seal".equals(id) || "bloodcoin_broach".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "split_anvil".equals(id)
+                    || "markchain_seal".equals(id) || "pressure_gauge".equals(id) || "bulwark_core".equals(id)
+                    || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
+                    || "starforge_lens".equals(id) || "resonance_prism".equals(id)
+                    || "discipline_chart".equals(id) || "overload_etch".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("rift_pass".equals(id) || "junction_crown".equals(id)) score += 20;
@@ -809,6 +826,7 @@ public final class SimulationHarness {
             if ("cipher_ring".equals(id) || "mastermind_crown".equals(id)) score += 20;
             if ("scent_vial".equals(id) || "bouquet_crown".equals(id)) score += 20;
             if ("clockwork_key".equals(id) || "chrono_crown".equals(id)) score += 20;
+            if ("mint_tongs".equals(id) || "mint_crown".equals(id)) score += 20;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
@@ -1822,6 +1840,20 @@ public final class SimulationHarness {
                     if (tempOrEchoHandCards(s) >= 2 && ("clocksmith_gear".equals(c.id)
                             || "clocksmith_overclock".equals(c.id) || "clocksmith_grand_chronogear".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_MINTSMITH.equals(s.profession) && isMintsmithSignal(d)) {
+                    score += 15;
+                    if (d.goldGain > 0 || d.burn > 0 || d.goldBlock || d.upgradeRandom
+                            || d.bind > 0 || d.vulnerable > 0 || isMintsmithCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isMintsmithCard(d)
+                            || d.goldGain > 0 || d.burn > 0 || d.upgradeRandom)) score += 6;
+                    if (mintsmithPressure(s) >= 8 && ("mintsmith_tax".equals(c.id)
+                            || "mintsmith_overmint".equals(c.id) || "mintsmith_grand_mintage".equals(c.id))) score += 8;
+                    if ((s.gold >= 100 || burnDeckCards(s) >= 4 || upgradedDeckCards(s) >= 6)
+                            && (d.goldGain > 0 || d.burn > 0 || d.upgradeRandom
+                            || d.skillChargeGain > 0 || isMintsmithCard(d))) score += 5;
+                    if (s.gold >= 120 && ("mintsmith_mold".equals(c.id)
+                            || "mintsmith_assay".equals(c.id) || "mintsmith_grand_mintage".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -2153,6 +2185,14 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_clocksmith_grand") && (d.cost == 0 || d.draw > 0
                         || d.createEcho || c.temp || d.upgradeRandom || d.skillChargeGain > 0
                         || d.rarity == 2 || isClocksmithCard(d))) score += 14;
+                if (s.talents.contains("t_mintsmith_spark") && (d.goldGain > 0 || d.burn > 0
+                        || d.draw > 0 || d.vulnerable > 0 || isMintsmithCard(d))) score += 12;
+                if (s.talents.contains("t_mintsmith_mold") && (d.block > 0 || d.goldBlock
+                        || d.type == 1 || d.skillChargeGain > 0 || isMintsmithCard(d))) score += 12;
+                if (s.talents.contains("t_mintsmith_tax") && (d.upgradeRandom || d.burn > 0
+                        || d.goldGain > 0 || d.bind > 0 || d.skillChargeGain > 0 || isMintsmithCard(d))) score += 12;
+                if (s.talents.contains("t_mintsmith_grand") && (d.goldGain > 0 || d.burn > 0
+                        || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2 || isMintsmithCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2252,6 +2292,9 @@ public final class SimulationHarness {
                 if ("clocksmith_grand_chronogear".equals(c.id) || "clocksmith_overclock".equals(c.id)) score += 18;
                 if ("clocksmith_tick".equals(c.id) || "clocksmith_spring".equals(c.id)
                         || "clocksmith_gear".equals(c.id) || "clocksmith_rewind".equals(c.id)) score += 14;
+                if ("mintsmith_grand_mintage".equals(c.id) || "mintsmith_overmint".equals(c.id)) score += 18;
+                if ("mintsmith_spark".equals(c.id) || "mintsmith_mold".equals(c.id)
+                        || "mintsmith_tax".equals(c.id) || "mintsmith_assay".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if (isCascadeSignal(d)) score += 10 + Math.min(12, s.cardsPlayedThisTurn * 2);
@@ -2454,6 +2497,11 @@ public final class SimulationHarness {
                 if (s.relics.contains("chrono_crown") && (isClocksmithSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
                         || d.bind > 0 || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("mint_tongs") && (isMintsmithSignal(d) || c.temp
+                        || d.goldGain > 0 || d.burn > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("mint_crown") && (isMintsmithSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                        || d.goldGain > 0 || d.burn > 0 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2883,6 +2931,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_MINTSMITH.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean burnWindow = target >= 0 && (s.enemies.get(target).burn >= 4
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || burnWindow
+                    || s.gold >= 120 || burnDeckCards(s) >= 4 || upgradedDeckCards(s) >= 6
+                    || mintsmithPressure(s) >= 7 || s.block >= 18
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2919,7 +2978,8 @@ public final class SimulationHarness {
                 || "t_moonsinger_grand".equals(id) || "t_spy_contact".equals(id)
                 || "t_spy_grand".equals(id) || "t_perfumer_note".equals(id)
                 || "t_perfumer_grand".equals(id) || "t_clocksmith_tick".equals(id)
-                || "t_clocksmith_grand".equals(id));
+                || "t_clocksmith_grand".equals(id) || "t_mintsmith_spark".equals(id)
+                || "t_mintsmith_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -3274,6 +3334,7 @@ public final class SimulationHarness {
                 || s.relics.contains("cipher_ring") || s.relics.contains("mastermind_crown")
                 || s.relics.contains("scent_vial") || s.relics.contains("bouquet_crown")
                 || s.relics.contains("clockwork_key") || s.relics.contains("chrono_crown")
+                || s.relics.contains("mint_tongs") || s.relics.contains("mint_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone") || s.relics.contains("cascade_lattice");
     }
@@ -4011,6 +4072,34 @@ public final class SimulationHarness {
         return pressure;
     }
 
+    private static boolean isMintsmithSignal(GameCore.CardDef d) {
+        return d != null && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.burn > 0
+                || d.detonateBurn || d.burnToBlock || d.block > 0 || d.upgradeRandom
+                || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0 || isHybridCore(d)
+                || GameCore.PROF_MINTSMITH.equals(d.profession) || GameCore.PROF_MERCHANT.equals(d.profession)
+                || GameCore.PROF_TREASURER.equals(d.profession) || GameCore.PROF_ALCHEMIST.equals(d.profession)
+                || GameCore.PROF_PERFUMER.equals(d.profession) || GameCore.PROF_STARFORGER.equals(d.profession));
+    }
+
+    private static boolean isMintsmithCard(GameCore.CardDef d) {
+        return d != null && ("mintsmith_spark".equals(d.id) || "mintsmith_mold".equals(d.id)
+                || "mintsmith_tax".equals(d.id) || "mintsmith_assay".equals(d.id)
+                || "mintsmith_overmint".equals(d.id) || "mintsmith_grand_mintage".equals(d.id));
+    }
+
+    private static int mintsmithPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.burn * 2 + e.vulnerable * 4 + e.bind * 3 + e.mark * 2;
+            }
+        }
+        pressure += Math.min(6, s.gold / 25);
+        pressure += Math.min(5, burnDeckCards(s));
+        pressure += Math.min(5, upgradedDeckCards(s) / 2);
+        return pressure;
+    }
+
     private static int archivistEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -4244,6 +4333,15 @@ public final class SimulationHarness {
         for (GameCore.Card c : s.deck) {
             GameCore.CardDef d = GameCore.card(c.id);
             if (d != null && d.cost == 0) count++;
+        }
+        return count;
+    }
+
+    private static int burnDeckCards(GameCore.State s) {
+        int count = 0;
+        for (GameCore.Card c : s.deck) {
+            GameCore.CardDef d = GameCore.card(c.id);
+            if (d != null && (d.burn > 0 || d.detonateBurn || d.burnToBlock)) count++;
         }
         return count;
     }
