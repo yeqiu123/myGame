@@ -268,6 +268,8 @@ public final class SimulationHarness {
             if (isSpyCard(d)) score += 14;
             if (GameCore.PROF_PERFUMER.equals(s.profession) && isPerfumerSignal(d)) score += 14;
             if (isPerfumerCard(d)) score += 14;
+            if (GameCore.PROF_CLOCKSMITH.equals(s.profession) && isClocksmithSignal(d)) score += 14;
+            if (isClocksmithCard(d)) score += 14;
             if (isHybridCore(d)) score += 14;
             if (isConfluenceCore(d)) score += 16;
             if ("tuner_grand_cadence".equals(d.id) || "tuner_loop".equals(d.id)) score += 12;
@@ -446,6 +448,11 @@ public final class SimulationHarness {
                     || d.goldDamage || d.goldBlock || d.block > 0 || d.draw > 0 || d.skillChargeGain > 0)) score += 18;
             if (s.relics.contains("audit_crown") && (isTreasurerSignal(d) || d.rarity == 2
                     || d.skillChargeGain > 0 || d.upgradeRandom || d.goldGain > 0 || d.bind > 0
+                    || d.vulnerable > 0)) score += 20;
+            if (s.relics.contains("clockwork_key") && (isClocksmithSignal(d) || d.cost == 0
+                    || d.draw > 0 || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0)) score += 18;
+            if (s.relics.contains("chrono_crown") && (isClocksmithSignal(d) || d.rarity == 2
+                    || d.skillChargeGain > 0 || d.upgradeRandom || d.bind > 0
                     || d.vulnerable > 0)) score += 20;
             if (s.relics.contains("rift_pass") && (isDrifterSignal(s, d) || isOffPoolCard(s, d)
                     || d.createEcho || d.draw > 0 || d.block > 0 || d.skillChargeGain > 0)) score += 18;
@@ -785,6 +792,15 @@ public final class SimulationHarness {
                     || "confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id) || "discipline_chart".equals(id)
                     || "overload_etch".equals(id))) score += 36;
+            if (GameCore.PROF_CLOCKSMITH.equals(s.profession) && ("chrono_crown".equals(id) || "clockwork_key".equals(id)
+                    || "tuning_fork".equals(id) || "conductor_baton".equals(id) || "hourglass_charm".equals(id)
+                    || "time_engine".equals(id) || "gyro_wrench".equals(id) || "clockwork_core".equals(id)
+                    || "echo_prism".equals(id) || "echo_ledger".equals(id) || "mirror_lens".equals(id)
+                    || "mirror_crown".equals(id) || "fate_lantern".equals(id) || "fate_crown".equals(id)
+                    || "mirror_anvil".equals(id) || "polished_cog".equals(id) || "split_anvil".equals(id)
+                    || "prism_gear".equals(id) || "mosaic_core".equals(id) || "starforge_lens".equals(id)
+                    || "resonance_prism".equals(id) || "discipline_chart".equals(id) || "overload_etch".equals(id)
+                    || "cascade_lattice".equals(id))) score += 36;
             if ("confluence_map".equals(id) || "prism_gear".equals(id) || "mosaic_core".equals(id)
                     || "starforge_lens".equals(id) || "resonance_prism".equals(id)) score += 28;
             if ("rift_pass".equals(id) || "junction_crown".equals(id)) score += 20;
@@ -792,6 +808,7 @@ public final class SimulationHarness {
             if ("moon_lyre".equals(id) || "eclipse_crown".equals(id)) score += 20;
             if ("cipher_ring".equals(id) || "mastermind_crown".equals(id)) score += 20;
             if ("scent_vial".equals(id) || "bouquet_crown".equals(id)) score += 20;
+            if ("clockwork_key".equals(id) || "chrono_crown".equals(id)) score += 20;
             if ("split_anvil".equals(id) && (GameCore.PROF_WEAVER.equals(s.profession) || GameCore.PROF_INSCRIBER.equals(s.profession)
                     || GameCore.PROF_ALCHEMIST.equals(s.profession) || GameCore.PROF_HEXER.equals(s.profession)
                     || GameCore.PROF_RUNEBLADE.equals(s.profession) || GameCore.PROF_TACTICIAN.equals(s.profession)
@@ -1791,6 +1808,20 @@ public final class SimulationHarness {
                     if (s.hp < s.maxHp && ("perfumer_mist".equals(c.id)
                             || "perfumer_distill".equals(c.id) || "perfumer_grand_bloom".equals(c.id))) score += 8;
                 }
+                if (GameCore.PROF_CLOCKSMITH.equals(s.profession) && (isClocksmithSignal(d) || c.temp)) {
+                    score += 15;
+                    if (d.cost == 0 || d.draw > 0 || d.createEcho || d.upgradeRandom
+                            || d.bind > 0 || d.vulnerable > 0 || isClocksmithCard(d)) score += 5;
+                    if (s.professionCharge >= 3 && (d.skillChargeGain > 0 || isClocksmithCard(d)
+                            || d.cost == 0 || d.createEcho || d.upgradeRandom)) score += 6;
+                    if (clocksmithPressure(s) >= 8 && ("clocksmith_rewind".equals(c.id)
+                            || "clocksmith_overclock".equals(c.id) || "clocksmith_grand_chronogear".equals(c.id))) score += 8;
+                    if ((tempOrEchoHandCards(s) >= 2 || zeroCostDeckCards(s) >= 3 || upgradedDeckCards(s) >= 6)
+                            && (d.draw > 0 || d.cost == 0 || d.createEcho || d.upgradeRandom
+                            || d.skillChargeGain > 0 || isClocksmithCard(d))) score += 5;
+                    if (tempOrEchoHandCards(s) >= 2 && ("clocksmith_gear".equals(c.id)
+                            || "clocksmith_overclock".equals(c.id) || "clocksmith_grand_chronogear".equals(c.id))) score += 8;
+                }
                 if (s.talents.contains("t_duelist_gambit") && s.cardsPlayedThisTurn >= 3) score += 10;
                 if (s.talents.contains("t_alchemist_distiller") && d.createPotion) score += 12;
                 if (s.talents.contains("t_weaver_quicksilver") && c.temp) score += 10;
@@ -2113,6 +2144,15 @@ public final class SimulationHarness {
                 if (s.talents.contains("t_perfumer_grand") && (d.createPotion || d.heal > 0
                         || d.burn > 0 || d.bind > 0 || d.upgradeRandom || d.skillChargeGain > 0
                         || d.rarity == 2 || isPerfumerCard(d))) score += 14;
+                if (s.talents.contains("t_clocksmith_tick") && (d.cost == 0 || d.draw > 0
+                        || d.energyGain > 0 || d.vulnerable > 0 || isClocksmithCard(d))) score += 12;
+                if (s.talents.contains("t_clocksmith_spring") && (d.block > 0 || d.draw > 0
+                        || d.type == 1 || d.skillChargeGain > 0 || isClocksmithCard(d))) score += 12;
+                if (s.talents.contains("t_clocksmith_gear") && (d.createEcho || c.temp || d.upgradeRandom
+                        || c.upgraded || d.skillChargeGain > 0 || isClocksmithCard(d))) score += 12;
+                if (s.talents.contains("t_clocksmith_grand") && (d.cost == 0 || d.draw > 0
+                        || d.createEcho || c.temp || d.upgradeRandom || d.skillChargeGain > 0
+                        || d.rarity == 2 || isClocksmithCard(d))) score += 14;
                 if (s.talents.contains("t_shared_apothecary") && d.createPotion) score += 7;
                 if ("warden_aegisline".equals(c.id) && s.block >= 20) score += 14;
                 if ("duelist_bladesong".equals(c.id) && s.cardsPlayedThisTurn >= 3) score += 16;
@@ -2209,6 +2249,9 @@ public final class SimulationHarness {
                 if ("treasurer_grand_balance".equals(c.id) || "treasurer_overledger".equals(c.id)) score += 18;
                 if ("treasurer_entry".equals(c.id) || "treasurer_vault".equals(c.id)
                         || "treasurer_audit".equals(c.id) || "treasurer_collection".equals(c.id)) score += 14;
+                if ("clocksmith_grand_chronogear".equals(c.id) || "clocksmith_overclock".equals(c.id)) score += 18;
+                if ("clocksmith_tick".equals(c.id) || "clocksmith_spring".equals(c.id)
+                        || "clocksmith_gear".equals(c.id) || "clocksmith_rewind".equals(c.id)) score += 14;
                 if (isHybridCore(d)) score += 14;
                 if (isConfluenceCore(d)) score += 16 + s.confluenceChain * 2;
                 if (isCascadeSignal(d)) score += 10 + Math.min(12, s.cardsPlayedThisTurn * 2);
@@ -2406,6 +2449,11 @@ public final class SimulationHarness {
                 if (s.relics.contains("bouquet_crown") && (isPerfumerSignal(d) || c.temp
                         || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
                         || d.burn > 0 || d.vulnerable > 0)) score += 16;
+                if (s.relics.contains("clockwork_key") && (isClocksmithSignal(d) || c.temp
+                        || d.cost == 0 || d.draw > 0 || d.createEcho || d.skillChargeGain > 0)) score += 14;
+                if (s.relics.contains("chrono_crown") && (isClocksmithSignal(d) || c.temp
+                        || d.skillChargeGain > 0 || d.rarity == 2 || d.upgradeRandom
+                        || d.bind > 0 || d.vulnerable > 0)) score += 16;
                 if (d.targetEnemy && target < 0) continue;
                 if (score > bestScore) {
                     bestScore = score;
@@ -2824,6 +2872,17 @@ public final class SimulationHarness {
                 return true;
             }
         }
+        if (GameCore.PROF_CLOCKSMITH.equals(s.profession)) {
+            int target = firstEnemy(s);
+            boolean timingWindow = target >= 0 && (s.enemies.get(target).mark >= 2
+                    || s.enemies.get(target).bind >= 2 || s.enemies.get(target).vulnerable > 0);
+            if (s.professionCharge >= 4 || overload >= 1 || timingWindow
+                    || zeroCostDeckCards(s) >= 3 || tempOrEchoHandCards(s) >= 2 || upgradedDeckCards(s) >= 6
+                    || clocksmithPressure(s) >= 7 || s.cardsPlayedThisTurn >= 4
+                    || s.combatKind == 'E' || s.combatKind == 'B') {
+                return true;
+            }
+        }
         if (overload >= 3) {
             return true;
         }
@@ -2859,7 +2918,8 @@ public final class SimulationHarness {
                 || "t_oathkeeper_grand".equals(id) || "t_moonsinger_newmoon".equals(id)
                 || "t_moonsinger_grand".equals(id) || "t_spy_contact".equals(id)
                 || "t_spy_grand".equals(id) || "t_perfumer_note".equals(id)
-                || "t_perfumer_grand".equals(id));
+                || "t_perfumer_grand".equals(id) || "t_clocksmith_tick".equals(id)
+                || "t_clocksmith_grand".equals(id));
     }
 
     private static int buildCoreFocus(String id) {
@@ -3213,6 +3273,7 @@ public final class SimulationHarness {
                 || s.relics.contains("moon_lyre") || s.relics.contains("eclipse_crown")
                 || s.relics.contains("cipher_ring") || s.relics.contains("mastermind_crown")
                 || s.relics.contains("scent_vial") || s.relics.contains("bouquet_crown")
+                || s.relics.contains("clockwork_key") || s.relics.contains("chrono_crown")
                 || s.relics.contains("bulwark_core") || s.relics.contains("salvage_hook")
                 || s.relics.contains("hybrid_keystone") || s.relics.contains("cascade_lattice");
     }
@@ -3923,6 +3984,33 @@ public final class SimulationHarness {
         return pressure;
     }
 
+    private static boolean isClocksmithSignal(GameCore.CardDef d) {
+        return d != null && (d.cost == 0 || d.draw > 0 || d.energyGain > 0 || d.createEcho
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0 || d.bind > 0
+                || d.block > 0 || isHybridCore(d) || GameCore.PROF_CLOCKSMITH.equals(d.profession)
+                || GameCore.PROF_TUNER.equals(d.profession) || GameCore.PROF_CHRONOMANCER.equals(d.profession)
+                || GameCore.PROF_MACHINIST.equals(d.profession) || GameCore.PROF_ARRAYIST.equals(d.profession));
+    }
+
+    private static boolean isClocksmithCard(GameCore.CardDef d) {
+        return d != null && ("clocksmith_tick".equals(d.id) || "clocksmith_spring".equals(d.id)
+                || "clocksmith_gear".equals(d.id) || "clocksmith_rewind".equals(d.id)
+                || "clocksmith_overclock".equals(d.id) || "clocksmith_grand_chronogear".equals(d.id));
+    }
+
+    private static int clocksmithPressure(GameCore.State s) {
+        int pressure = 0;
+        for (GameCore.Enemy e : s.enemies) {
+            if (e.hp > 0) {
+                pressure += e.mark * 3 + e.vulnerable * 4 + e.bind * 3 + e.burn;
+            }
+        }
+        pressure += Math.min(6, zeroCostDeckCards(s));
+        pressure += Math.min(5, tempOrEchoHandCards(s) + tempOrEchoDeckCards(s) / 2);
+        pressure += Math.min(5, upgradedDeckCards(s) / 2);
+        return pressure;
+    }
+
     private static int archivistEnemyPressure(GameCore.State s) {
         int pressure = 0;
         for (GameCore.Enemy e : s.enemies) {
@@ -4147,6 +4235,15 @@ public final class SimulationHarness {
         int count = 0;
         for (GameCore.Card c : s.deck) {
             if (c.upgraded) count++;
+        }
+        return count;
+    }
+
+    private static int zeroCostDeckCards(GameCore.State s) {
+        int count = 0;
+        for (GameCore.Card c : s.deck) {
+            GameCore.CardDef d = GameCore.card(c.id);
+            if (d != null && d.cost == 0) count++;
         }
         return count;
     }

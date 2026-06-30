@@ -147,6 +147,7 @@ public final class GameCore {
     public static final String PROF_MOONSINGER = "月咏者";
     public static final String PROF_SPY = "密探";
     public static final String PROF_PERFUMER = "调香师";
+    public static final String PROF_CLOCKSMITH = "钟匠";
     public static final String[] PROFESSIONS = {
             PROF_WARDEN, PROF_DUELIST, PROF_ALCHEMIST, PROF_RANGER,
             PROF_ARCANIST, PROF_MERCHANT, PROF_BLOODBOUND, PROF_WEAVER,
@@ -158,7 +159,7 @@ public final class GameCore {
             PROF_WITCH, PROF_SHIFTER, PROF_FATESEER, PROF_TIDECALLER, PROF_FROSTBINDER, PROF_PLAGUEDOCTOR,
             PROF_ARCHIVIST, PROF_VOIDNAVIGATOR, PROF_RELICSMITH, PROF_BEASTMASTER, PROF_DRAGONBINDER, PROF_SOULBINDER,
             PROF_STARFORGER, PROF_PATHFINDER, PROF_ARRAYIST, PROF_GAMBITER, PROF_GRAVEKEEPER, PROF_TREASURER,
-            PROF_DRIFTER, PROF_OATHKEEPER, PROF_MOONSINGER, PROF_SPY, PROF_PERFUMER
+            PROF_DRIFTER, PROF_OATHKEEPER, PROF_MOONSINGER, PROF_SPY, PROF_PERFUMER, PROF_CLOCKSMITH
     };
 
     public static final ArrayList<CardDef> CARD_LIBRARY = new ArrayList<>();
@@ -894,6 +895,7 @@ public final class GameCore {
         if (PROF_MOONSINGER.equals(profession)) return "月蚀";
         if (PROF_SPY.equals(profession)) return "潜袭";
         if (PROF_PERFUMER.equals(profession)) return "馥爆";
+        if (PROF_CLOCKSMITH.equals(profession)) return "校时";
         return "职业技";
     }
 
@@ -987,6 +989,7 @@ public final class GameCore {
         if (PROF_MOONSINGER.equals(profession)) return "满充能：消耗月相月蚀，按检视、抽牌、回声、升级、异常和过载造成穿透，抽牌、返能、治疗并制造月咏牌。";
         if (PROF_SPY.equals(profession)) return "满充能：消耗线报潜袭，按低费连打、金币、临时牌、标记、升级和过载造成穿透，获得金币、抽牌、格挡并制造密探牌。";
         if (PROF_PERFUMER.equals(profession)) return "满充能：消耗香调馥爆，按药剂、治疗、燃缚异常、抽牌、升级和过载造成穿透，治疗、抽牌、格挡并制造调香牌。";
+        if (PROF_CLOCKSMITH.equals(profession)) return "满充能：消耗齿轮校时，按低费连打、抽牌、升级、临时牌和过载造成穿透，抽牌、返能、升级并制造钟匠牌。";
         return "选择职业后可用。";
     }
 
@@ -2963,6 +2966,48 @@ public final class GameCore {
             addQuestProgress(s, QUEST_COMBO, 1 + Math.min(3, tempo / 4));
             addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
             s.professionCharge = Math.max(1, aroma / 2);
+        } else if (PROF_CLOCKSMITH.equals(s.profession)) {
+            int gears = Math.max(1, s.professionCharge);
+            int tempo = Math.min(24, zeroCostDeckCards(s) * 2 + drawDeckCards(s)
+                    + s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE) * 2);
+            int forge = Math.min(22, upgradedCardCount(s) / 2 + buildFocusDeckCards(s, BUILD_FORGE) * 2);
+            int echo = Math.min(18, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int guard = Math.min(16, buildFocusDeckCards(s, BUILD_GUARD) + s.block / 8);
+            int pressure = target == null ? bestEnemyPressure(s) / 2
+                    : target.mark * 3 + target.vulnerable * 3 + target.bind * 2;
+            int damage = 9 + s.act * 3 + Math.min(104, gears * 4 + tempo * 5
+                    + forge * 4 + echo * 4 + guard * 2 + pressure) + overload * 8;
+            if (target != null) {
+                damageEnemy(s, target, damage, true);
+                target.mark += 2 + Math.min(5, gears / 4 + tempo / 5 + forge / 5);
+                target.vulnerable += 1 + Math.min(3, overload / 3 + forge / 6);
+                target.bind += Math.min(3, echo / 5 + guard / 5) + s.bindPower / 2;
+            }
+            draw(s, 1 + Math.min(4, tempo / 5 + gears / 5 + echo / 5) + overload / 4);
+            gainBlock(s, 5 + s.act * 2 + Math.min(38, guard * 3 + forge * 2 + gears * 2) + overload * 2);
+            upgradeRandomHandCard(s);
+            if (tempo >= 5 || forge >= 5 || overload >= 2) {
+                s.energy++;
+            }
+            Card tick = new Card(overload >= 4 || hasTalent(s, "t_clocksmith_grand")
+                    ? "clocksmith_grand_chronogear" : "clocksmith_tick");
+            tick.temp = true;
+            tick.upgraded = gears >= 5 || hasTalent(s, "t_clocksmith_tick");
+            addToHand(s, tick);
+            if (hasTalent(s, "t_clocksmith_grand")) {
+                Card over = new Card("clocksmith_overclock");
+                over.temp = true;
+                over.upgraded = true;
+                addToHand(s, over);
+                addProfessionSkillCharge(s, 1 + overload / 2);
+            }
+            addQuestProgress(s, QUEST_COMBO, 1 + Math.min(3, tempo / 4));
+            addQuestProgress(s, QUEST_FORGE, 1 + Math.min(3, forge / 5));
+            addQuestProgress(s, QUEST_ECHO, 1 + Math.min(3, echo / 4));
+            addQuestProgress(s, QUEST_MARK, 1 + Math.min(3, pressure / 12));
+            addQuestProgress(s, QUEST_OVERLOAD, Math.max(1, overload));
+            s.professionCharge = Math.max(1, gears / 2);
         }
         applyProfessionSkillResonance(s, target, overload);
         applySkillSpecOnUse(s, target, overload);
@@ -4502,6 +4547,9 @@ public final class GameCore {
         if (PROF_PERFUMER.equals(profession)) {
             return "用药剂、治疗、燃灼束缚和抽牌积累香调，把续航回合转成馥爆爆发。适合炼调、异常、血契、循环和过载构筑。";
         }
+        if (PROF_CLOCKSMITH.equals(profession)) {
+            return "用低费连打、抽牌、临时牌和升级积累齿轮，把节奏运营转成校时爆发。适合循环、工坊、回声、守势和过载构筑。";
+        }
         return "尚未选择职业。";
     }
 
@@ -4670,6 +4718,9 @@ public final class GameCore {
         }
         if (PROF_PERFUMER.equals(profession)) {
             return 0xfff2a7c8;
+        }
+        if (PROF_CLOCKSMITH.equals(profession)) {
+            return 0xffb8d27a;
         }
         return 0xffd6c07a;
     }
@@ -5189,6 +5240,13 @@ public final class GameCore {
             s.maxHp += 2;
             s.hp += 2;
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
+        } else if (PROF_CLOCKSMITH.equals(profession)) {
+            s.deck.add(new Card("clocksmith_tick"));
+            s.deck.add(new Card("clocksmith_spring"));
+            upgradeRandomDeckCard(s);
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 1);
         }
     }
 
@@ -5265,6 +5323,7 @@ public final class GameCore {
         else if (PROF_MOONSINGER.equals(profession)) upgradeDeckCard(s, "moonsinger_newmoon");
         else if (PROF_SPY.equals(profession)) upgradeDeckCard(s, "spy_contact");
         else if (PROF_PERFUMER.equals(profession)) upgradeDeckCard(s, "perfumer_note");
+        else if (PROF_CLOCKSMITH.equals(profession)) upgradeDeckCard(s, "clocksmith_tick");
     }
 
     private static void applyProfessionMasteryKit(State s, String profession) {
@@ -5517,6 +5576,12 @@ public final class GameCore {
                 s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
             }
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if (PROF_CLOCKSMITH.equals(profession)) {
+            addUpgradedDeckCard(s, "clocksmith_gear");
+            upgradeRandomDeckCard(s);
+            s.maxHp += 2;
+            s.hp += 2;
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
         }
     }
 
@@ -5576,6 +5641,7 @@ public final class GameCore {
         if (PROF_MOONSINGER.equals(profession)) return "moonsinger_overmoon";
         if (PROF_SPY.equals(profession)) return "spy_overcover";
         if (PROF_PERFUMER.equals(profession)) return "perfumer_overaroma";
+        if (PROF_CLOCKSMITH.equals(profession)) return "clocksmith_overclock";
         return "forge_signal";
     }
 
@@ -6395,6 +6461,22 @@ public final class GameCore {
         } else if ("t_perfumer_grand".equals(id)) {
             addUpgradedDeckCard(s, "perfumer_grand_bloom");
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("t_clocksmith_tick".equals(id)) {
+            addUpgradedDeckCard(s, "clocksmith_tick");
+            addUpgradedDeckCard(s, "clocksmith_gear");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_clocksmith_spring".equals(id)) {
+            addUpgradedDeckCard(s, "clocksmith_spring");
+            s.maxHp += 3;
+            s.hp += 3;
+            upgradeRandomDeckCard(s);
+        } else if ("t_clocksmith_gear".equals(id)) {
+            addUpgradedDeckCard(s, "clocksmith_rewind");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("t_clocksmith_grand".equals(id)) {
+            addUpgradedDeckCard(s, "clocksmith_grand_chronogear");
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         }
     }
 
@@ -6848,7 +6930,7 @@ public final class GameCore {
                 || "t_gravekeeper_grand".equals(id) || "t_treasurer_grand".equals(id)
                 || "t_drifter_grand".equals(id) || "t_oathkeeper_grand".equals(id)
                 || "t_moonsinger_grand".equals(id) || "t_spy_grand".equals(id)
-                || "t_perfumer_grand".equals(id);
+                || "t_perfumer_grand".equals(id) || "t_clocksmith_grand".equals(id);
     }
 
     private static boolean isCapstoneCard(String id) {
@@ -6879,7 +6961,7 @@ public final class GameCore {
                 || "gravekeeper_grand_requiem".equals(id) || "treasurer_grand_balance".equals(id)
                 || "drifter_grand_junction".equals(id) || "oathkeeper_grand_judgment".equals(id)
                 || "moonsinger_grand_eclipse".equals(id) || "spy_grand_heist".equals(id)
-                || "perfumer_grand_bloom".equals(id);
+                || "perfumer_grand_bloom".equals(id) || "clocksmith_grand_chronogear".equals(id);
     }
 
     private static boolean isCapstoneRelic(String id) {
@@ -6908,7 +6990,7 @@ public final class GameCore {
                 || "requiem_crown".equals(id) || "audit_crown".equals(id)
                 || "junction_crown".equals(id) || "judgment_crown".equals(id)
                 || "eclipse_crown".equals(id) || "mastermind_crown".equals(id)
-                || "bouquet_crown".equals(id);
+                || "bouquet_crown".equals(id) || "chrono_crown".equals(id);
     }
 
     private static void rollBoons(State s) {
@@ -7581,6 +7663,12 @@ public final class GameCore {
                 || d.profession.equals(PROF_PERFUMER) || d.profession.equals(PROF_ALCHEMIST)
                 || d.profession.equals(PROF_CHEF) || d.profession.equals(PROF_WITCH)
                 || d.profession.equals(PROF_PLAGUEDOCTOR))) amount++;
+        else if (PROF_CLOCKSMITH.equals(s.profession) && d != null && (d.cost == 0 || d.draw > 0
+                || d.energyGain > 0 || d.skillChargeGain > 0 || d.upgradeRandom || d.scry > 0
+                || d.createEcho || d.block > 0 || d.vulnerable > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_CLOCKSMITH) || d.profession.equals(PROF_CHRONOMANCER)
+                || d.profession.equals(PROF_MACHINIST) || d.profession.equals(PROF_TUNER)
+                || d.profession.equals(PROF_ARRAYIST))) amount++;
         addProfessionSkillCharge(s, amount);
     }
 
@@ -10284,6 +10372,41 @@ public final class GameCore {
                 target.vulnerable += 1;
             }
         }
+        if (hasRelic(s, "clockwork_key") && PROF_CLOCKSMITH.equals(s.profession)) {
+            int tempo = zeroCostDeckCards(s) + s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE);
+            int forge = upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE);
+            int echo = tempOrEchoDeckCards(s) + tempOrEchoHandCount(s) + buildFocusDeckCards(s, BUILD_ECHO);
+            draw(s, 1);
+            gainBlock(s, 5 + s.act + Math.min(22, s.professionCharge * 2 + tempo * 2 + echo * 2));
+            addProfessionSkillCharge(s, 2 + Math.min(2, s.professionCharge / 3 + tempo / 5 + forge / 5));
+            Card tick = new Card("clocksmith_tick");
+            tick.temp = true;
+            tick.upgraded = true;
+            addToHand(s, tick);
+            if (target != null) {
+                target.mark += 2;
+                target.vulnerable += 1;
+                damageEnemy(s, target, 5 + s.act * 2 + Math.min(32, target.mark * 2
+                        + s.professionCharge * 2 + tempo * 2 + forge * 2), true);
+            }
+        }
+        if (hasRelic(s, "chrono_crown") && PROF_CLOCKSMITH.equals(s.profession)) {
+            Card over = new Card("clocksmith_overclock");
+            over.temp = true;
+            over.upgraded = true;
+            addToHand(s, over);
+            draw(s, 1);
+            upgradeRandomHandCard(s);
+            if (s.professionCharge >= 5 || zeroCostDeckCards(s) >= 3 || tempOrEchoHandCount(s) >= 2
+                    || upgradedCardCount(s) >= 6 || professionSkillOverload(s) >= 2) {
+                s.energy++;
+            }
+            if (target != null) {
+                target.mark += 3;
+                target.vulnerable += 1;
+                target.bind += 1 + s.bindPower / 2;
+            }
+        }
     }
 
     private static void addProfessionSkillCharge(State s, int amount) {
@@ -10417,6 +10540,9 @@ public final class GameCore {
         if (hasRelic(s, "scent_vial") && PROF_PERFUMER.equals(s.profession) && amount > 0
                 && (s.professionCharge >= 3 || s.potions.size() > 0 || potionCards(s) >= 3
                 || healingDeckCards(s) >= 3 || firstLiving(s) != null && firstLiving(s).burn > 0)) amount++;
+        if (hasRelic(s, "clockwork_key") && PROF_CLOCKSMITH.equals(s.profession) && amount > 0
+                && (s.professionCharge >= 3 || zeroCostDeckCards(s) >= 3 || drawDeckCards(s) >= 4
+                || upgradedCardCount(s) >= 5 || tempOrEchoHandCount(s) >= 2)) amount++;
         if (hasRelic(s, "bulwark_core") && amount > 0 && (s.block >= 18 || s.steelEngine >= 2)) amount++;
         s.professionSkillCharge = Math.max(0, Math.min(PROF_SKILL_MAX + PROF_SKILL_OVERLOAD_MAX, s.professionSkillCharge + amount));
     }
@@ -12615,6 +12741,40 @@ public final class GameCore {
                 caustic.temp = true;
                 caustic.upgraded = true;
                 addToHand(s, caustic);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (PROF_CLOCKSMITH.equals(s.profession) && s.turn == 1) {
+            int tempo = Math.min(12, zeroCostDeckCards(s) * 2 + drawDeckCards(s) + buildFocusDeckCards(s, BUILD_CYCLE));
+            int forge = Math.min(10, upgradedCardCount(s) / 2 + buildFocusDeckCards(s, BUILD_FORGE));
+            int echo = Math.min(8, tempOrEchoDeckCards(s) + buildFocusDeckCards(s, BUILD_ECHO));
+            addProfessionSkillCharge(s, 2);
+            s.professionCharge += 2 + Math.min(3, tempo / 3 + forge / 3 + echo / 3);
+            gainBlock(s, 5 + s.act + Math.min(14, tempo * 2 + forge * 2 + s.professionCharge));
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += hasTalent(s, "t_clocksmith_tick") ? 2 : 1;
+                firstLiving(s).vulnerable += hasTalent(s, "t_clocksmith_gear") ? 1 : 0;
+            }
+            if (hasTalent(s, "t_clocksmith_tick")) {
+                Card tick = new Card("clocksmith_tick");
+                tick.temp = true;
+                tick.upgraded = true;
+                addToHand(s, tick);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_clocksmith_spring")) {
+                gainBlock(s, 5 + s.act + Math.min(10, tempo + forge * 2));
+                draw(s, 1);
+            }
+            if (hasTalent(s, "t_clocksmith_gear")) {
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+            if (hasTalent(s, "t_clocksmith_grand")) {
+                Card gear = new Card("clocksmith_gear");
+                gear.temp = true;
+                gear.upgraded = true;
+                addToHand(s, gear);
                 addProfessionSkillCharge(s, 1);
             }
         }
@@ -17660,6 +17820,10 @@ public final class GameCore {
             addQuestProgress(s, QUEST_GUARD, c.upgraded ? 3 : 2);
             addQuestProgress(s, QUEST_OVERLOAD, 1);
         }
+        int[] clocksmith = applyClocksmithCardEffects(s, c, d, target);
+        damage += clocksmith[0];
+        block += clocksmith[1];
+        draw += clocksmith[2];
         if ("hybrid_coinwall".equals(d.id)) {
             block += Math.min(c.upgraded ? 18 : 12, s.gold / (c.upgraded ? 18 : 24) + s.confluenceChain * 2);
             if (s.gold >= 120) {
@@ -18505,6 +18669,140 @@ public final class GameCore {
         }
     }
 
+    private static int[] applyClocksmithCardEffects(State s, Card c, CardDef d, Enemy target) {
+        int damage = 0;
+        int block = 0;
+        int draw = 0;
+        if ("clocksmith_tick".equals(d.id) && target != null) {
+            int gears = Math.max(0, s.professionCharge);
+            int tempo = Math.min(20, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            damage += Math.min(c.upgraded ? 40 : 28, gears * 2 + tempo * 4 + target.mark * 2);
+            target.mark += c.upgraded ? 2 : 1;
+            if (tempo >= 4 || gears >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("clocksmith_spring".equals(d.id)) {
+            int tempo = Math.min(18, zeroCostDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_CYCLE));
+            int echo = Math.min(16, tempOrEchoDeckCards(s) + buildFocusDeckCards(s, BUILD_ECHO));
+            block += Math.min(c.upgraded ? 46 : 32, s.professionCharge * 2 + tempo * 4 + echo * 3 + s.block / 4);
+            if (tempo >= 4 || echo >= 4 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+            if (firstLiving(s) != null) {
+                firstLiving(s).mark += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_GUARD, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_COMBO, 1);
+        }
+        if ("clocksmith_gear".equals(d.id)) {
+            int tempo = Math.min(18, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int forge = Math.min(14, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            block += Math.min(c.upgraded ? 44 : 30, s.professionCharge * 2 + tempo * 3 + forge * 4);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 42 : 30, target.mark * 2 + tempo * 3 + forge * 3);
+            }
+            Card tick = new Card("clocksmith_tick");
+            tick.temp = true;
+            tick.upgraded = c.upgraded || tempo >= 6;
+            addToHand(s, tick);
+            if (tempo >= 5 || forge >= 4 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, 1);
+        }
+        if ("clocksmith_rewind".equals(d.id) && target != null) {
+            int tempo = Math.min(20, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int echo = Math.min(18, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            damage += Math.min(c.upgraded ? 62 : 46, target.mark * 3 + tempo * 4 + echo * 4 + s.professionCharge * 2);
+            target.mark += c.upgraded ? 3 : 2;
+            target.bind += 2 + s.bindPower / 2;
+            target.vulnerable += 1;
+            if (tempo >= 6 || echo >= 4 || c.upgraded) {
+                draw += 1;
+            }
+            s.professionCharge += c.upgraded ? 2 : 1;
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 2 : 1);
+            addQuestProgress(s, QUEST_MARK, c.upgraded ? 2 : 1);
+        }
+        if ("clocksmith_overclock".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tempo = Math.min(22, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int forge = Math.min(14, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int echo = Math.min(18, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            block += Math.min(c.upgraded ? 56 : 40, s.professionCharge * 2 + tempo * 3
+                    + forge * 3 + overloadNow * 7);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 3 : 2;
+                target.bind += 2 + s.bindPower / 2;
+                target.vulnerable += 1;
+                damage += Math.min(c.upgraded ? 78 : 56, overloadNow * 8 + tempo * 5
+                        + forge * 4 + echo * 3 + target.mark * 2 + s.professionCharge * 2);
+            }
+            Card gear = new Card("clocksmith_gear");
+            gear.temp = true;
+            gear.upgraded = c.upgraded || overloadNow >= 2;
+            addToHand(s, gear);
+            if (overloadNow >= 2 || tempo >= 7 || echo >= 5 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_OVERLOAD, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, 1);
+            addQuestProgress(s, QUEST_FORGE, 1);
+        }
+        if ("clocksmith_grand_chronogear".equals(d.id)) {
+            int overloadNow = professionSkillOverload(s);
+            int tempo = Math.min(26, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int echo = Math.min(20, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            int forge = Math.min(16, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            damage += Math.min(c.upgraded ? 112 : 84, s.professionCharge * 4 + tempo * 7
+                    + echo * 5 + forge * 5 + overloadNow * 9);
+            block += Math.min(c.upgraded ? 74 : 54, s.professionCharge * 3 + tempo * 3
+                    + echo * 4 + forge * 3 + overloadNow * 6);
+            upgradeRandomHandCard(s);
+            if (target != null) {
+                target.mark += c.upgraded ? 5 : 4;
+                target.bind += 3 + s.bindPower / 2;
+                target.vulnerable += 1;
+            }
+            Card tick = new Card("clocksmith_tick");
+            tick.temp = true;
+            tick.upgraded = true;
+            addToHand(s, tick);
+            if (tempo >= 8 || echo >= 6 || forge >= 5 || overloadNow >= 2 || c.upgraded) {
+                draw += 1;
+                s.energy++;
+            }
+            s.professionCharge += c.upgraded ? 3 : 2;
+            addQuestProgress(s, QUEST_COMBO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_ECHO, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_FORGE, c.upgraded ? 3 : 2);
+            addQuestProgress(s, QUEST_OVERLOAD, 1);
+        }
+        return new int[] {damage, block, draw};
+    }
+
     private static void applyOathkeeperAfterPlay(State s, Card c, CardDef d) {
         if (PROF_OATHKEEPER.equals(s.profession) && (d.block > 0 || d.heal > 0 || d.retainBlock
                 || d.blockToDamage || d.draw > 0 || d.upgradeRandom || d.skillChargeGain > 0
@@ -19036,6 +19334,146 @@ public final class GameCore {
                 if (e.burn >= 5 || potionCards(s) >= 4 || healingDeckCards(s) >= 4 || upgradedCardCount(s) >= 6) {
                     damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.burn * 2 + e.bind * 2
                             + s.professionCharge + potionCards(s) * 3 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 3) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+            }
+        }
+    }
+
+    private static void applyClocksmithAfterPlay(State s, Card c, CardDef d) {
+        if (PROF_CLOCKSMITH.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.createEcho || c.temp || d.upgradeRandom || d.skillChargeGain > 0
+                || d.vulnerable > 0 || d.bind > 0 || d.block > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_CLOCKSMITH))) {
+            int tempo = Math.min(24, zeroCostDeckCards(s) * 2 + s.cardsPlayedThisTurn
+                    + buildFocusDeckCards(s, BUILD_CYCLE));
+            int forge = Math.min(18, upgradedCardCount(s) / 3 + buildFocusDeckCards(s, BUILD_FORGE));
+            int echo = Math.min(18, tempOrEchoDeckCards(s) + tempOrEchoHandCount(s)
+                    + buildFocusDeckCards(s, BUILD_ECHO));
+            s.professionCharge += 1 + Math.min(2, (tempo / 4 + forge / 4 + echo / 4
+                    + (d.cost == 0 || d.draw > 0 ? 2 : 0)
+                    + (d.createEcho || c.temp ? 2 : 0)
+                    + (d.upgradeRandom || c.upgraded ? 2 : 0)) / 3);
+            if (s.professionCharge >= 4) {
+                Enemy e = firstLiving(s);
+                if (e != null) {
+                    e.mark += 1 + (tempo >= 7 ? 1 : 0);
+                    e.vulnerable += 1;
+                    if (echo >= 5 || d.bind > 0 || hasTalent(s, "t_clocksmith_gear")) {
+                        e.bind += 1 + s.bindPower / 2;
+                    }
+                    damageEnemy(s, e, 3 + s.act + Math.min(44, e.mark * 2 + e.vulnerable * 3
+                            + tempo * 2 + forge * 2 + echo * 2 + s.professionCharge * 2), true);
+                }
+                if (d.block > 0 || hasTalent(s, "t_clocksmith_spring")) {
+                    gainBlock(s, 4 + s.act + Math.min(22, s.professionCharge + tempo * 2 + echo));
+                }
+                if (tempo >= 6 || echo >= 5 || hasTalent(s, "t_clocksmith_grand")) {
+                    draw(s, 1);
+                }
+                if (forge >= 4 || hasTalent(s, "t_clocksmith_grand")) {
+                    upgradeRandomHandCard(s);
+                }
+                if (tempo >= 7 || professionSkillOverload(s) >= 2 || hasTalent(s, "t_clocksmith_grand")) {
+                    s.energy++;
+                }
+                s.professionCharge = Math.max(1, s.professionCharge / 2);
+            }
+        }
+        if (hasTalent(s, "t_clocksmith_tick") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.vulnerable > 0 || d.profession.equals(PROF_CLOCKSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.mark * 2
+                        + s.professionCharge * 2 + zeroCostDeckCards(s) * 2), true);
+            }
+            if (s.cardsPlayedThisTurn == 2 || zeroCostDeckCards(s) >= 3 || c.upgraded) {
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_clocksmith_spring") && (d.block > 0 || d.draw > 0 || d.type == 1
+                || d.skillChargeGain > 0 || d.profession.equals(PROF_CLOCKSMITH))) {
+            gainBlock(s, 5 + s.act + Math.min(24, s.professionCharge
+                    + buildFocusDeckCards(s, BUILD_CYCLE) * 2 + tempOrEchoDeckCards(s) * 2));
+            if (s.block >= 14 || tempOrEchoDeckCards(s) >= 3) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_clocksmith_gear") && (d.createEcho || c.temp || d.upgradeRandom
+                || d.energyGain > 0 || d.skillChargeGain > 0 || c.upgraded
+                || d.profession.equals(PROF_CLOCKSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                e.vulnerable += 1;
+                if (tempOrEchoHandCount(s) >= 2 || upgradedCardCount(s) >= 5 || bestEnemyPressure(s) >= 8) {
+                    e.bind += 1 + s.bindPower / 2;
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(42, bestEnemyPressure(s)
+                            + s.professionCharge * 2 + tempOrEchoHandCount(s) * 4 + upgradedCardCount(s)), true);
+                }
+            }
+            if (s.cardsPlayedThisTurn == 2 || tempOrEchoHandCount(s) >= 2 || upgradedCardCount(s) >= 6) {
+                draw(s, 1);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+        if (hasTalent(s, "t_clocksmith_grand") && (d.cost == 0 || d.draw > 0 || d.createEcho
+                || c.temp || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.profession.equals(PROF_CLOCKSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null && (s.professionCharge >= 4 || tempOrEchoHandCount(s) >= 2
+                    || zeroCostDeckCards(s) >= 3 || upgradedCardCount(s) >= 6)) {
+                e.mark += 2;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                damageEnemy(s, e, 5 + s.act * 2 + Math.min(48, e.mark * 2 + e.bind * 2
+                        + s.professionCharge * 2 + tempOrEchoHandCount(s) * 3 + upgradedCardCount(s)), true);
+            }
+            if (s.cardsPlayedThisTurn % 4 == 0) {
+                draw(s, 1);
+                upgradeRandomHandCard(s);
+                addProfessionSkillCharge(s, 1);
+            }
+        }
+    }
+
+    private static void applyClocksmithRelicsAfterPlay(State s, CardDef d) {
+        if (hasRelic(s, "clockwork_key") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0
+                || d.block > 0 || d.profession.equals(PROF_CLOCKSMITH))) {
+            addProfessionSkillCharge(s, 1);
+            int tempo = zeroCostDeckCards(s) + s.cardsPlayedThisTurn + buildFocusDeckCards(s, BUILD_CYCLE);
+            int echo = tempOrEchoDeckCards(s) + tempOrEchoHandCount(s);
+            if (s.relicTriggersThisTurn < 2) {
+                gainBlock(s, 4 + s.act + Math.min(18, s.professionCharge + tempo * 2 + echo * 2));
+                draw(s, 1);
+                s.relicTriggersThisTurn++;
+            }
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 1;
+                if (tempo >= 4 || echo >= 3 || d.draw > 0) {
+                    damageEnemy(s, e, 4 + s.act * 2 + Math.min(36, e.mark * 2
+                            + tempo * 3 + echo * 2 + s.professionCharge), true);
+                }
+            }
+        }
+        if (hasRelic(s, "chrono_crown") && (d.cost == 0 || d.draw > 0 || d.createEcho
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.vulnerable > 0 || d.bind > 0 || d.profession.equals(PROF_CLOCKSMITH))) {
+            Enemy e = firstLiving(s);
+            if (e != null) {
+                e.mark += 2;
+                e.vulnerable += 1;
+                e.bind += 1 + s.bindPower / 2;
+                if (e.mark >= 5 || tempOrEchoHandCount(s) >= 2 || zeroCostDeckCards(s) >= 3 || upgradedCardCount(s) >= 6) {
+                    damageEnemy(s, e, 5 + s.act * 2 + Math.min(42, e.mark * 2 + e.bind * 2
+                            + s.professionCharge + tempOrEchoHandCount(s) * 3 + upgradedCardCount(s)), true);
                 }
             }
             if (s.cardsPlayedThisTurn == 3) {
@@ -22837,6 +23275,7 @@ public final class GameCore {
         applyMoonsingerAfterPlay(s, c, d);
         applySpyAfterPlay(s, c, d);
         applyPerfumerAfterPlay(s, c, d);
+        applyClocksmithAfterPlay(s, c, d);
         if (hasRelic(s, "contract_stamp") && (d.goldGain > 0 || d.goldDamage || d.goldBlock || d.skillChargeGain > 0 || d.type == 1)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && (s.questComplete || s.gold >= 120)) {
@@ -24095,6 +24534,7 @@ public final class GameCore {
         applyMoonsingerRelicsAfterPlay(s, d);
         applySpyRelicsAfterPlay(s, d);
         applyPerfumerRelicsAfterPlay(s, d);
+        applyClocksmithRelicsAfterPlay(s, d);
         if (hasRelic(s, "gyro_wrench") && (d.upgradeRandom || d.scry > 0 || d.skillChargeGain > 0 || hybridFocusCount(d) >= 2)) {
             addProfessionSkillCharge(s, 1);
             if (s.relicTriggersThisTurn < 2 && s.professionCharge >= 3) {
@@ -25502,6 +25942,10 @@ public final class GameCore {
             return focus == BUILD_BREW ? 20 : focus == BUILD_STATUS ? 16 : focus == BUILD_BLOOD ? 12
                     : focus == BUILD_CYCLE ? 12 : focus == BUILD_OVERLOAD ? 12 : focus == BUILD_FORGE ? 10 : 0;
         }
+        if (PROF_CLOCKSMITH.equals(s.profession)) {
+            return focus == BUILD_CYCLE ? 18 : focus == BUILD_FORGE ? 16 : focus == BUILD_ECHO ? 14
+                    : focus == BUILD_GUARD ? 12 : focus == BUILD_OVERLOAD ? 12 : 0;
+        }
         return 0;
     }
 
@@ -25655,6 +26099,9 @@ public final class GameCore {
         }
         if (PROF_PERFUMER.equals(d.profession)) {
             return perfumerFocusCardValue(d, focus);
+        }
+        if (PROF_CLOCKSMITH.equals(d.profession)) {
+            return clocksmithFocusCardValue(d, focus);
         }
         if (focus == BUILD_OVERLOAD) {
             return d.skillChargeGain * 4 + (d.energyGain > 0 ? 3 : 0) + (d.draw > 0 ? 2 : 0)
@@ -27273,6 +27720,53 @@ public final class GameCore {
         return 0;
     }
 
+    private static int clocksmithFocusCardValue(CardDef d, int focus) {
+        if (focus == BUILD_CYCLE) {
+            return d.draw * 6 + d.energyGain * 8 + (d.cost == 0 ? 8 : 0)
+                    + d.skillChargeGain * 2 + ("clocksmith_tick".equals(d.id) ? 18 : 0)
+                    + ("clocksmith_spring".equals(d.id) ? 14 : 0)
+                    + ("clocksmith_rewind".equals(d.id) ? 16 : 0)
+                    + ("clocksmith_overclock".equals(d.id) ? 14 : 0)
+                    + ("clocksmith_grand_chronogear".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_FORGE) {
+            return (d.upgradeRandom ? 12 : 0) + d.skillChargeGain * 2 + d.draw * 2
+                    + (d.rarity == 2 ? 3 : 0)
+                    + ("clocksmith_gear".equals(d.id) ? 18 : 0)
+                    + ("clocksmith_overclock".equals(d.id) ? 16 : 0)
+                    + ("clocksmith_grand_chronogear".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_ECHO) {
+            return (d.createEcho ? 10 : 0) + d.draw * 2 + d.skillChargeGain * 2
+                    + ("clocksmith_gear".equals(d.id) ? 14 : 0)
+                    + ("clocksmith_rewind".equals(d.id) ? 18 : 0)
+                    + ("clocksmith_overclock".equals(d.id) ? 18 : 0)
+                    + ("clocksmith_grand_chronogear".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_GUARD) {
+            return d.block * 2 + d.draw * 2 + d.bind * 2
+                    + ("clocksmith_spring".equals(d.id) ? 18 : 0)
+                    + ("clocksmith_gear".equals(d.id) ? 14 : 0)
+                    + ("clocksmith_overclock".equals(d.id) ? 18 : 0)
+                    + ("clocksmith_grand_chronogear".equals(d.id) ? 18 : 0);
+        }
+        if (focus == BUILD_OVERLOAD) {
+            return d.skillChargeGain * 4 + d.draw * 2 + d.block + (d.upgradeRandom ? 4 : 0)
+                    + ("clocksmith_tick".equals(d.id) ? 8 : 0)
+                    + ("clocksmith_gear".equals(d.id) ? 10 : 0)
+                    + ("clocksmith_overclock".equals(d.id) ? 20 : 0)
+                    + ("clocksmith_grand_chronogear".equals(d.id) ? 20 : 0);
+        }
+        if (focus == BUILD_STATUS) {
+            return d.bind * 5 + d.vulnerable * 7 + d.skillChargeGain * 2 + d.draw * 2
+                    + ("clocksmith_tick".equals(d.id) ? 8 : 0)
+                    + ("clocksmith_rewind".equals(d.id) ? 18 : 0)
+                    + ("clocksmith_overclock".equals(d.id) ? 16 : 0)
+                    + ("clocksmith_grand_chronogear".equals(d.id) ? 18 : 0);
+        }
+        return 0;
+    }
+
     private static int hybridFocusCount(CardDef d) {
         if (d == null) {
             return 0;
@@ -27873,6 +28367,16 @@ public final class GameCore {
         else if ("t_perfumer_grand".equals(id)) bonus += professionCards + potionCards(s) * 2
                 + healingDeckCards(s) + buildFocusDeckCards(s, BUILD_BREW)
                 + buildFocusDeckCards(s, BUILD_STATUS) + buildFocusDeckCards(s, BUILD_OVERLOAD);
+        else if ("t_clocksmith_tick".equals(id)) bonus += zeroCost * 3 + drawDeckCards(s) * 2
+                + buildFocusDeckCards(s, BUILD_CYCLE) + buildFocusDeckCards(s, BUILD_STATUS) + professionCards;
+        else if ("t_clocksmith_spring".equals(id)) bonus += buildFocusDeckCards(s, BUILD_GUARD) * 2
+                + tempOrEchoDeckCards(s) * 2 + professionCards + (s.block >= 12 ? 5 : 2);
+        else if ("t_clocksmith_gear".equals(id)) bonus += upgraded + tempOrEchoDeckCards(s) * 3
+                + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_FORGE)
+                + buildFocusDeckCards(s, BUILD_OVERLOAD) + professionCards;
+        else if ("t_clocksmith_grand".equals(id)) bonus += professionCards + zeroCost * 2
+                + tempOrEchoDeckCards(s) * 2 + buildFocusDeckCards(s, BUILD_CYCLE)
+                + buildFocusDeckCards(s, BUILD_ECHO) + buildFocusDeckCards(s, BUILD_OVERLOAD);
         return Math.min(36, bonus);
     }
 
@@ -28016,6 +28520,14 @@ public final class GameCore {
             if (focus == BUILD_FORGE && isAny(id, "t_perfumer_distill", "t_perfumer_grand")) return 3;
             if (focus == BUILD_OVERLOAD && isAny(id, "t_perfumer_distill", "t_perfumer_grand")) return 3;
             if (focus == BUILD_CYCLE && isAny(id, "t_perfumer_note", "t_perfumer_grand")) return 3;
+        }
+        if (isAny(id, "t_clocksmith_tick", "t_clocksmith_spring", "t_clocksmith_gear", "t_clocksmith_grand")) {
+            if (focus == BUILD_CYCLE) return 3;
+            if (focus == BUILD_ECHO && isAny(id, "t_clocksmith_gear", "t_clocksmith_grand")) return 3;
+            if (focus == BUILD_GUARD && isAny(id, "t_clocksmith_spring", "t_clocksmith_grand")) return 3;
+            if (focus == BUILD_FORGE && isAny(id, "t_clocksmith_gear", "t_clocksmith_grand")) return 3;
+            if (focus == BUILD_OVERLOAD && isAny(id, "t_clocksmith_gear", "t_clocksmith_grand")) return 3;
+            if (focus == BUILD_STATUS && isAny(id, "t_clocksmith_tick", "t_clocksmith_grand")) return 3;
         }
         if (focus == BUILD_OVERLOAD) {
             return isAny(id, "t_warden_vanguard", "t_duelist_masterstep", "t_alchemist_grandbrew",
@@ -28991,7 +29503,8 @@ public final class GameCore {
                 || (PROF_OATHKEEPER.equals(s.profession) && "oath_seal".equals(id))
                 || (PROF_MOONSINGER.equals(s.profession) && "moon_lyre".equals(id))
                 || (PROF_SPY.equals(s.profession) && "cipher_ring".equals(id))
-                || (PROF_PERFUMER.equals(s.profession) && "scent_vial".equals(id));
+                || (PROF_PERFUMER.equals(s.profession) && "scent_vial".equals(id))
+                || (PROF_CLOCKSMITH.equals(s.profession) && "clockwork_key".equals(id));
     }
 
     private static String fallbackRelicHint(String id) {
@@ -29058,6 +29571,7 @@ public final class GameCore {
                 || hasRelic(s, "moon_lyre") || hasRelic(s, "eclipse_crown")
                 || hasRelic(s, "cipher_ring") || hasRelic(s, "mastermind_crown")
                 || hasRelic(s, "scent_vial") || hasRelic(s, "bouquet_crown")
+                || hasRelic(s, "clockwork_key") || hasRelic(s, "chrono_crown")
                 || hasRelic(s, "bulwark_core")
                 || hasRelic(s, "echoflow_charm") || hasRelic(s, "markchain_seal") || hasRelic(s, "pressure_gauge")
                 || hasRelic(s, "salvage_hook") || hasRelic(s, "hybrid_keystone") || hasRelic(s, "cascade_lattice")
@@ -29376,6 +29890,12 @@ public final class GameCore {
                 || d.bind > 0 || d.vulnerable > 0 || d.draw > 0 || d.upgradeRandom
                 || d.skillChargeGain > 0 || d.exhaust || hybridFocusCount(d) >= 2
                 || d.profession.equals(PROF_PERFUMER))) {
+            return 4;
+        }
+        if (PROF_CLOCKSMITH.equals(s.profession) && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0 || d.vulnerable > 0
+                || d.bind > 0 || d.block > 0 || hybridFocusCount(d) >= 2
+                || d.profession.equals(PROF_CLOCKSMITH))) {
             return 4;
         }
         if (hasTalent(s, "t_shared_hunter") && d.profession.equals(s.profession)) {
@@ -29949,6 +30469,16 @@ public final class GameCore {
                 || d.vulnerable > 0 || d.profession.equals(PROF_PERFUMER))) {
             bonus += 5;
         }
+        if (hasRelic(s, "clockwork_key") && (d.cost == 0 || d.draw > 0 || d.energyGain > 0
+                || d.createEcho || d.upgradeRandom || d.skillChargeGain > 0 || d.block > 0
+                || d.profession.equals(PROF_CLOCKSMITH))) {
+            bonus += 4;
+        }
+        if (hasRelic(s, "chrono_crown") && (d.cost == 0 || d.draw > 0 || d.createEcho
+                || d.upgradeRandom || d.skillChargeGain > 0 || d.rarity == 2
+                || d.vulnerable > 0 || d.bind > 0 || d.profession.equals(PROF_CLOCKSMITH))) {
+            bonus += 5;
+        }
         if (hasRelic(s, "storm_rod") && (d.burn > 0 || d.vulnerable > 0 || d.skillChargeGain > 0
                 || d.draw > 0 || d.profession.equals(PROF_STORMCALLER))) {
             bonus += 4;
@@ -30179,7 +30709,7 @@ public final class GameCore {
     }
 
     private static String randomSkillRelicFor(State s) {
-        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass", "oath_seal", "moon_lyre", "cipher_ring", "scent_vial"};
+        String[] ids = {"command_banner", "flash_heel", "catalyst_pump", "hawk_fletching", "echo_prism", "ledger_stamp", "crimson_seal", "pattern_spool", "spirit_bell", "hex_tablet", "engraver_stylus", "tuning_fork", "verdict_seal", "star_compass", "gyro_wrench", "hourglass_charm", "contract_stamp", "storm_rod", "shadow_sash", "rune_stylus", "spirit_planchette", "war_table", "refraction_dial", "dreamcatcher_charm", "seed_satchel", "recipe_book", "songbook", "mirror_lens", "string_spool", "scrap_magnet", "lantern_wick", "faultline_core", "witch_bottle", "phase_lens", "fate_lantern", "tide_shell", "frost_chain", "plague_case", "archive_key", "void_compass", "relic_chisel", "beast_whistle", "dragon_sigil", "soul_lantern", "star_hammer", "pathfinder_compass", "array_disc", "gambit_clock", "grave_lantern", "treasury_key", "rift_pass", "oath_seal", "moon_lyre", "cipher_ring", "scent_vial", "clockwork_key"};
         if (PROF_WARDEN.equals(s.profession)) return "command_banner";
         if (PROF_DUELIST.equals(s.profession)) return "flash_heel";
         if (PROF_ALCHEMIST.equals(s.profession)) return "catalyst_pump";
@@ -30235,6 +30765,7 @@ public final class GameCore {
         if (PROF_MOONSINGER.equals(s.profession)) return "moon_lyre";
         if (PROF_SPY.equals(s.profession)) return "cipher_ring";
         if (PROF_PERFUMER.equals(s.profession)) return "scent_vial";
+        if (PROF_CLOCKSMITH.equals(s.profession)) return "clockwork_key";
         return ids[s.run.nextInt(ids.length)];
     }
 
@@ -30837,6 +31368,19 @@ public final class GameCore {
             return 2;
         }
         if (PROF_PERFUMER.equals(s.profession) && "bouquet_crown".equals(id)) {
+            return 4;
+        }
+        if (PROF_CLOCKSMITH.equals(s.profession) && ("clockwork_key".equals(id) || "tuning_fork".equals(id)
+                || "conductor_baton".equals(id) || "hourglass_charm".equals(id) || "time_engine".equals(id)
+                || "gyro_wrench".equals(id) || "clockwork_core".equals(id) || "echo_prism".equals(id)
+                || "echo_ledger".equals(id) || "mirror_lens".equals(id) || "mirror_crown".equals(id)
+                || "fate_lantern".equals(id) || "fate_crown".equals(id) || "mirror_anvil".equals(id)
+                || "polished_cog".equals(id) || "split_anvil".equals(id) || "prism_gear".equals(id)
+                || "mosaic_core".equals(id) || "starforge_lens".equals(id) || "resonance_prism".equals(id)
+                || "discipline_chart".equals(id) || "overload_etch".equals(id) || "cascade_lattice".equals(id))) {
+            return 2;
+        }
+        if (PROF_CLOCKSMITH.equals(s.profession) && "chrono_crown".equals(id)) {
             return 4;
         }
         if ("rift_compass".equals(id)) {
@@ -31540,6 +32084,16 @@ public final class GameCore {
             while (s.potions.size() < Math.min(potionLimit(s), 2)) {
                 s.potions.add(POTION_LIBRARY.get(s.run.nextInt(POTION_LIBRARY.size())).id);
             }
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
+        } else if ("clockwork_key".equals(id)) {
+            addUpgradedDeckCard(s, "clocksmith_gear");
+            addUpgradedDeckCard(s, "clocksmith_tick");
+            upgradeRandomDeckCard(s);
+            s.masterySkillCharge = Math.max(s.masterySkillCharge, 2);
+        } else if ("chrono_crown".equals(id)) {
+            addUpgradedDeckCard(s, "clocksmith_grand_chronogear");
+            addUpgradedDeckCard(s, "clocksmith_tick");
+            upgradeRandomDeckCard(s);
             s.masterySkillCharge = Math.max(s.masterySkillCharge, 3);
         } else if ("echoflow_charm".equals(id)) {
             addUpgradedDeckCard(s, "hybrid_echo_step");
@@ -32580,6 +33134,19 @@ public final class GameCore {
         c = addCard("perfumer_grand_bloom", "终局馥爆", "通用", 2, 2, 0, 10, 14, 10, 14, "造成伤害并获得格挡与治疗；按香调、药剂、治疗、异常和过载追加终局收益。", "更高伤害、格挡、治疗和便笺返还。");
         c.profession = PROF_PERFUMER; c.draw = c.drawUp = 1; c.heal = 4; c.healUp = 6; c.burn = 5; c.burnUp = 7; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createPotion = true; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
 
+        c = addCard("clocksmith_tick", "秒针敲击", "通用", 0, 0, 0, 4, 6, 0, 0, "造成伤害、抽牌并施加印记；低费连打和齿轮提高收益。", "更高伤害、印记和齿轮。");
+        c.profession = PROF_CLOCKSMITH; c.draw = c.drawUp = 1; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("clocksmith_spring", "发条绷簧", "通用", 0, 1, 1, 0, 0, 8, 12, "获得格挡并抽牌；循环、回声与齿轮会加厚防线。", "更多格挡、抽牌和职业技充能。");
+        c.profession = PROF_CLOCKSMITH; c.draw = c.drawUp = 1; c.skillChargeGain = 1;
+        c = addCard("clocksmith_gear", "齿轮校准", "通用", 1, 1, 1, 0, 0, 7, 11, "获得格挡、升级手牌并制造秒针敲击；升级和回声会返还能量。", "更多格挡、升级和返能窗口。");
+        c.profession = PROF_CLOCKSMITH; c.draw = c.drawUp = 1; c.createEcho = true; c.echoCardId = "clocksmith_tick"; c.upgradeRandom = true; c.skillChargeGain = 1; c.targetEnemy = true;
+        c = addCard("clocksmith_rewind", "回摆复位", "通用", 1, 1, 0, 7, 10, 0, 0, "造成伤害并施加束缚、易伤；临时牌、回声和节奏会转成追击。", "更高伤害、控制和节奏收益。");
+        c.profession = PROF_CLOCKSMITH; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "clocksmith_tick"; c.skillChargeGain = 2; c.targetEnemy = true;
+        c = addCard("clocksmith_overclock", "过载校时", "通用", 1, 1, 1, 0, 0, 9, 13, "获得格挡、升级、回声和充能；过载、升级与临时牌会追加校时追击。", "更多格挡、升级和职业技充能。");
+        c.profession = PROF_CLOCKSMITH; c.draw = c.drawUp = 1; c.bind = 1; c.bindUp = 2; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "clocksmith_gear"; c.upgradeRandom = true; c.skillChargeGain = 3; c.targetEnemy = true;
+        c = addCard("clocksmith_grand_chronogear", "终局时轮", "通用", 2, 2, 0, 10, 14, 9, 13, "造成伤害并获得格挡；按齿轮、节奏、回声、升级和过载追加终局收益。", "更高伤害、格挡和秒针返还。");
+        c.profession = PROF_CLOCKSMITH; c.draw = c.drawUp = 1; c.bind = 2; c.bindUp = 3; c.vulnerable = 1; c.createEcho = true; c.echoCardId = "clocksmith_tick"; c.upgradeRandom = true; c.skillChargeGain = 2; c.targetEnemy = true;
+
         c = addCard("steel_counter", "回锋", ORIGIN_STEEL, 0, 1, 0, 7, 9, 3, 5, "造成7点伤害，获得3点格挡。", "造成9点伤害，获得5点格挡。");
         c = addCard("steel_wall", "铸壁", ORIGIN_STEEL, 0, 1, 1, 0, 0, 9, 12, "获得9点格挡。", "获得12点格挡。");
         c = addCard("steel_bash", "盾压", ORIGIN_STEEL, 1, 2, 0, 10, 14, 8, 11, "造成10点伤害，获得8点格挡。", "造成14点伤害，获得11点格挡。");
@@ -32904,6 +33471,8 @@ public final class GameCore {
         addRelicDef("mastermind_crown", "幕后冠", "获得升级终局窃局；密探低费、金币、回声、升级和稀有牌会滚动标记、束缚与潜袭追击。");
         addRelicDef("scent_vial", "香谱瓶", "调香师药剂、治疗、燃缚和抽牌牌更快推动职业技；释放后制造调香便笺并返还防线。");
         addRelicDef("bouquet_crown", "馥冠", "获得升级终局馥爆；调香师药剂、治疗、异常、升级和稀有牌会滚动燃缚与馥爆追击。");
+        addRelicDef("clockwork_key", "钟钥", "钟匠低费、抽牌、回声和升级牌更快推动职业技；释放后制造秒针敲击并返还节奏。");
+        addRelicDef("chrono_crown", "时轮冠", "获得升级终局时轮；钟匠低费、回声、升级、控场和稀有牌会滚动印记、束缚与校时追击。");
         addRelicDef("cascade_lattice", "连锁格栅", "连锁专修释放职业技时制造连锁牌并回充；抽牌、临时、升级和异常牌会滚动连锁收益。");
         addBossRelicDef("obsidian_core", "黑曜核心", "每回合能量+1。获得时最大生命-10。");
         addBossRelicDef("runic_shackle", "符文镣铐", "卡牌奖励+1，立即获得120金币；每回合少抽1张。");
@@ -33213,6 +33782,9 @@ public final class GameCore {
         addTalent("t_perfumer_note", PROF_PERFUMER, "香谱回路", "获得升级调香便笺和辛辣挥发；药剂、治疗、抽牌和调香牌追加燃灼，并把香调转成穿透追击。");
         addTalent("t_perfumer_mist", PROF_PERFUMER, "安神护幕", "获得生命、药剂和升级安神雾；技能、格挡、治疗和调香牌提供额外防线与续航。");
         addTalent("t_perfumer_distill", PROF_PERFUMER, "萃香流程", "获得升级回流萃香并升级牌组；升级、燃缚异常和充能牌会扩张香调压力。");
+        addTalent("t_clocksmith_tick", PROF_CLOCKSMITH, "秒针回路", "获得升级秒针敲击和齿轮校准；低费、抽牌和钟匠牌追加印记，并把齿轮转成穿透追击。");
+        addTalent("t_clocksmith_spring", PROF_CLOCKSMITH, "发条防线", "获得生命和升级发条绷簧；技能、格挡、抽牌和钟匠牌提供额外防线与续航。");
+        addTalent("t_clocksmith_gear", PROF_CLOCKSMITH, "齿轮校准", "获得升级回摆复位并升级牌组；回声、升级、临时和充能牌会扩张齿轮压力。");
         addTalent("t_warden_vanguard", PROF_WARDEN, "先锋壁阵", "获得最大生命和升级盾阵号令；高格挡技能追加充能、格挡与穿透反击。");
         addTalent("t_duelist_masterstep", PROF_DUELIST, "宗师终步", "获得升级闪步终拍；每回合第5张牌获得能量、充能与穿透追击。");
         addTalent("t_alchemist_grandbrew", PROF_ALCHEMIST, "大师炼台", "获得升级连锁反应釜和药剂；制药与异常牌强化势能，用药扩散异常。");
@@ -33268,6 +33840,7 @@ public final class GameCore {
         addTalent("t_moonsinger_grand", PROF_MOONSINGER, "终局月蚀", "获得升级终局月蚀；检视、抽牌、回声、升级与过载牌持续抽牌、升级并把月相转为月蚀裁切。");
         addTalent("t_spy_grand", PROF_SPY, "终局窃局", "获得升级终局窃局；低费、金币、回声、升级与过载牌持续抽牌、升级并把线报转为潜袭裁切。");
         addTalent("t_perfumer_grand", PROF_PERFUMER, "终局馥爆", "获得升级终局馥爆；药剂、治疗、燃缚、升级与过载牌持续抽牌、升级并把香调转为馥爆裁切。");
+        addTalent("t_clocksmith_grand", PROF_CLOCKSMITH, "终局时轮", "获得升级终局时轮；低费、回声、升级、临时与过载牌持续抽牌、返能并把齿轮转为校时裁切。");
     }
 
     private static void addTalent(String id, String profession, String name, String text) {
